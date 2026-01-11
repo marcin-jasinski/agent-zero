@@ -1,0 +1,67 @@
+# Git
+
+.git
+.gitignore
+.gitattributes
+
+# Python
+
+**pycache**
+_.py[cod]
+_$py.class
+_.egg-info
+.pytest_cache
+.coverage
+htmlcov
+dist
+build
+_.egg
+.venv
+venv
+
+# IDE
+
+.vscode
+.idea
+_.swp
+_.swo
+\*~
+
+# OS
+
+.DS_Store
+Thumbs.db
+
+# Project
+
+.env
+.env.local
+data
+logs
+uploads
+temp
+cache
+
+# Documentation
+
+docs
+README.md
+LICENSE
+
+# CI/CD
+
+.github
+.gitlab-ci.yml
+.travis.yml
+
+# Docker
+
+docker/volumes
+.docker_env
+docker-compose.override.yml
+
+# Project files
+
+PROJECT_PLAN.md
+ARCHITECTURE.md
+CONTRIBUTING.md
