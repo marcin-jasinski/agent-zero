@@ -15,7 +15,6 @@ requires-python = ">=3.11"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -28,7 +27,7 @@ dependencies = [
     "pydantic-settings>=2.0.0",
     "python-dotenv>=1.0.0",
     "ollama>=0.1.0",
-    "qdrant-client>=2.7.0",
+    "qdrant-client>=1.16.0,<2.0.0",
     "meilisearch>=0.30.0",
     "pypdf>=3.17.0",
     "llm-guard>=0.3.0",

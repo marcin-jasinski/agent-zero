@@ -1,6 +1,6 @@
 # Multi-stage build for Agent Zero App-Agent
 # Stage 1: Builder
-FROM python:3.11-slim as builder
+FROM python:3.11-slim AS builder
 
 WORKDIR /build
 
@@ -10,8 +10,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency specifications
+# Copy dependency specifications and source code
 COPY pyproject.toml ./
+COPY README.md ./
+COPY src ./src
 
 # Create virtualenv and install dependencies
 RUN python -m venv /opt/venv
