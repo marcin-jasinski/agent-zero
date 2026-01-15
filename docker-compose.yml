@@ -20,8 +20,8 @@ services:
       - PYTHONDONTWRITEBYTECODE=1
       # Service Connections
       - OLLAMA_HOST=http://ollama:11434
-      - OLLAMA_MODEL=${OLLAMA_MODEL:-mistral}
-      - OLLAMA_EMBED_MODEL=${OLLAMA_EMBED_MODEL:-nomic-embed-text}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-ministral-3:3b}
+      - OLLAMA_EMBED_MODEL=${OLLAMA_EMBED_MODEL:-nomic-embed-text-v2-moe}
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
       - QDRANT_COLLECTION_NAME=${QDRANT_COLLECTION_NAME:-documents}

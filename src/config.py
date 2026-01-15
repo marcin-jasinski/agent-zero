@@ -16,8 +16,8 @@ class OllamaConfig(BaseSettings):
     """Configuration for Ollama LLM service."""
 
     host: str = Field(default="http://localhost:11434", description="Ollama API host")
-    model: str = Field(default="mistral", description="Default LLM model name")
-    embed_model: str = Field(default="nomic-embed-text", description="Embedding model name")
+    model: str = Field(default="ministral-3:3b", description="Default LLM model name")
+    embed_model: str = Field(default="nomic-embed-text-v2-moe", description="Embedding model name")
     timeout: int = Field(default=300, description="Request timeout in seconds")
     max_retries: int = Field(default=3, description="Maximum retry attempts")
 
