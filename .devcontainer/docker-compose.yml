@@ -8,13 +8,13 @@ services:
       - ./src:/app/src
       - ./data:/app/data
       - ./logs:/app/logs
-      
+
       # Mount poetry/pip cache to speed up subsequent installs
       - /root/.cache/pip:/root/.cache/pip
-      
+
       # Mount bash history for persistent shell history
       - devcontainer-bash-history:/home/agentuser
-    
+
     # Override environment for development
     environment:
       - APP_ENV=development

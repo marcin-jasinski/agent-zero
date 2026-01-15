@@ -2,15 +2,15 @@
   // =======================================================================
   // DevContainer-Specific VS Code Settings for Agent Zero
   // =======================================================================
-  
+
   // Workspace Settings (overrides user settings in container)
-  
+
   // Python Path Configuration
   "python.defaultInterpreterPath": "/opt/venv/bin/python",
   "python.linting.enabled": true,
   "python.linting.flake8Enabled": true,
   "python.formatting.provider": "black",
-  
+
   // Editor preferences
   "editor.formatOnSave": true,
   "editor.formatOnPaste": false,
@@ -19,10 +19,10 @@
   "editor.wordWrap": "on",
   "editor.tabSize": 4,
   "editor.insertSpaces": true,
-  
+
   // Code folding
   "editor.foldingStrategy": "indentation",
-  
+
   // File associations
   "[python]": {
     "editor.defaultFormatter": "ms-python.python",
@@ -31,23 +31,23 @@
       "source.organizeImports": "explicit"
     }
   },
-  
+
   "[json]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode",
     "editor.formatOnSave": true
   },
-  
+
   "[yaml]": {
     "editor.insertSpaces": true,
     "editor.tabSize": 2,
     "editor.formatOnSave": true
   },
-  
+
   "[markdown]": {
     "editor.formatOnSave": true,
     "editor.wordWrap": "on"
   },
-  
+
   // Exclude patterns
   "files.exclude": {
     "**/__pycache__": true,
@@ -58,7 +58,7 @@
     "**/.venv": true,
     "**/.ruff_cache": true
   },
-  
+
   // File watcher patterns to exclude
   "files.watcherExclude": {
     "**/.venv": true,
@@ -68,37 +68,28 @@
     "**/.pytest_cache": true,
     "**/.ruff_cache": true
   },
-  
+
   // Pytest Configuration
   "python.testing.pytestEnabled": true,
-  "python.testing.pytestArgs": [
-    "tests",
-    "-v",
-    "--tb=short"
-  ],
+  "python.testing.pytestArgs": ["tests", "-v", "--tb=short"],
   "python.testing.unittestEnabled": false,
-  
+
   // Flake8 Configuration
-  "python.linting.flake8Args": [
-    "--max-line-length=100",
-    "--ignore=E501,W503,E203"
-  ],
-  
+  "python.linting.flake8Args": ["--max-line-length=100", "--ignore=E501,W503,E203"],
+
   // Black Formatter Configuration
-  "python.formatting.blackArgs": [
-    "--line-length=100"
-  ],
-  
+  "python.formatting.blackArgs": ["--line-length=100"],
+
   // Pylance Configuration
   "pylance.enableTypeStubPackageDownload": true,
   "pylance.typeCheckingMode": "basic",
   "pylance.diagnosticsMode": "workspace",
-  
+
   // Git Configuration
   "git.ignoreLimitWarning": true,
   "git.autofetch": true,
   "gitlens.defaultDateFormat": "YYYY-MM-DD",
-  
+
   // Terminal Configuration
   "terminal.integrated.defaultProfile.linux": "bash",
   "terminal.integrated.fontSize": 12,
@@ -107,7 +98,7 @@
     "PYTHONUNBUFFERED": "1",
     "PYTHONDONTWRITEBYTECODE": "1"
   },
-  
+
   // Search Configuration
   "search.exclude": {
     "**/.venv": true,
@@ -115,19 +106,13 @@
     "**/node_modules": true,
     "**/.git": true
   },
-  
+
   // Telemetry (optional, disable if desired)
   "telemetry.telemetryLevel": "off",
-  
+
   // Extension Recommendations
-  "extensions.recommendations": [
-    "ms-python.python",
-    "ms-python.vscode-pylance",
-    "ms-azuretools.vscode-docker",
-    "eamodio.gitlens",
-    "humao.rest-client"
-  ],
-  
+  "extensions.recommendations": ["ms-python.python", "ms-python.vscode-pylance", "ms-azuretools.vscode-docker", "eamodio.gitlens", "humao.rest-client"],
+
   // Breadcrumbs Configuration
   "breadcrumbs.enabled": true,
   "breadcrumbs.filePath": "on",
