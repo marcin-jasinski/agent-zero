@@ -191,6 +191,36 @@ services:
       - "5432"
 
   # ============================================================================
+  # ZOOKEEPER: Coordination Service for ClickHouse
+  # ============================================================================
+  zookeeper:
+    image: zookeeper:latest
+    container_name: agent-zero-zookeeper
+    environment:
+      - ZOO_CFG_SERVER_1=zookeeper:2888:3888
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper
+    healthcheck:
+      test:
+        - CMD
+        - echo
+        - stat
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - agent-zero-network
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: "0.5"
+    labels:
+      - "com.agent-zero.service=zookeeper"
+      - "com.agent-zero.description=Coordination service for ClickHouse replication"
+
+  # ============================================================================
   # CLICKHOUSE: Analytics Database for Langfuse
   # ============================================================================
   clickhouse:
@@ -203,6 +233,7 @@ services:
       - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
     volumes:
       - clickhouse-data:/var/lib/clickhouse
+      - ./docker/clickhouse-config.xml:/etc/clickhouse-server/config.d/zookeeper.xml
     healthcheck:
       test:
         - CMD
@@ -213,6 +244,9 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    depends_on:
+      zookeeper:
+        condition: service_healthy
     networks:
       - agent-zero-network
     restart: unless-stopped
@@ -232,11 +266,13 @@ services:
       - "3000:3000"
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-langfuse}:${POSTGRES_PASSWORD:-changeme123}@postgres:5432/${POSTGRES_DB:-langfuse}
-      - CLICKHOUSE_URL=clickhouse://langfuse:clickhouse123@clickhouse:9000/langfuse
-      - CLICKHOUSE_MIGRATION_URL=clickhouse://langfuse:clickhouse123@clickhouse:9000/langfuse
-      - NEXTAUTH_SECRET=${LANGFUSE_SECRET_KEY:-your-secret-key-change-in-production}
+      - CLICKHOUSE_URL=clickhouse://clickhouse:9000/langfuse
+      - CLICKHOUSE_MIGRATION_URL=clickhouse://clickhouse:9000/langfuse
+      - CLICKHOUSE_USER=langfuse
+      - CLICKHOUSE_PASSWORD=clickhouse123
+      - NEXTAUTH_SECRET=${LANGFUSE_SECRET_KEY:-your-secret-key-change-in-production-min32chars}
       - NEXTAUTH_URL=http://localhost:3000
-      - SALT=${LANGFUSE_SECRET_KEY:-your-secret-key-change-in-production}
+      - SALT=${LANGFUSE_SECRET_KEY:-your-secret-key-change-in-production-min32chars}
     depends_on:
       postgres:
         condition: service_healthy
@@ -313,3 +349,10 @@ volumes:
     labels:
       - "com.agent-zero.volume=clickhouse-data"
       - "com.agent-zero.description=ClickHouse analytics storage for Langfuse"
+
+  # Zookeeper data
+  zookeeper-data:
+    driver: local
+    labels:
+      - "com.agent-zero.volume=zookeeper-data"
+      - "com.agent-zero.description=Zookeeper coordination data for ClickHouse"
