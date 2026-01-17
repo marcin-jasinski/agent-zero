@@ -11,6 +11,7 @@ import streamlit as st
 from src.config import get_config
 from src.logging_config import setup_logging
 from src.services import HealthChecker
+from src.startup import ApplicationStartup
 from src.ui.components import (
     initialize_chat_session,
     initialize_kb_session,
@@ -115,6 +116,16 @@ def main() -> None:
     config = get_config()
 
     logger.info("Starting Agent Zero UI")
+
+    # Run startup sequence (one-time initialization)
+    if "startup_complete" not in st.session_state:
+        st.session_state.startup_complete = False
+
+    if not st.session_state.startup_complete:
+        startup = ApplicationStartup()
+        startup.run()
+        st.session_state.startup_complete = True
+        st.session_state.startup_status = startup.get_status()
 
     # Initialize all session states
     initialize_chat_session()
