@@ -1,0 +1,360 @@
+services:
+  # ============================================================================
+  # APP-AGENT: Core Python Application with Streamlit UI (A.P.I.)
+  # ============================================================================
+  app-agent:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.app-agent
+    container_name: agent-zero-app
+    ports:
+      - "8501:8501" # Streamlit UI (A.P.I.)
+    environment:
+      - APP_ENV=${APP_ENV:-development}
+      - APP_DEBUG=${APP_DEBUG:-true}
+      - APP_HOST=0.0.0.0
+      - APP_PORT=8501
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+      # Service Connections
+      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-ministral-3:3b}
+      - OLLAMA_EMBED_MODEL=${OLLAMA_EMBED_MODEL:-nomic-embed-text-v2-moe}
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - QDRANT_COLLECTION_NAME=${QDRANT_COLLECTION_NAME:-documents}
+      - MEILISEARCH_HOST=http://meilisearch:7700
+      - MEILISEARCH_INDEX_NAME=${MEILISEARCH_INDEX_NAME:-documents}
+      - LANGFUSE_HOST=http://langfuse:3000
+      - LANGFUSE_ENABLED=${LANGFUSE_ENABLED:-true}
+      - LLM_GUARD_ENABLED=${LLM_GUARD_ENABLED:-false}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ./src:/app/src
+      - ./data:/app/data
+      - ./logs:/app/logs
+    depends_on:
+      ollama:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - -f
+        - http://localhost:8501/_stcore/health
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - agent-zero-network
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: "2"
+    labels:
+      - "com.agent-zero.service=app-agent"
+      - "com.agent-zero.description=Main application with Streamlit UI"
+
+  # ============================================================================
+  # OLLAMA: Local LLM Inference & Embeddings Engine
+  # ============================================================================
+  ollama:
+    image: ollama/ollama:latest
+    container_name: agent-zero-ollama
+    ports:
+      - "11434:11434"
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - -f
+        - http://localhost:11434/api/tags
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - agent-zero-network
+    restart: unless-stopped
+    mem_limit: 8g
+    cpus: "4"
+    labels:
+      - "com.agent-zero.service=ollama"
+      - "com.agent-zero.description=Local LLM inference and embeddings"
+
+  # ============================================================================
+  # QDRANT: Vector Database for Semantic Search
+  # ============================================================================
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: agent-zero-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334" # gRPC port
+    environment:
+      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
+    volumes:
+      - qdrant-data:/qdrant/storage
+      - qdrant-snapshots:/qdrant/snapshots
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - -f
+        - http://localhost:6333/health
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - agent-zero-network
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: "1"
+    labels:
+      - "com.agent-zero.service=qdrant"
+      - "com.agent-zero.description=Vector database for semantic search"
+
+  # ============================================================================
+  # MEILISEARCH: Full-Text Search Engine
+  # ============================================================================
+  meilisearch:
+    image: getmeili/meilisearch:latest
+    container_name: agent-zero-meilisearch
+    ports:
+      - "7700:7700"
+    environment:
+      - MEILI_MASTER_KEY=${MEILISEARCH_API_KEY:-meilisearch-master-key-changeme-min16chars}
+      - MEILI_ENV=development
+    volumes:
+      - meilisearch-data:/meili_data
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - -f
+        - http://localhost:7700/health
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - agent-zero-network
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: "1"
+    labels:
+      - "com.agent-zero.service=meilisearch"
+      - "com.agent-zero.description=Full-text search engine"
+
+  # ============================================================================
+  # POSTGRES: Database for Langfuse (Observability Backing Store)
+  # ============================================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: agent-zero-postgres
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-langfuse}
+      - POSTGRES_USER=${POSTGRES_USER:-langfuse}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme123}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF8
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${POSTGRES_USER:-langfuse} -d ${POSTGRES_DB:-langfuse}
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - agent-zero-network
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: "0.5"
+    labels:
+      - "com.agent-zero.service=postgres"
+      - "com.agent-zero.description=PostgreSQL backing store for Langfuse"
+    # Internal only - not exposed
+    expose:
+      - "5432"
+
+  # ============================================================================
+  # ZOOKEEPER: Coordination Service for ClickHouse
+  # ============================================================================
+  zookeeper:
+    image: zookeeper:latest
+    container_name: agent-zero-zookeeper
+    environment:
+      - ZOO_CFG_SERVER_1=zookeeper:2888:3888
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper
+    healthcheck:
+      test:
+        - CMD
+        - echo
+        - stat
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - agent-zero-network
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: "0.5"
+    labels:
+      - "com.agent-zero.service=zookeeper"
+      - "com.agent-zero.description=Coordination service for ClickHouse replication"
+
+  # ============================================================================
+  # CLICKHOUSE: Analytics Database for Langfuse
+  # ============================================================================
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: agent-zero-clickhouse
+    environment:
+      - CLICKHOUSE_DB=langfuse
+      - CLICKHOUSE_USER=langfuse
+      - CLICKHOUSE_PASSWORD=clickhouse123
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+      - ./docker/clickhouse-config.xml:/etc/clickhouse-server/config.d/zookeeper.xml
+    healthcheck:
+      test:
+        - CMD
+        - clickhouse-client
+        - --query
+        - SELECT 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    networks:
+      - agent-zero-network
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: "1"
+    labels:
+      - "com.agent-zero.service=clickhouse"
+      - "com.agent-zero.description=Analytics database for Langfuse"
+
+  # ============================================================================
+  # LANGFUSE: Observability & LLM Tracing Dashboard (DISABLED FOR PHASE 1 - ENABLE IN PHASE 4)
+  # ============================================================================
+  # langfuse:
+  #   image: langfuse/langfuse:latest
+  #   container_name: agent-zero-langfuse
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - DATABASE_URL=postgresql://${POSTGRES_USER:-langfuse}:${POSTGRES_PASSWORD:-changeme123}@postgres:5432/${POSTGRES_DB:-langfuse}
+  #     - CLICKHOUSE_URL=clickhouse://clickhouse:9000/langfuse
+  #     - CLICKHOUSE_MIGRATION_URL=clickhouse://clickhouse:9000/langfuse
+  #     - CLICKHOUSE_USER=langfuse
+  #     - CLICKHOUSE_PASSWORD=clickhouse123
+  #     - NEXTAUTH_SECRET=${LANGFUSE_SECRET_KEY:-your-secret-key-change-in-production-min32chars}
+  #     - NEXTAUTH_URL=http://localhost:3000
+  #     - SALT=${LANGFUSE_SECRET_KEY:-your-secret-key-change-in-production-min32chars}
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     clickhouse:
+  #       condition: service_healthy
+  #   healthcheck:
+  #     test:
+  #       - CMD
+  #       - curl
+  #       - -f
+  #       - http://localhost:3000/health
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
+  #     start_period: 60s
+  #   networks:
+  #     - agent-zero-network
+  #   restart: unless-stopped
+  #   mem_limit: 512m
+  #   cpus: "1"
+  #   labels:
+  #     - "com.agent-zero.service=langfuse"
+  #     - "com.agent-zero.description=LLM observability and tracing dashboard"
+
+  # ============================================================================
+  # NOTE: PostgreSQL and ClickHouse remain active for Phase 2 database support
+  # ============================================================================
+
+# ============================================================================
+# Networks
+# ============================================================================
+networks:
+  agent-zero-network:
+    driver: bridge
+    name: agent-zero-network
+
+# ============================================================================
+# Volumes (Named - persisted across container restarts)
+# ============================================================================
+volumes:
+  # Ollama model cache
+  ollama-data:
+    driver: local
+    labels:
+      - "com.agent-zero.volume=ollama-data"
+      - "com.agent-zero.description=Ollama model cache and data"
+
+  # Qdrant vector storage
+  qdrant-data:
+    driver: local
+    labels:
+      - "com.agent-zero.volume=qdrant-data"
+      - "com.agent-zero.description=Qdrant vector database storage"
+
+  qdrant-snapshots:
+    driver: local
+    labels:
+      - "com.agent-zero.volume=qdrant-snapshots"
+      - "com.agent-zero.description=Qdrant backup snapshots"
+
+  # Meilisearch index storage
+  meilisearch-data:
+    driver: local
+    labels:
+      - "com.agent-zero.volume=meilisearch-data"
+      - "com.agent-zero.description=Meilisearch full-text index storage"
+
+  # PostgreSQL data
+  postgres-data:
+    driver: local
+    labels:
+      - "com.agent-zero.volume=postgres-data"
+      - "com.agent-zero.description=PostgreSQL database storage for Langfuse"
+
+  # ClickHouse data
+  clickhouse-data:
+    driver: local
+    labels:
+      - "com.agent-zero.volume=clickhouse-data"
+      - "com.agent-zero.description=ClickHouse analytics storage for Langfuse"
+
+  # Zookeeper data
+  zookeeper-data:
+    driver: local
+    labels:
+      - "com.agent-zero.volume=zookeeper-data"
+      - "com.agent-zero.description=Zookeeper coordination data for ClickHouse"

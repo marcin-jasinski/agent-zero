@@ -205,3 +205,38 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+# Docker
+docker/volumes/
+docker-compose.override.yml
+.docker_env
+
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.project
+.pydevproject
+.settings/
+
+# Local Development
+.env
+.env.local
+.env.*.local
+*.pid
+*.sock
+
+# Application Artifacts
+logs/
+data/
+uploads/
+cache/
+temp/
+
+# OS Specific
+Thumbs.db
+.DS_Store
+.AppleDouble
+.LSOverride
