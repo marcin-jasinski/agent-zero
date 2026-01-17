@@ -20,12 +20,28 @@ class MeilisearchClient:
         """Initialize Meilisearch client.
 
         Args:
-            host: Meilisearch host (default: from config)
+            host: Meilisearch host or full URL (default: from config)
             port: Meilisearch port (default: from config)
             api_key: API key for authentication (default: from config)
         """
         config = get_config()
-        self.host = host or config.meilisearch.host
+        # If host is provided, use it; otherwise use config which already contains full URL
+        if host:
+            self.host = host
+            self.port = port or 7700
+        else:
+            # Config already provides full URL (e.g., http://meilisearch:7700)
+            self.url = config.meilisearch.host
+            self.api_key = api_key or config.meilisearch.api_key
+            try:
+                self.client = meilisearch.Client(self.url, api_key=self.api_key)
+                logger.info(f"Meilisearch client initialized: {self.url}")
+            except Exception as e:
+                logger.error(f"Failed to initialize Meilisearch client: {e}")
+                raise
+            return
+            
+        # If host was explicitly provided, construct URL
         self.port = port or config.meilisearch.port
         self.api_key = api_key or config.meilisearch.api_key
         self.url = f"http://{self.host}:{self.port}"
