@@ -342,6 +342,10 @@
 
 #### Step 14: Langfuse Observability
 
+- [ ] **Re-enable Langfuse service** in `docker-compose.yml`:
+  - [ ] Uncomment the `langfuse` service definition (currently disabled for Phase 1)
+  - [ ] Verify postgres and clickhouse dependencies are healthy
+  - [ ] Re-add `langfuse` to `app-agent` depends_on conditions
 - [ ] Create `src/observability/langfuse_callback.py`:
   - [ ] Implement LangChain callback handler for Langfuse integration
   - [ ] Track: LLM calls, tool usage, agent decisions, execution time
@@ -351,7 +355,7 @@
 
 **Deliverable**: Langfuse shows agent traces
 
-**Success Criteria**: Click "View Trace" in chat → Langfuse displays full execution trace
+**Success Criteria**: Click "View Trace" in chat → Langfuse displays full execution trace, Langfuse UI accessible at `http://localhost:3000`
 
 ---
 
