@@ -165,7 +165,7 @@ class OllamaClient:
             Embedding vector
         """
         config = get_config()
-        model = model or config.ollama.embedding_model
+        model = model or config.ollama.embed_model
 
         try:
             payload = {

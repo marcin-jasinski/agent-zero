@@ -8,7 +8,7 @@ import logging
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, HttpUrl, field_validator
+from pydantic import Field, HttpUrl, field_validator, ConfigDict
 from pydantic_settings import BaseSettings
 
 
@@ -174,14 +174,14 @@ class AppConfig(BaseSettings):
             if not self.security.llm_guard_enabled:
                 raise ValueError("LLM Guard must be enabled in production")
 
-    class Config:
-        env_prefix = "APP_"
-        case_sensitive = False
-        # Load from .env file
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        # Allow nested model configuration from env vars
-        env_nested_delimiter = "__"
+    model_config = ConfigDict(
+        extra="ignore",  # Ignore extra fields from env variables
+        case_sensitive=False,
+        env_file=".env",
+        env_file_encoding="utf-8",
+        env_prefix="APP_",
+        env_nested_delimiter="__",
+    )
 
 
 @lru_cache(maxsize=1)
