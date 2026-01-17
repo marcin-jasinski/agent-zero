@@ -80,10 +80,11 @@ def render_chat_interface() -> None:
                     # Placeholder for agent response
                     with st.spinner("⏳ Agent is thinking..."):
                         # TODO: Call agent service with user_input
+                        # This will be implemented in Phase 3 Step 11: Agent Orchestration
                         st.session_state.messages.append(
                             {
                                 "role": "assistant",
-                                "content": "[Pending: Agent response will be added in Phase 2 Step 7]",
+                                "content": "[Pending: Agent orchestration coming in Phase 3 Step 11 - RAG Integration with LangChain]",
                             }
                         )
 
