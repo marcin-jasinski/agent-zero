@@ -252,6 +252,7 @@
 - ✅ Pre-commit checklist added to copilot-instructions.md
 
 **Test Coverage Summary**:
+
 - Service clients: 156 tests (Ollama 45, Qdrant 39, Meilisearch 43, HealthChecker 29)
 - Startup sequence: 20 tests (status, initialization, full run, graceful degradation)
 - **Total Phase 2: 196 tests**
