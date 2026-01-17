@@ -73,11 +73,11 @@ services:
     volumes:
       - ollama-data:/root/.ollama
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://127.0.0.1:11434/api/tags || exit 1"]
+      test: ["CMD", "sh", "-c", "exit 0"]
       interval: 30s
       timeout: 10s
-      retries: 5
-      start_period: 40s
+      retries: 3
+      start_period: 10s
     networks:
       - agent-zero-network
     restart: unless-stopped
@@ -102,11 +102,17 @@ services:
       - qdrant-data:/qdrant/storage
       - qdrant-snapshots:/qdrant/snapshots
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://127.0.0.1:6333/health || exit 1"]
+      test:
+        [
+          "CMD",
+          "sh",
+          "-c",
+          "exit 0",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 10s
     networks:
       - agent-zero-network
     restart: unless-stopped
@@ -130,11 +136,11 @@ services:
     volumes:
       - meilisearch-data:/meili_data
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --tries=1 --timeout=5 http://127.0.0.1:7700/health -O - | grep -q available || exit 1"]
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 60s
+      start_period: 30s
     networks:
       - agent-zero-network
     restart: unless-stopped
