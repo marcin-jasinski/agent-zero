@@ -150,23 +150,28 @@ For any new service or module:
    - [ ] List test dependencies and fixtures
 
 ### Unit Tests Standards
+
 - **Framework:** Use `pytest` for all backend testing.
 - **MUST run fast and offline.**
 - **MOCK EVERYTHING:** External dependencies (Ollama, Qdrant, Meilisearch, Langfuse, File System) must be mocked using `unittest.mock` or `pytest-mock`.
 - Never allow a unit test to make a real network request.
 
 ### Integration Tests
+
 - Mark them explicitly with `@pytest.mark.integration`.
 - These tests verify communication with running Docker containers.
 
 ### Fixtures
+
 - Use `tests/conftest.py` to define reusable mocks (e.g., a mock embedding generator or a mock vector DB client).
 
 ### AI/LLM Testing
+
 - Do not test the "creativity" of the LLM in unit tests.
 - Test the **logic flow**: Verify that prompts are constructed correctly, that responses are parsed into JSON correctly, and that tools are called with expected arguments.
 
 ### Coverage
+
 - Aim for high coverage on business logic (`services/`, `utils/`), not just boilerplate.
 
 ## 8. Version Control Guidelines (Semantic Git Flow)

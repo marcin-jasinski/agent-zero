@@ -43,7 +43,7 @@ async def initialize_ollama() -> bool
     - Validate model is usable
     - Return True if successful
     """
-    
+
 async def initialize_qdrant() -> bool
     """
     - Create "documents" collection for embeddings
@@ -51,7 +51,7 @@ async def initialize_qdrant() -> bool
     - Distance metric: COSINE
     - Return True if successful
     """
-    
+
 async def initialize_meilisearch() -> bool
     """
     - Create "documents" index
@@ -59,7 +59,7 @@ async def initialize_meilisearch() -> bool
     - Searchable attributes: ["content", "source", "metadata"]
     - Return True if successful
     """
-    
+
 async def startup() -> dict
     """
     - Run all initialization tasks
@@ -87,16 +87,16 @@ def run_startup():
 def main():
     # Run startup (cached)
     startup_status = run_startup()
-    
+
     # Display startup errors if any
     if startup_status["errors"]:
         st.error("⚠️ Startup Warnings")
         for error in startup_status["errors"]:
             st.warning(error)
-    
+
     # Show health status
     render_sidebar_status()
-    
+
     # If all healthy, show normal UI
     if startup_status["all_healthy"]:
         render_tabs()
@@ -118,14 +118,14 @@ def check_ollama() -> ServiceStatus:
     - Verify default model exists
     - Return status
     """
-    
+
 def check_qdrant() -> ServiceStatus:
     """
     - List collections
     - Verify "documents" collection exists
     - Return status
     """
-    
+
 def check_meilisearch() -> ServiceStatus:
     """
     - List indexes
@@ -138,27 +138,27 @@ def check_meilisearch() -> ServiceStatus:
 
 ### Ollama Initialization
 
-| Scenario | Handling |
-|----------|----------|
-| Model pull timeout | Retry 3x with backoff, log warning, continue |
-| Model already exists | Skip pull, verify usability |
-| Network error | Log error, continue (will retry on health check) |
+| Scenario             | Handling                                         |
+| -------------------- | ------------------------------------------------ |
+| Model pull timeout   | Retry 3x with backoff, log warning, continue     |
+| Model already exists | Skip pull, verify usability                      |
+| Network error        | Log error, continue (will retry on health check) |
 
 ### Qdrant Initialization
 
-| Scenario | Handling |
-|----------|----------|
-| Collection already exists | Skip creation (idempotent) |
-| Invalid vector size | Use default (768), log warning |
-| Connection timeout | Fail startup, show error in UI |
+| Scenario                  | Handling                       |
+| ------------------------- | ------------------------------ |
+| Collection already exists | Skip creation (idempotent)     |
+| Invalid vector size       | Use default (768), log warning |
+| Connection timeout        | Fail startup, show error in UI |
 
 ### Meilisearch Initialization
 
-| Scenario | Handling |
-|----------|----------|
-| Index already exists | Skip creation (idempotent) |
-| Invalid index name | Use sanitized name |
-| Connection timeout | Fail startup, show error in UI |
+| Scenario             | Handling                       |
+| -------------------- | ------------------------------ |
+| Index already exists | Skip creation (idempotent)     |
+| Invalid index name   | Use sanitized name             |
+| Connection timeout   | Fail startup, show error in UI |
 
 ## Logging Strategy
 
@@ -179,6 +179,7 @@ Example:
 ### Startup Tests (`tests/test_startup.py`)
 
 **Mock Strategy:**
+
 - Mock all service clients
 - Test happy path (all services initialize)
 - Test partial failure (one service fails)
@@ -255,6 +256,7 @@ tests/
 ## Phase 2 Step 8 Acceptance Criteria
 
 When complete:
+
 - [ ] `docker-compose up` → All services healthy
 - [ ] Navigate to `http://localhost:8501` → UI loads
 - [ ] Sidebar shows 🟢 healthy status for all services
@@ -269,6 +271,7 @@ When complete:
 ## Next: Phase 3 Planning
 
 Once Step 8 complete:
+
 - Document Ingestion Pipeline (Step 9)
 - Retrieval Engine (Step 10)
 - Agent Orchestration (Step 11)
