@@ -10,6 +10,7 @@ import streamlit as st
 
 from src.config import get_config
 from src.logging_config import setup_logging
+from src.services import HealthChecker
 from src.ui.components import (
     initialize_chat_session,
     initialize_kb_session,
@@ -67,18 +68,21 @@ def render_sidebar_status() -> None:
         # Service Status Section
         st.subheader("Service Status")
 
-        # TODO: Implement actual health checks (Phase 2 Step 8)
-        service_status = {
-            "Ollama": {"status": "pending", "icon": "⏳"},
-            "Qdrant": {"status": "pending", "icon": "⏳"},
-            "Meilisearch": {"status": "pending", "icon": "⏳"},
-            "PostgreSQL": {"status": "pending", "icon": "⏳"},
-        }
+        # Initialize and run health checks
+        if "health_checker" not in st.session_state:
+            st.session_state.health_checker = HealthChecker()
 
-        for service, info in service_status.items():
-            st.write(f"{info['icon']} {service}: {info['status'].capitalize()}")
+        health_checker = st.session_state.health_checker
+        service_statuses = health_checker.check_all()
 
-        st.caption("(Health checks in Phase 2 Step 8)")
+        # Display each service status
+        for service_name, status in service_statuses.items():
+            icon = "✅" if status.is_healthy else "❌"
+            status_text = "Healthy" if status.is_healthy else "Unhealthy"
+            st.write(f"{icon} {status.name}: {status_text}")
+
+            if status.message:
+                st.caption(status.message)
 
         st.divider()
 
@@ -88,6 +92,8 @@ def render_sidebar_status() -> None:
 
         with col1:
             if st.button("🔄 Refresh", use_container_width=True):
+                # Clear health checker cache to force new checks
+                st.session_state.health_checker = HealthChecker()
                 st.rerun()
 
         with col2:
