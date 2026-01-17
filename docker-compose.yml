@@ -16,6 +16,7 @@ services:
       - APP_PORT=8501
       - PYTHONUNBUFFERED=1
       - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONPATH=/app
       # Service Connections
       - OLLAMA_HOST=http://ollama:11434
       - OLLAMA_MODEL=${OLLAMA_MODEL:-ministral-3:3b}
