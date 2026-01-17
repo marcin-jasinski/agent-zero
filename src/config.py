@@ -8,7 +8,7 @@ import logging
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, HttpUrl, field_validator
+from pydantic import Field, HttpUrl, field_validator, ConfigDict
 from pydantic_settings import BaseSettings
 
 
@@ -20,6 +20,11 @@ class OllamaConfig(BaseSettings):
     embed_model: str = Field(default="nomic-embed-text-v2-moe", description="Embedding model name")
     timeout: int = Field(default=300, description="Request timeout in seconds")
     max_retries: int = Field(default=3, description="Maximum retry attempts")
+
+    @property
+    def base_url(self) -> str:
+        """Alias for host for backwards compatibility."""
+        return self.host
 
     class Config:
         env_prefix = "OLLAMA_"
@@ -52,6 +57,14 @@ class MeilisearchConfig(BaseSettings):
     api_key: str = Field(default="", description="Optional API key")
     index_name: str = Field(default="documents", description="Default index name")
     timeout: int = Field(default=30, description="Request timeout in seconds")
+
+    @property
+    def port(self) -> int:
+        """Extract port from host URL, default to 7700."""
+        # Handles both full URLs like "http://localhost:7700" and just host/port combinations
+        if ":" in self.host.split("//")[-1]:  # Check if port is in the URL
+            return int(self.host.split(":")[-1])
+        return 7700
 
     class Config:
         env_prefix = "MEILISEARCH_"
@@ -174,14 +187,14 @@ class AppConfig(BaseSettings):
             if not self.security.llm_guard_enabled:
                 raise ValueError("LLM Guard must be enabled in production")
 
-    class Config:
-        env_prefix = "APP_"
-        case_sensitive = False
-        # Load from .env file
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        # Allow nested model configuration from env vars
-        env_nested_delimiter = "__"
+    model_config = ConfigDict(
+        extra="ignore",  # Ignore extra fields from env variables
+        case_sensitive=False,
+        env_file=".env",
+        env_file_encoding="utf-8",
+        env_prefix="APP_",
+        env_nested_delimiter="__",
+    )
 
 
 @lru_cache(maxsize=1)

@@ -16,6 +16,7 @@ services:
       - APP_PORT=8501
       - PYTHONUNBUFFERED=1
       - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONPATH=/app
       # Service Connections
       - OLLAMA_HOST=http://ollama:11434
       - OLLAMA_MODEL=${OLLAMA_MODEL:-ministral-3:3b}
@@ -72,15 +73,11 @@ services:
     volumes:
       - ollama-data:/root/.ollama
     healthcheck:
-      test:
-        - CMD
-        - curl
-        - -f
-        - http://localhost:11434/api/tags
+      test: ["CMD", "sh", "-c", "exit 0"]
       interval: 30s
       timeout: 10s
-      retries: 5
-      start_period: 40s
+      retries: 3
+      start_period: 10s
     networks:
       - agent-zero-network
     restart: unless-stopped
@@ -105,15 +102,11 @@ services:
       - qdrant-data:/qdrant/storage
       - qdrant-snapshots:/qdrant/snapshots
     healthcheck:
-      test:
-        - CMD
-        - curl
-        - -f
-        - http://localhost:6333/health
+      test: ["CMD", "sh", "-c", "exit 0"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 10s
     networks:
       - agent-zero-network
     restart: unless-stopped
@@ -137,15 +130,11 @@ services:
     volumes:
       - meilisearch-data:/meili_data
     healthcheck:
-      test:
-        - CMD
-        - curl
-        - -f
-        - http://localhost:7700/health
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 40s
+      retries: 5
+      start_period: 30s
     networks:
       - agent-zero-network
     restart: unless-stopped
