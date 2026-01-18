@@ -37,7 +37,7 @@ class QdrantConfig(BaseSettings):
     port: int = Field(default=6333, description="Qdrant server port")
     api_key: str = Field(default="", description="Optional API key")
     collection_name: str = Field(default="documents", description="Default collection name")
-    vector_size: int = Field(default=384, description="Embedding vector size")
+    vector_size: int = Field(default=768, description="Embedding vector size (must match embedding model output)")
     similarity_metric: str = Field(default="cosine", description="Vector similarity metric")
     timeout: int = Field(default=30, description="Request timeout in seconds")
 

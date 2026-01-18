@@ -3,6 +3,7 @@
 Handles communication with Ollama for LLM inference and embeddings.
 """
 
+import json
 import logging
 from typing import Optional
 
@@ -189,8 +190,30 @@ class OllamaClient:
             True if successful, False otherwise
         """
         try:
-            self._make_request("post", "/api/pull", json={"name": model})
-            logger.info(f"Model '{model}' pulled successfully")
+            url = f"{self.base_url}/api/pull"
+            payload = {"name": model}
+            
+            # The /api/pull endpoint returns streaming responses
+            # We need to handle the streaming format
+            response = self.session.post(
+                url,
+                json=payload,
+                timeout=self.timeout,
+                stream=True,
+            )
+            response.raise_for_status()
+            
+            # Read all streamed responses
+            for line in response.iter_lines():
+                if line:
+                    try:
+                        data = json.loads(line)
+                        if data.get("status") == "success":
+                            logger.info(f"Model '{model}' pulled successfully")
+                    except json.JSONDecodeError:
+                        # Ignore malformed JSON lines
+                        pass
+            
             return True
         except Exception as e:
             logger.error(f"Failed to pull model '{model}': {e}")

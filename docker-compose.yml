@@ -70,6 +70,9 @@ services:
       - "11434:11434"
     environment:
       - OLLAMA_HOST=0.0.0.0:11434
+      # GPU support is optionally enabled via docker-compose.gpu.yml override
+      # Set OLLAMA_GPU=1 for NVIDIA GPU support (Windows WSL2, Linux with NVIDIA drivers)
+      # Leave unset for CPU-only mode (macOS, Linux without NVIDIA, or resource-constrained systems)
     volumes:
       - ollama-data:/root/.ollama
     healthcheck:

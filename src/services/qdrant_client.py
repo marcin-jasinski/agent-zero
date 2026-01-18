@@ -191,7 +191,7 @@ class QdrantVectorClient:
         try:
             collection = self.client.get_collection(collection_name)
             return {
-                "name": collection.config.collection_name if hasattr(collection, 'config') else collection_name,
+                "name": collection_name,
                 "points_count": collection.points_count,
                 "vectors_count": collection.vectors_count,
             }
