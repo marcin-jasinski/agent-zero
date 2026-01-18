@@ -77,16 +77,49 @@ def render_chat_interface() -> None:
                     # Add user message to history
                     st.session_state.messages.append({"role": "user", "content": user_input})
 
-                    # Placeholder for agent response
+                    # Process message with agent
                     with st.spinner("⏳ Agent is thinking..."):
-                        # TODO: Call agent service with user_input
-                        # This will be implemented in Phase 3 Step 11: Agent Orchestration
-                        st.session_state.messages.append(
-                            {
-                                "role": "assistant",
-                                "content": "[Pending: Agent orchestration coming in Phase 3 Step 11 - RAG Integration with LangChain]",
-                            }
-                        )
+                        try:
+                            # Initialize agent if not already done
+                            if "agent" not in st.session_state:
+                                from src.core.agent import AgentOrchestrator
+                                from src.core.retrieval import RetrievalEngine
+                                from src.services.ollama_client import OllamaClient
+                                from src.services.qdrant_client import QdrantClient
+                                from src.services.meilisearch_client import MeilisearchClient
+                                from src.config import get_config
+                                
+                                config = get_config()
+                                ollama = OllamaClient(config.ollama)
+                                qdrant = QdrantClient(config.qdrant)
+                                meilisearch = MeilisearchClient(config.meilisearch)
+                                retrieval = RetrievalEngine(ollama, qdrant, meilisearch)
+                                
+                                st.session_state.agent = AgentOrchestrator(ollama, retrieval)
+                                st.session_state.conversation_id = st.session_state.agent.start_conversation()
+                            
+                            # Get response from agent
+                            response = st.session_state.agent.process_message(
+                                st.session_state.conversation_id,
+                                user_input,
+                                use_retrieval=True
+                            )
+                            
+                            st.session_state.messages.append(
+                                {
+                                    "role": "assistant",
+                                    "content": response,
+                                }
+                            )
+                        except Exception as e:
+                            st.session_state.messages.append(
+                                {
+                                    "role": "assistant",
+                                    "content": f"Error: {str(e)}. Please try again.",
+                                }
+                            )
+                            import logging
+                            logging.error(f"Agent processing error: {e}", exc_info=True)
 
                     st.rerun()
                 else:
