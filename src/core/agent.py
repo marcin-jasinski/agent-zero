@@ -14,6 +14,8 @@ from src.core.memory import ConversationManager
 from src.models.agent import AgentConfig, AgentMessage, MessageRole, ConversationState
 from src.models.retrieval import RetrievalResult
 from src.services.ollama_client import OllamaClient
+from src.security.guard import LLMGuard, ThreatLevel
+from src.config import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +36,7 @@ class AgentOrchestrator:
         ollama_client: OllamaClient,
         retrieval_engine: RetrievalEngine,
         config: Optional[AgentConfig] = None,
+        llm_guard: Optional[LLMGuard] = None,
     ) -> None:
         """Initialize the agent orchestrator.
 
@@ -41,11 +44,25 @@ class AgentOrchestrator:
             ollama_client: Client for LLM inference
             retrieval_engine: Engine for document retrieval
             config: Agent configuration (uses defaults if not provided)
+            llm_guard: Optional LLM Guard for security scanning (creates default if None)
         """
         self.ollama_client = ollama_client
         self.retrieval_engine = retrieval_engine
         self.config = config or AgentConfig()
         self.memory = ConversationManager()
+
+        # Initialize LLM Guard from app config if not provided
+        if llm_guard is None:
+            app_config = get_config()
+            self.llm_guard = LLMGuard(
+                enabled=app_config.security.llm_guard_enabled,
+                input_scan_enabled=app_config.security.llm_guard_input_scan,
+                output_scan_enabled=app_config.security.llm_guard_output_scan,
+                max_input_length=app_config.security.max_input_length,
+                max_output_length=app_config.security.max_output_length,
+            )
+        else:
+            self.llm_guard = llm_guard
 
         # Define available tools
         self.tools = {
@@ -54,7 +71,10 @@ class AgentOrchestrator:
             "get_current_time": self._get_current_time,
         }
 
-        logger.info(f"Initialized AgentOrchestrator with model {self.config.model_name}")
+        logger.info(
+            f"Initialized AgentOrchestrator with model {self.config.model_name}, "
+            f"LLM Guard enabled={self.llm_guard.enabled}"
+        )
 
     def start_conversation(self, metadata: Optional[Dict] = None) -> str:
         """Start a new conversation session.
@@ -109,11 +129,36 @@ class AgentOrchestrator:
             raise ValueError("User message cannot be empty")
 
         try:
+            # Scan user input for security threats
+            input_scan_result = self.llm_guard.scan_user_input(user_message)
+
+            # Block critical threats
+            if not input_scan_result.is_safe:
+                logger.warning(
+                    f"User input blocked: threat_level={input_scan_result.threat_level.value}, "
+                    f"violations={input_scan_result.violations}"
+                )
+
+                if input_scan_result.threat_level in [ThreatLevel.CRITICAL, ThreatLevel.HIGH]:
+                    error_msg = (
+                        "Your message was blocked due to security concerns. "
+                        f"Detected violations: {', '.join(input_scan_result.violations[:2])}"
+                    )
+                    logger.error(f"Critical threat blocked for conversation {conversation_id}")
+                    return error_msg
+
+            # Use sanitized input if available
+            processed_message = (
+                input_scan_result.sanitized_content
+                if input_scan_result.sanitized_content
+                else user_message
+            )
+
             # Add user message to history
             self.memory.add_message(
                 conversation_id,
                 MessageRole.USER,
-                user_message,
+                processed_message,
             )
 
             # Retrieve relevant documents
@@ -121,7 +166,7 @@ class AgentOrchestrator:
             if use_retrieval:
                 try:
                     retrieved_docs = self.retrieval_engine.retrieve_relevant_docs(
-                        user_message,
+                        processed_message,
                         top_k=5,
                     )
                     logger.info(f"Retrieved {len(retrieved_docs)} documents")
@@ -131,12 +176,32 @@ class AgentOrchestrator:
             # Build context
             context = self._build_prompt(
                 conversation_id,
-                user_message,
+                processed_message,
                 retrieved_docs,
             )
 
             # Generate response
             response_text = self._invoke_llm(context, stream_callback)
+
+            # Scan LLM output for security threats
+            output_scan_result = self.llm_guard.scan_llm_output(
+                response_text, original_prompt=processed_message
+            )
+
+            # Block unsafe outputs
+            if not output_scan_result.is_safe:
+                logger.warning(
+                    f"LLM output blocked: threat_level={output_scan_result.threat_level.value}, "
+                    f"violations={output_scan_result.violations}"
+                )
+
+                if output_scan_result.threat_level in [ThreatLevel.CRITICAL, ThreatLevel.HIGH]:
+                    response_text = (
+                        "I apologize, but I cannot provide that response due to safety concerns. "
+                        "Please rephrase your question."
+                    )
+                elif output_scan_result.sanitized_content:
+                    response_text = output_scan_result.sanitized_content
 
             # Add response to history
             sources = self._extract_sources(retrieved_docs)
