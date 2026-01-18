@@ -9,7 +9,7 @@ from typing import List, Dict, Any, Optional, Tuple
 
 from src.models.retrieval import RetrievalResult, HybridSearchConfig
 from src.services.ollama_client import OllamaClient
-from src.services.qdrant_client import QdrantClient
+from src.services.qdrant_client import QdrantVectorClient
 from src.services.meilisearch_client import MeilisearchClient
 
 logger = logging.getLogger(__name__)
@@ -27,7 +27,7 @@ class RetrievalEngine:
     def __init__(
         self,
         ollama_client: OllamaClient,
-        qdrant_client: QdrantClient,
+        qdrant_client: QdrantVectorClient,
         meilisearch_client: MeilisearchClient,
         config: Optional[HybridSearchConfig] = None,
     ) -> None:
@@ -35,7 +35,7 @@ class RetrievalEngine:
 
         Args:
             ollama_client: Client for generating query embeddings
-            qdrant_client: Client for vector similarity search
+            qdrant_client: QdrantVectorClient for vector similarity search
             meilisearch_client: Client for keyword search
             config: Hybrid search configuration (uses defaults if not provided)
         """

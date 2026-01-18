@@ -85,14 +85,12 @@ def render_chat_interface() -> None:
                                 from src.core.agent import AgentOrchestrator
                                 from src.core.retrieval import RetrievalEngine
                                 from src.services.ollama_client import OllamaClient
-                                from src.services.qdrant_client import QdrantClient
+                                from src.services.qdrant_client import QdrantVectorClient
                                 from src.services.meilisearch_client import MeilisearchClient
-                                from src.config import get_config
                                 
-                                config = get_config()
-                                ollama = OllamaClient(config.ollama)
-                                qdrant = QdrantClient(config.qdrant)
-                                meilisearch = MeilisearchClient(config.meilisearch)
+                                ollama = OllamaClient()
+                                qdrant = QdrantVectorClient()
+                                meilisearch = MeilisearchClient()
                                 retrieval = RetrievalEngine(ollama, qdrant, meilisearch)
                                 
                                 st.session_state.agent = AgentOrchestrator(ollama, retrieval)
