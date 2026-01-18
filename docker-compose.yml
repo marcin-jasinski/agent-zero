@@ -70,6 +70,7 @@ services:
       - "11434:11434"
     environment:
       - OLLAMA_HOST=0.0.0.0:11434
+      - OLLAMA_GPU=1
     volumes:
       - ollama-data:/root/.ollama
     healthcheck:
@@ -83,6 +84,13 @@ services:
     restart: unless-stopped
     mem_limit: 8g
     cpus: "4"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     labels:
       - "com.agent-zero.service=ollama"
       - "com.agent-zero.description=Local LLM inference and embeddings"
