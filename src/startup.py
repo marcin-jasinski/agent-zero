@@ -111,7 +111,7 @@ class ApplicationStartup:
             )
 
     def _initialize_ollama(self) -> None:
-        """Initialize Ollama service and pull default model."""
+        """Initialize Ollama service and pull required models."""
         logger.info("\n[2/4] Initializing Ollama LLM service...")
 
         try:
@@ -138,16 +138,38 @@ class ApplicationStartup:
                         logger.debug(f"    - {model}")
             except Exception as e:
                 logger.warning(f"  ⚠ Could not list models: {e}")
+                models = []
 
-            # Ensure default model is available
-            default_model = self.config.ollama.model
-            logger.info(f"  ✓ Default model configured: {default_model}")
+            # Ensure required models are available
+            required_models = [
+                self.config.ollama.model,
+                self.config.ollama.embed_model,
+            ]
+            
+            missing_models = [m for m in required_models if m not in models]
+            
+            if missing_models:
+                logger.info(f"  ℹ Missing models detected: {', '.join(missing_models)}")
+                logger.info("  → Pulling required models (this may take several minutes)...")
+                
+                for model in missing_models:
+                    try:
+                        logger.info(f"  → Pulling '{model}'...")
+                        success = ollama.pull_model(model)
+                        if success:
+                            logger.info(f"  ✓ Model '{model}' pulled successfully")
+                        else:
+                            logger.warning(f"  ⚠ Failed to pull model '{model}'")
+                    except Exception as e:
+                        logger.warning(f"  ⚠ Could not pull model '{model}': {e}")
+            else:
+                logger.info(f"  ✓ All required models available")
 
             self.statuses.append(
                 StartupStatus(
                     step_name="Ollama Initialization",
                     success=True,
-                    message=f"Service ready with model '{default_model}'",
+                    message=f"Service ready (models: {', '.join(required_models)})",
                 )
             )
 
@@ -182,30 +204,30 @@ class ApplicationStartup:
                 return
 
             # Create embeddings collection
-            embeddings_collection = self.config.qdrant.embeddings_collection
-            embedding_dim = self.config.ollama.embedding_dim
+            collection_name = self.config.qdrant.collection_name
+            vector_size = self.config.qdrant.vector_size
 
-            logger.info(f"  → Creating collection: {embeddings_collection}")
+            logger.info(f"  → Creating collection: {collection_name}")
             success = qdrant.create_collection(
-                collection_name=embeddings_collection,
-                vector_size=embedding_dim,
+                collection_name=collection_name,
+                vector_size=vector_size,
                 force_recreate=False,
             )
 
             if success:
-                logger.info(f"  ✓ Collection '{embeddings_collection}' ready")
+                logger.info(f"  ✓ Collection '{collection_name}' ready")
                 # Get collection info
-                info = qdrant.get_collection_info(embeddings_collection)
+                info = qdrant.get_collection_info(collection_name)
                 if info:
                     logger.debug(f"    - Vectors: {info.get('vectors_count', 'unknown')}")
             else:
-                logger.warning(f"  ⚠ Could not verify collection '{embeddings_collection}'")
+                logger.warning(f"  ⚠ Could not verify collection '{collection_name}'")
 
             self.statuses.append(
                 StartupStatus(
                     step_name="Qdrant Initialization",
                     success=True,
-                    message=f"Collection '{embeddings_collection}' ready",
+                    message=f"Collection '{collection_name}' ready",
                 )
             )
 
@@ -240,28 +262,28 @@ class ApplicationStartup:
                 return
 
             # Create documents index
-            documents_index = self.config.meilisearch.documents_index
+            index_name = self.config.meilisearch.index_name
 
-            logger.info(f"  → Creating index: {documents_index}")
+            logger.info(f"  → Creating index: {index_name}")
             success = meilisearch.create_index(
-                index_uid=documents_index,
+                index_uid=index_name,
                 primary_key="id",
             )
 
             if success:
-                logger.info(f"  ✓ Index '{documents_index}' ready")
+                logger.info(f"  ✓ Index '{index_name}' ready")
                 # Get index stats
-                stats = meilisearch.get_index_stats(documents_index)
+                stats = meilisearch.get_index_stats(index_name)
                 if stats:
                     logger.debug(f"    - Documents: {stats.get('numberOfDocuments', 0)}")
             else:
-                logger.warning(f"  ⚠ Could not verify index '{documents_index}'")
+                logger.warning(f"  ⚠ Could not verify index '{index_name}'")
 
             self.statuses.append(
                 StartupStatus(
                     step_name="Meilisearch Initialization",
                     success=True,
-                    message=f"Index '{documents_index}' ready",
+                    message=f"Index '{index_name}' ready",
                 )
             )
 
