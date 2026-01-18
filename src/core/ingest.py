@@ -18,7 +18,7 @@ from pypdf import PdfReader
 
 from src.models.document import DocumentChunk, IngestionResult
 from src.services.ollama_client import OllamaClient
-from src.services.qdrant_client import QdrantClient
+from src.services.qdrant_client import QdrantVectorClient
 from src.services.meilisearch_client import MeilisearchClient
 
 logger = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ class DocumentIngestor:
     def __init__(
         self,
         ollama_client: OllamaClient,
-        qdrant_client: QdrantClient,
+        qdrant_client: QdrantVectorClient,
         meilisearch_client: MeilisearchClient,
         chunk_size: int = 500,
         chunk_overlap: int = 50,
@@ -360,14 +360,18 @@ class DocumentIngestor:
             chunks: List of document chunks to process
             document_id: Document identifier for tracking
         """
+        from src.config import get_config
+        config = get_config()
+        
         for chunk in chunks:
             try:
                 # Generate embedding
-                embedding = self.ollama_client.generate_embedding(chunk.content)
+                embedding = self.ollama_client.embed(chunk.content)
                 chunk.embedding = embedding
 
                 # Store in Qdrant (vector)
                 self.qdrant_client.upsert_vectors(
+                    collection_name=config.qdrant.collection_name,
                     points=[
                         {
                             "id": chunk.id,
@@ -384,7 +388,8 @@ class DocumentIngestor:
                 )
 
                 # Store in Meilisearch (keyword)
-                self.meilisearch_client.index_documents(
+                self.meilisearch_client.add_documents(
+                    index_uid=config.meilisearch.index_name,
                     documents=[
                         {
                             "id": chunk.id,

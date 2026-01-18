@@ -287,32 +287,25 @@ class AgentOrchestrator:
 
         Args:
             prompt: Complete prompt for LLM
-            stream_callback: Optional callback for streaming tokens
+            stream_callback: Optional callback for streaming tokens (not currently used)
 
         Returns:
             Generated response text
         """
         try:
-            response = self.ollama_client.chat(
-                messages=[
-                    {
-                        "role": "user",
-                        "content": prompt,
-                    }
-                ],
+            response = self.ollama_client.generate(
                 model=self.config.model_name,
-                stream=stream_callback is not None,
+                prompt=prompt,
+                system=self.config.system_prompt,
+                temperature=self.config.temperature,
+                max_tokens=self.config.max_tokens,
             )
 
             if stream_callback and isinstance(response, str):
-                # If streaming, invoke callback
+                # If streaming is implemented, invoke callback
                 stream_callback(response)
-                return response
-            elif isinstance(response, str):
-                return response
-            else:
-                # Handle response as dict/object
-                return response.get("message", {}).get("content", "")
+
+            return response
 
         except Exception as e:
             logger.error(f"LLM invocation failed: {e}")
