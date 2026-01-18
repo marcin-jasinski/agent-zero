@@ -469,6 +469,199 @@
 
 ---
 
+### PHASE 4b: Tool Dashboards & Management Interface
+
+**Goal**: Extend UI with dedicated dashboards for observability, database management, and system monitoring.
+
+**Prerequisites**: Phase 4 Security & Observability (Langfuse, LLM Guard) must be completed.
+
+**Important**: Before starting implementation, **read and follow** [DASHBOARD_DESIGN.md](DASHBOARD_DESIGN.md) for complete design specifications, UI mockups, component architecture, and implementation guidelines.
+
+#### Step 16: Dashboard Design & Architecture
+
+✅ **DESIGN DOCUMENT COMPLETE** | Reference: [DASHBOARD_DESIGN.md](DASHBOARD_DESIGN.md)
+
+The design document includes:
+
+- Complete UI layout mockups for all dashboard tools
+- Component architecture and specifications
+- Data flow diagrams and design patterns
+- Implementation guidelines step-by-step
+- Service client enhancement requirements
+- Testing and validation strategies
+
+**Use this design document as your implementation blueprint.**
+
+---
+
+#### Step 17: Refactor Sidebar Navigation
+
+- [ ] Create `src/ui/components/navigation.py`:
+  - [ ] `SidebarNavigation` class with dynamic tool management
+  - [ ] Load tools based on phase completion and feature flags
+  - [ ] Separate core tools (Chat, KB, Settings, Logs) from management tools
+  - [ ] Render sidebar with icons and labels
+  - [ ] Service health status integration
+- [ ] Update `src/ui/main.py`:
+  - [ ] Replace current tab logic with `SidebarNavigation` component
+  - [ ] Use `st.session_state["selected_tool"]` for navigation
+  - [ ] Conditionally render tool components
+- [ ] Create feature flags in `src/config.py`:
+  - [ ] `qdrant_manager_enabled`
+  - [ ] `langfuse_dashboard_enabled`
+  - [ ] `promptfoo_enabled`
+  - [ ] `system_health_dashboard_enabled`
+
+**Deliverable**: Sidebar navigation component with tool selection
+
+**Success Criteria**: ✓ Navigation renders with icons, ✓ tool selection switches content, ✓ feature flags control visibility, ✓ existing 4 tools still work
+
+---
+
+#### Step 18: Implement Qdrant Manager Dashboard
+
+- [ ] Create `src/ui/tools/qdrant_dashboard.py`:
+  - [ ] Collections overview with stats (vector count, dimensions, storage)
+  - [ ] Search interface with semantic query capability
+  - [ ] Collection details viewer
+  - [ ] Create/delete collection operations
+  - [ ] Implement per-tool component caching with `@st.cache_data`
+- [ ] Enhance `src/services/qdrant_client.py`:
+  - [ ] Add `get_collections_stats()` method
+  - [ ] Add `semantic_search()` method for dashboard queries
+  - [ ] Add `get_collection_details()` method
+- [ ] Create comprehensive test suite: 16 unit tests
+  - [ ] Collections listing
+  - [ ] Statistics calculation
+  - [ ] Search functionality
+  - [ ] Error handling
+
+**Deliverable**: Qdrant Manager tab in sidebar shows database management interface
+
+**Success Criteria**: ✓ View all collections, ✓ search by embedding, ✓ see storage stats, ✓ create/delete collections, ✓ 16 tests passing
+
+---
+
+#### Step 19: Implement Langfuse Observability Dashboard
+
+- [ ] Create `src/services/langfuse_client.py` (NEW):
+  - [ ] Read-only wrapper for Langfuse HTTP API
+  - [ ] Methods: `get_trace_summary()`, `get_recent_traces()`, `get_trace_details()`
+  - [ ] Configure Langfuse connection from environment variables
+  - [ ] Error handling for Langfuse unavailability
+- [ ] Create `src/ui/tools/langfuse_dashboard.py`:
+  - [ ] Trace summary metrics (total, latency, error rate)
+  - [ ] Recent traces list with filtering
+  - [ ] Trace details viewer with token counts
+  - [ ] Link to full Langfuse UI (port 3000)
+  - [ ] Time range filters (24h, 7d, 30d)
+- [ ] Create comprehensive test suite: 14 unit tests
+  - [ ] Client connectivity
+  - [ ] Trace summary retrieval
+  - [ ] Trace filtering
+  - [ ] Error scenarios
+
+**Deliverable**: Langfuse Observability tab shows traces and metrics
+
+**Success Criteria**: ✓ Display recent traces, ✓ show metrics summary, ✓ filter by time range, ✓ link to full dashboard, ✓ 14 tests passing
+
+---
+
+#### Step 20: Implement Promptfoo Testing Dashboard (Optional)
+
+- [ ] Create `src/ui/tools/promptfoo_dashboard.py`:
+  - [ ] Test scenario creation interface
+  - [ ] Test run history with version management
+  - [ ] Results comparison between versions
+  - [ ] Pass/fail rate visualization
+  - [ ] Deploy selected prompt version
+- [ ] Create test suite: 12 unit tests
+  - [ ] Test creation
+  - [ ] Test run management
+  - [ ] Version comparison
+  - [ ] Error handling
+
+**Note**: Implementation depends on Promptfoo library availability. Can be mocked for MVP.
+
+**Deliverable**: Promptfoo tab for prompt testing and versioning
+
+**Success Criteria**: ✓ Create test scenarios, ✓ view test results, ✓ compare versions, ✓ 12 tests passing
+
+---
+
+#### Step 21: Implement System Health Dashboard
+
+- [ ] Enhance `src/services/health_check.py`:
+  - [ ] Add `get_service_metrics()` method (CPU, memory, request counts)
+  - [ ] Add `get_docker_stats()` method (host resource usage)
+  - [ ] Add `get_health_trend()` method (historical metrics)
+  - [ ] Implement metrics collection and caching
+- [ ] Create `src/ui/tools/system_health_dashboard.py`:
+  - [ ] Overall system status indicator
+  - [ ] Per-service metrics display (Ollama, Qdrant, Meilisearch, Langfuse)
+  - [ ] Host Docker resources visualization
+  - [ ] Alert configuration interface
+  - [ ] Health trend charts
+- [ ] Create comprehensive test suite: 18 unit tests
+  - [ ] Metrics collection
+  - [ ] Service status determination
+  - [ ] Docker stats parsing
+  - [ ] Alert configuration
+
+**Deliverable**: System Health tab with comprehensive monitoring
+
+**Success Criteria**: ✓ Show all service metrics, ✓ display host resources, ✓ indicate overall status, ✓ 18 tests passing
+
+---
+
+#### Step 22: Integration & Validation
+
+- [ ] Integration testing: All 4 management tools working together
+  - [ ] Test navigation between all tools
+  - [ ] Test data caching behavior
+  - [ ] Test error scenarios (service unavailable)
+  - [ ] Test feature flag disabling/enabling
+- [ ] Performance testing: Dashboard responsiveness
+  - [ ] Sidebar rendering < 200ms
+  - [ ] Tool content rendering < 500ms
+  - [ ] Data caching working correctly
+- [ ] End-to-end testing: Complete user workflows
+  - [ ] User navigates all tools
+  - [ ] User performs tool-specific actions
+  - [ ] UI remains responsive
+
+**Deliverable**: All Phase 4b components integrated and tested
+
+**Success Criteria**: ✓ All 9 components work together, ✓ <500ms page load, ✓ all tests passing, ✓ feature flags control visibility
+
+---
+
+### PHASE 4b Progress Tracking
+
+**Estimated Effort**: 3-4 weeks (following DASHBOARD_DESIGN.md)
+
+**Components**: 5 new dashboard tools + 1 navigation component + 3 service client enhancements
+
+**Test Coverage**: 60+ unit tests (Qdrant 16, Langfuse 14, Promptfoo 12, Health 18)
+
+---
+
+### PHASE 4b Validation Checkpoint
+
+**Phase 4b Complete When**:
+
+- [ ] Sidebar navigation renders with all tools
+- [ ] Qdrant Manager tab shows collections and search
+- [ ] Langfuse Observability tab shows recent traces
+- [ ] Promptfoo tab allows test creation and comparison
+- [ ] System Health tab shows all service metrics
+- [ ] Feature flags control tool visibility
+- [ ] All 60+ tests passing
+- [ ] Dashboard components responsive and cached
+- [ ] No external calls without error handling
+
+---
+
 ### PHASE 4 Validation Checkpoint
 
 **Phase 4 Complete When**:
@@ -565,13 +758,14 @@
 
 ### Summary Table
 
-| Phase       | Checkpoint                                                        | Status         | Notes                        |
-| ----------- | ----------------------------------------------------------------- | -------------- | ---------------------------- |
-| **Phase 1** | `docker-compose up -d` → all services healthy, DevContainer works | ✅ COMPLETED   | Foundation ready for Phase 2 |
-| **Phase 2** | UI loads, services connect, health checks display correctly       | ⏳ Not Started | Core UI & connectivity       |
-| **Phase 3** | Upload PDF → search in KB → chat generates responses with sources | ⏳ Not Started | RAG pipeline                 |
-| **Phase 4** | Malicious input blocked, Langfuse shows traces                    | ⏳ Not Started | Security & observability     |
-| **Phase 5** | `pytest --cov≥80%`, README clear to new developer                 | ⏳ Not Started | Testing & docs               |
+| Phase        | Checkpoint                                                           | Status         | Notes                                          |
+| ------------ | -------------------------------------------------------------------- | -------------- | ---------------------------------------------- |
+| **Phase 1**  | `docker-compose up -d` → all services healthy, DevContainer works    | ✅ COMPLETED   | Foundation ready for Phase 2                   |
+| **Phase 2**  | UI loads, services connect, health checks display correctly          | ✅ COMPLETED   | Core UI & connectivity ready for Phase 3       |
+| **Phase 3**  | Upload PDF → search in KB → chat generates responses with sources    | ✅ COMPLETED   | RAG pipeline ready for Phase 4                 |
+| **Phase 4**  | Malicious input blocked, Langfuse shows traces                       | ⏳ Not Started | Security & observability                       |
+| **Phase 4b** | All dashboard tools accessible, metrics displayed, 60+ tests passing | ⏳ Not Started | Management interface (see DASHBOARD_DESIGN.md) |
+| **Phase 5**  | `pytest --cov≥80%`, README clear to new developer                    | ⏳ Not Started | Testing & docs                                 |
 
 ---
 
@@ -645,6 +839,16 @@ Phase 4: Security & Observability
 ├─ Step 14: Langfuse Observability ....................... ⏳ Not Started
 └─ Step 15: Environment Configuration ................... ⏳ Not Started
 
+Phase 4b: Tool Dashboards & Management Interface ⭐ NEW
+├─ Dashboard Design Document ............................. ✅ COMPLETE (see DASHBOARD_DESIGN.md)
+├─ Step 17: Sidebar Navigation Refactor .................. ⏳ Not Started
+├─ Step 18: Qdrant Manager Dashboard ..................... ⏳ Not Started
+├─ Step 19: Langfuse Observability Dashboard ............ ⏳ Not Started
+├─ Step 20: Promptfoo Testing Dashboard ................. ⏳ Not Started
+├─ Step 21: System Health Dashboard ..................... ⏳ Not Started
+├─ Step 22: Integration & Validation ..................... ⏳ Not Started
+└─ Phase 4b Total: 60+ unit tests, 5 new dashboard tools
+
 Phase 5: Testing & Documentation
 ├─ Step 16: Pytest Setup ................................. ⏳ Not Started
 ├─ Step 17: Unit Tests ................................... ⏳ Not Started
@@ -654,28 +858,31 @@ Phase 5: Testing & Documentation
 
 ### Update Log
 
-| Date       | Phase | Step | Status       | Notes                                                      |
-| ---------- | ----- | ---- | ------------ | ---------------------------------------------------------- |
-| 2026-01-10 | -     | Plan | ✅ Approved  | Plan reviewed and approved                                 |
-| 2026-01-10 | 1     | 1    | ✅ Completed | Project structure and configuration initialized            |
-| 2026-01-11 | 1     | 2    | ✅ Completed | Docker Compose with 6 services and resource limits         |
-| 2026-01-15 | 1     | 3    | ✅ Completed | DevContainer with VS Code integration and tooling          |
-| 2026-01-15 | 1     | 4    | ✅ Completed | Configuration management with Pydantic v2 and logging      |
-| 2026-01-15 | 1     | 5    | ✅ Completed | Repository structure validation complete                   |
-| 2026-01-15 | 1     | -    | ✅ PHASE 1   | All infrastructure foundation ready for Phase 2            |
-| 2026-01-18 | 3     | 9    | ✅ Completed | Document ingestion pipeline with PDF extraction (20 tests) |
-| 2026-01-18 | 3     | 10   | ✅ Completed | Hybrid retrieval engine (semantic + keyword) (18 tests)    |
-| 2026-01-18 | 3     | 11   | ✅ Completed | Agent orchestration with LangChain integration (22 tests)  |
-| 2026-01-18 | 3     | 12   | ✅ Completed | Multi-turn conversation memory management (30 tests)       |
-| 2026-01-18 | 3     | -    | ✅ PHASE 3   | RAG pipeline complete with 92 tests, ready for Phase 4     |
+| Date       | Phase | Step   | Status       | Notes                                                      |
+| ---------- | ----- | ------ | ------------ | ---------------------------------------------------------- |
+| 2026-01-10 | -     | Plan   | ✅ Approved  | Plan reviewed and approved                                 |
+| 2026-01-10 | 1     | 1      | ✅ Completed | Project structure and configuration initialized            |
+| 2026-01-11 | 1     | 2      | ✅ Completed | Docker Compose with 6 services and resource limits         |
+| 2026-01-15 | 1     | 3      | ✅ Completed | DevContainer with VS Code integration and tooling          |
+| 2026-01-15 | 1     | 4      | ✅ Completed | Configuration management with Pydantic v2 and logging      |
+| 2026-01-15 | 1     | 5      | ✅ Completed | Repository structure validation complete                   |
+| 2026-01-15 | 1     | -      | ✅ PHASE 1   | All infrastructure foundation ready for Phase 2            |
+| 2026-01-18 | 3     | 9      | ✅ Completed | Document ingestion pipeline with PDF extraction (20 tests) |
+| 2026-01-18 | 3     | 10     | ✅ Completed | Hybrid retrieval engine (semantic + keyword) (18 tests)    |
+| 2026-01-18 | 3     | 11     | ✅ Completed | Agent orchestration with LangChain integration (22 tests)  |
+| 2026-01-18 | 3     | 12     | ✅ Completed | Multi-turn conversation memory management (30 tests)       |
+| 2026-01-18 | 3     | -      | ✅ PHASE 3   | RAG pipeline complete with 92 tests, ready for Phase 4     |
+| 2026-01-18 | 4b    | Design | ✅ Completed | Dashboard design document created (DASHBOARD_DESIGN.md)    |
 
 ---
 
 ## Next Steps
 
 1. **Phase 4**: Implement security features (LLM Guard) and observability (Langfuse)
-2. **Phase 5**: Add comprehensive documentation and integration tests
-3. **Production**: Deploy with all security and monitoring features enabled
+2. **Phase 4b**: Build tool dashboards for Qdrant, Langfuse, Promptfoo, and System Health (follow DASHBOARD_DESIGN.md)
+3. **Phase 5**: Add comprehensive documentation and integration tests
+4. **Phase 5**: Add comprehensive documentation and integration tests
+5. **Production**: Deploy with all security and monitoring features enabled
 
 ---
 
