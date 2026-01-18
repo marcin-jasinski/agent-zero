@@ -1,0 +1,32 @@
+# ============================================================================
+# GPU OVERRIDE: NVIDIA GPU Acceleration for Ollama
+# ============================================================================
+#
+# This file extends docker-compose.yml to enable GPU acceleration.
+#
+# COMPATIBILITY:
+# - ✅ Windows with WSL 2 + NVIDIA drivers
+# - ✅ Linux with NVIDIA drivers installed
+# - ❌ macOS (no NVIDIA GPU support)
+# - ❌ Systems without NVIDIA drivers
+#
+# USAGE:
+#   docker-compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+#
+#   OR use the convenience startup script:
+#   ./start.bat gpu (Windows)
+#   ./start.sh gpu (Linux/macOS)
+#
+# ============================================================================
+
+services:
+  ollama:
+    environment:
+      - OLLAMA_GPU=1
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
