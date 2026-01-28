@@ -2,6 +2,9 @@
 
 This is the A.P.I. (AI Playground Interface) - the web-based dashboard
 for Agent Zero, the Local Agent Builder.
+
+Phase 4b: Implements dynamic sidebar navigation with feature flags.
+Design Reference: DASHBOARD_DESIGN.md § "Sidebar Navigation Structure"
 """
 
 import logging
@@ -18,7 +21,8 @@ from src.config import get_config
 from src.logging_config import setup_logging
 from src.services import HealthChecker
 from src.startup import ApplicationStartup
-from src.ui.components import (
+from src.ui.components.navigation import SidebarNavigation, ToolDefinition
+from src.ui.tools import (
     initialize_chat_session,
     initialize_kb_session,
     initialize_logs_session,
@@ -57,7 +61,157 @@ st.markdown(
 )
 
 
+def render_system_health_sidebar() -> None:
+    """Render service health status in sidebar (below navigation).
+    
+    This will eventually be replaced by the full System Health dashboard tool.
+    For now, provides quick status view in sidebar.
+    """
+    with st.sidebar:
+        st.divider()
+        st.subheader("Service Status")
+
+        # Initialize and run health checks
+        if "health_checker" not in st.session_state:
+            st.session_state.health_checker = HealthChecker()
+
+        health_checker = st.session_state.health_checker
+        service_statuses = health_checker.check_all()
+
+        # Display each service status
+        for service_name, status in service_statuses.items():
+            icon = "✅" if status.is_healthy else "❌"
+            status_text = "Healthy" if status.is_healthy else "Unhealthy"
+            st.write(f"{icon} {status.name}: {status_text}")
+
+            if status.message:
+                st.caption(status.message)
+
+        st.divider()
+
+        # Quick Actions
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if st.button("🔄 Refresh", use_container_width=True, key="refresh_health"):
+                # Clear health checker cache to force new checks
+                st.session_state.health_checker = HealthChecker()
+                st.rerun()
+
+        with col2:
+            if st.button("ℹ️ About", use_container_width=True, key="about_btn"):
+                config = get_config()
+                st.info(
+                    f"**Agent Zero (L.A.B.)**\n\n"
+                    f"Version: {config.app_version}\n\n"
+                    f"Local Agent Builder - Build and test AI agents locally.\n\n"
+                    f"[GitHub](https://github.com/marcin-jasinski/agent-zero)"
+                )
+
+        st.divider()
+        st.caption("💡 Agent Zero: Local-First, Secure-by-Design")
+
+
+def setup_navigation() -> SidebarNavigation:
+    """Set up navigation with all available tools based on feature flags.
+    
+    Returns:
+        Configured SidebarNavigation instance with registered tools
+    """
+    config = get_config()
+    nav = SidebarNavigation()
+    
+    # Register Core Tools (always available if enabled)
+    if config.dashboard.show_chat:
+        nav.register_tool(ToolDefinition(
+            key="chat",
+            icon="💬",
+            label="Chat",
+            description="Chat with Agent Zero",
+            render_func=render_chat_interface,
+            enabled=True,
+            category="core"
+        ))
+    
+    if config.dashboard.show_knowledge_base:
+        nav.register_tool(ToolDefinition(
+            key="knowledge_base",
+            icon="📚",
+            label="Knowledge Base",
+            description="Upload and manage documents",
+            render_func=render_knowledge_base,
+            enabled=True,
+            category="core"
+        ))
+    
+    if config.dashboard.show_settings:
+        nav.register_tool(ToolDefinition(
+            key="settings",
+            icon="⚙️",
+            label="Settings",
+            description="Configure Agent Zero",
+            render_func=render_settings,
+            enabled=True,
+            category="core"
+        ))
+    
+    if config.dashboard.show_logs:
+        nav.register_tool(ToolDefinition(
+            key="logs",
+            icon="📋",
+            label="Logs",
+            description="View system logs",
+            render_func=render_logs,
+            enabled=True,
+            category="core"
+        ))
+    
+    # Register Management Tools (Phase 4b - feature flagged)
+    # TODO: Implement these tools in subsequent steps
+    # if config.dashboard.show_qdrant_manager:
+    #     nav.register_tool(ToolDefinition(
+    #         key="qdrant_manager",
+    #         icon="🔍",
+    #         label="Qdrant Manager",
+    #         description="Manage vector database",
+    #         render_func=render_qdrant_manager,
+    #         enabled=True,
+    #         category="management"
+    #     ))
+    
+    # if config.dashboard.show_langfuse_dashboard:
+    #     nav.register_tool(ToolDefinition(
+    #         key="langfuse_dashboard",
+    #         icon="📊",
+    #         label="Langfuse Observability",
+    #         description="View traces and metrics",
+    #         render_func=render_langfuse_dashboard,
+    #         enabled=True,
+    #         category="management"
+    #     ))
+    
+    # if config.dashboard.show_system_health:
+    #     nav.register_tool(ToolDefinition(
+    #         key="system_health",
+    #         icon="🏥",
+    #         label="System Health",
+    #         description="Monitor service health",
+    #         render_func=render_system_health_dashboard,
+    #         enabled=True,
+    #         category="management"
+    #     ))
+    
+    logger.info(f"Navigation configured with {len(nav.tools)} tools")
+    return nav
+
+
 def render_sidebar_status() -> None:
+    """Render the sidebar with system status and service health.
+    
+    DEPRECATED: This function is kept for backwards compatibility but is
+    no longer used with the new navigation system. Use render_system_health_sidebar()
+    and setup_navigation() instead.
+    """
     """Render the sidebar with system status and service health."""
     with st.sidebar:
         st.header("System Status")
@@ -133,33 +287,29 @@ def main() -> None:
         st.session_state.startup_complete = True
         st.session_state.startup_status = startup.get_status()
 
-    # Initialize all session states
+    # Initialize all session states for existing tools
     initialize_chat_session()
     initialize_kb_session()
     initialize_settings_session()
     initialize_logs_session()
 
+    # Setup navigation
+    nav = setup_navigation()
+    
+    # Render navigation sidebar
+    nav.render_sidebar()
+    
+    # Render system health in sidebar (below navigation)
+    render_system_health_sidebar()
+    
+    # Main Content Area
     # Header
     st.title("🤖 Agent Zero (L.A.B.)")
     st.markdown("**Local Agent Builder** - Build and test AI agents locally with ease")
-
-    # Render sidebar
-    render_sidebar_status()
-
-    # Main Content - Tabs
-    tab1, tab2, tab3, tab4 = st.tabs(["💬 Chat", "📚 Knowledge Base", "⚙️ Settings", "📋 Logs"])
-
-    with tab1:
-        render_chat_interface()
-
-    with tab2:
-        render_knowledge_base()
-
-    with tab3:
-        render_settings()
-
-    with tab4:
-        render_logs()
+    st.divider()
+    
+    # Render active tool content
+    nav.render_active_tool()
 
     # Footer
     st.divider()

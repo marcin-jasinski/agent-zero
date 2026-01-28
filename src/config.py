@@ -143,6 +143,29 @@ class SecurityConfig(BaseSettings):
         env_prefix = "LLM_GUARD_"
 
 
+class DashboardFeatures(BaseSettings):
+    """Feature flags for dashboard tools (Phase 4b).
+    
+    Controls visibility and availability of management dashboard tools.
+    Allows for incremental rollout and environment-specific feature control.
+    """
+    
+    # Core tools (always available)
+    show_chat: bool = Field(default=True, description="Show Chat interface")
+    show_knowledge_base: bool = Field(default=True, description="Show Knowledge Base interface")
+    show_settings: bool = Field(default=True, description="Show Settings interface")
+    show_logs: bool = Field(default=True, description="Show Logs interface")
+    
+    # Management tools (optional, feature-flagged)
+    show_qdrant_manager: bool = Field(default=False, description="Show Qdrant Manager dashboard")
+    show_langfuse_dashboard: bool = Field(default=False, description="Show Langfuse Observability dashboard")
+    show_promptfoo: bool = Field(default=False, description="Show Promptfoo Testing dashboard")
+    show_system_health: bool = Field(default=False, description="Show System Health dashboard")
+    
+    class Config:
+        env_prefix = "APP_DASHBOARD_"
+
+
 class AppConfig(BaseSettings):
     """Main application configuration."""
 
@@ -175,6 +198,9 @@ class AppConfig(BaseSettings):
     )
     security: SecurityConfig = Field(
         default_factory=SecurityConfig, description="Security config"
+    )
+    dashboard: DashboardFeatures = Field(
+        default_factory=DashboardFeatures, description="Dashboard feature flags"
     )
 
     @field_validator("env")

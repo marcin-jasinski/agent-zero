@@ -496,99 +496,271 @@ This is a **LOCAL DEVELOPMENT PLAYGROUND** for a single software engineer to exp
 
 ### PHASE 4b: Tool Dashboards & Management Interface
 
-**Goal**: Extend UI with dedicated dashboards for observability, database management, and system monitoring.
+**Goal**: Transform Agent Zero from a chat-focused tool into a comprehensive management platform with vector database management, observability dashboards, and system monitoring.
 
-**Prerequisites**: Phase 4 Security & Observability (Langfuse, LLM Guard) must be completed.
+**Prerequisites**: ✅ Phase 4 Complete (Steps 13-15: LLM Guard, Langfuse Observability, Environment Configuration)
 
-**Important**: Before starting implementation, **read and follow** [DASHBOARD_DESIGN.md](DASHBOARD_DESIGN.md) for complete design specifications, UI mockups, component architecture, and implementation guidelines.
+**Architecture**: Dynamic sidebar navigation with conditional tool rendering based on feature flags and service availability.
+
+**Important**: **READ** [DASHBOARD_DESIGN.md](DASHBOARD_DESIGN.md) before implementation. It contains complete UI mockups, component specifications, data flow diagrams, and implementation guidelines.
+
+---
 
 #### Step 16: Dashboard Design & Architecture
 
 ✅ **DESIGN DOCUMENT COMPLETE** | Reference: [DASHBOARD_DESIGN.md](DASHBOARD_DESIGN.md)
 
-The design document includes:
+**Design Highlights**:
+- **Sidebar Structure**: Core tools (Chat, KB, Settings, Logs) + Management tools (Qdrant, Langfuse, Promptfoo, System Health)
+- **Component Architecture**: Modular tool components in `src/ui/tools/` with standardized interfaces
+- **Data Flow**: Service clients → Streamlit caching → UI components → User interactions
+- **Performance**: `@st.cache_data` for all data fetching (5-minute TTL)
+- **Error Handling**: Graceful degradation when services unavailable
 
-- Complete UI layout mockups for all dashboard tools
-- Component architecture and specifications
-- Data flow diagrams and design patterns
-- Implementation guidelines step-by-step
-- Service client enhancement requirements
-- Testing and validation strategies
-
-**Use this design document as your implementation blueprint.**
-
----
-
-#### Step 17: Refactor Sidebar Navigation
-
-- [ ] Create `src/ui/components/navigation.py`:
-  - [ ] `SidebarNavigation` class with dynamic tool management
-  - [ ] Load tools based on phase completion and feature flags
-  - [ ] Separate core tools (Chat, KB, Settings, Logs) from management tools
-  - [ ] Render sidebar with icons and labels
-  - [ ] Service health status integration
-- [ ] Update `src/ui/main.py`:
-  - [ ] Replace current tab logic with `SidebarNavigation` component
-  - [ ] Use `st.session_state["selected_tool"]` for navigation
-  - [ ] Conditionally render tool components
-- [ ] Create feature flags in `src/config.py`:
-  - [ ] `qdrant_manager_enabled`
-  - [ ] `langfuse_dashboard_enabled`
-  - [ ] `promptfoo_enabled`
-  - [ ] `system_health_dashboard_enabled`
-
-**Deliverable**: Sidebar navigation component with tool selection
-
-**Success Criteria**: ✓ Navigation renders with icons, ✓ tool selection switches content, ✓ feature flags control visibility, ✓ existing 4 tools still work
+**Key Implementation Patterns**:
+```python
+# Tool Interface Pattern
+class ToolComponent:
+    def render(self) -> None:
+        """Render tool UI with error handling and caching."""
+        
+# Navigation Pattern
+st.session_state["selected_tool"] = tool_name
+# Conditional rendering based on selection
+```
 
 ---
 
-#### Step 18: Implement Qdrant Manager Dashboard
+#### Step 17: Sidebar Navigation & Feature Flags ✅ **COMPLETE**
 
-- [ ] Create `src/ui/tools/qdrant_dashboard.py`:
-  - [ ] Collections overview with stats (vector count, dimensions, storage)
-  - [ ] Search interface with semantic query capability
-  - [ ] Collection details viewer
-  - [ ] Create/delete collection operations
-  - [ ] Implement per-tool component caching with `@st.cache_data`
-- [ ] Enhance `src/services/qdrant_client.py`:
-  - [ ] Add `get_collections_stats()` method
-  - [ ] Add `semantic_search()` method for dashboard queries
-  - [ ] Add `get_collection_details()` method
-- [ ] Create comprehensive test suite: 16 unit tests
-  - [ ] Collections listing
-  - [ ] Statistics calculation
-  - [ ] Search functionality
-  - [ ] Error handling
+**Completion Date**: 2026-01-28  
+**Status**: ✅ All tasks completed, 13/13 tests passing  
+**Documentation**: See STEP_17_COMPLETION.md
 
-**Deliverable**: Qdrant Manager tab in sidebar shows database management interface
+**Implementation Order**: Foundation for all dashboard tools
 
-**Success Criteria**: ✓ View all collections, ✓ search by embedding, ✓ see storage stats, ✓ create/delete collections, ✓ 16 tests passing
+- [x] **Add Feature Flags to Configuration** (`src/config.py`):
+  - [x] Create `DashboardFeatures` nested config class:
+    - [x] Core tools: `show_chat`, `show_knowledge_base`, `show_settings`, `show_logs` (default: `True`)
+    - [x] Management tools: `show_qdrant_manager`, `show_langfuse_dashboard`, `show_promptfoo`, `show_system_health` (default: `False`)
+  - [x] Add to `AppConfig` as `dashboard: DashboardFeatures`
+  - [x] Environment variables: `APP_DASHBOARD__<FIELD>` naming convention
+  - [x] Validation: warn if dashboard features enabled but services unavailable
+
+- [x] **Create Navigation Component** (`src/ui/components/navigation.py`):
+  - [x] `ToolDefinition` dataclass (key, icon, label, description, render_func, enabled, category)
+  - [x] `SidebarNavigation` class:
+    - [x] `register_tool()`: Add tools to navigation registry
+    - [x] `get_enabled_tools()`: Filter by enabled status and category
+    - [x] `render_sidebar()`: Render sidebar with tool buttons grouped by category
+    - [x] `render_active_tool()`: Invoke active tool's render function with error handling
+    - [x] `render()`: Main entry point - sidebar + content
+    - [x] Track selection in `st.session_state["active_tool"]`
+  - [x] Service health status indicator integrated in sidebar
+  - [x] Visual separation between core and management tools
+
+- [x] **Refactor Main UI** (`src/ui/main.py`):
+  - [x] Replace tab-based navigation with sidebar navigation
+  - [x] Extract existing components to tool modules:
+    - [x] `src/ui/tools/chat.py` (moved from components/)
+    - [x] `src/ui/tools/knowledge_base.py` (moved from components/)
+    - [x] `src/ui/tools/settings.py` (moved from components/)
+    - [x] `src/ui/tools/logs.py` (moved from components/)
+  - [x] Create `setup_navigation()` function to register all tools
+  - [x] Conditional tool rendering based on feature flags
+  - [x] Maintain backward compatibility via component re-exports
+
+- [x] **Create Test Suite** (`tests/ui/test_navigation.py`):
+  - [x] Test tool loading with feature flags enabled/disabled
+  - [x] Test ToolDefinition validation (empty key, non-callable render_func)
+  - [x] Test navigation initialization and tool registration
+  - [x] Test duplicate key prevention
+  - [x] Test get enabled tools (all + category filtering)
+  - [x] Test get active tool (found + not found)
+  - [x] Test render active tool (success + no tool + error handling)
+  - [x] 13 unit tests passing (100%)
+
+**Deliverable**: ✅ Dynamic sidebar navigation with feature flags, 13 tests passing, backward compatible
+
+**Success Criteria**: ✓ Feature flags control tool visibility, ✓ sidebar navigation renders correctly, ✓ tools grouped by category, ✓ 13 tests passing, ✓ backward compatibility maintained
+
+---
+  - [ ] Test tool selection and state management
+  - [ ] Test sidebar rendering with different configurations
+  - [ ] Test backward compatibility with existing tools
+  - [ ] 8 unit tests minimum
+
+**Design Reference**: DASHBOARD_DESIGN.md § "Sidebar Navigation Structure" (Lines 96-127)
+
+**Deliverable**: Dynamic sidebar navigation with feature flag-controlled tool visibility
+
+**Success Criteria**: ✓ Navigation renders with icons, ✓ tool selection switches content, ✓ feature flags control management tool visibility, ✓ all 4 existing tools work unchanged, ✓ 8 tests passing
 
 ---
 
-#### Step 19: Implement Langfuse Observability Dashboard
+#### Step 18: Qdrant Manager Dashboard
 
-- [ ] Create `src/services/langfuse_client.py` (NEW):
-  - [ ] Read-only wrapper for Langfuse HTTP API
-  - [ ] Methods: `get_trace_summary()`, `get_recent_traces()`, `get_trace_details()`
-  - [ ] Configure Langfuse connection from environment variables
-  - [ ] Error handling for Langfuse unavailability
-- [ ] Create `src/ui/tools/langfuse_dashboard.py`:
-  - [ ] Trace summary metrics (total, latency, error rate)
-  - [ ] Recent traces list with filtering
-  - [ ] Trace details viewer with token counts
-  - [ ] Link to full Langfuse UI (port 3000)
-  - [ ] Time range filters (24h, 7d, 30d)
-- [ ] Create comprehensive test suite: 14 unit tests
-  - [ ] Client connectivity
-  - [ ] Trace summary retrieval
-  - [ ] Trace filtering
-  - [ ] Error scenarios
+**Implementation Order**: After navigation (Step 17), first management tool
 
-**Deliverable**: Langfuse Observability tab shows traces and metrics
+- [ ] **Enhance Qdrant Client** (`src/services/qdrant_client.py`):
+  - [ ] Add `list_collections()`: Return list of all collections with metadata
+  - [ ] Add `get_collection_stats(collection_name: str)`: Return detailed stats
+    - [ ] Vector count, dimensions, distance metric, storage size, index config
+  - [ ] Add `search_by_text(query: str, collection: str, top_k: int)`:
+    - [ ] Convert query to embedding via Ollama
+    - [ ] Perform semantic search
+    - [ ] Return results with scores and payloads
+  - [ ] Add `create_collection_ui(name, vector_size, distance)`: Create collection with validation
+  - [ ] Add `delete_collection_ui(name)`: Delete with confirmation
+  - [ ] Error handling for all operations (collection not found, connection errors)
 
-**Success Criteria**: ✓ Display recent traces, ✓ show metrics summary, ✓ filter by time range, ✓ link to full dashboard, ✓ 14 tests passing
+- [ ] **Create Qdrant Dashboard Component** (`src/ui/tools/qdrant_dashboard.py`):
+  - [ ] **Collections Overview Section**:
+    - [ ] Display all collections in expandable cards
+    - [ ] Show: vector count, dimensions, storage size, distance metric
+    - [ ] Action buttons: [Details] [Search] [Delete]
+    - [ ] Create new collection form (name, vector size, distance metric dropdown)
+    - [ ] Refresh button with loading indicator
+  - [ ] **Search Interface Section**:
+    - [ ] Text input for semantic query
+    - [ ] Collection selector dropdown
+    - [ ] Top-K slider (1-20)
+    - [ ] Search button with loading state
+    - [ ] Results display: score, content preview, metadata
+    - [ ] Expandable result details
+  - [ ] **Collection Details Modal/Expander**:
+    - [ ] Full configuration view
+    - [ ] Vector distribution statistics
+    - [ ] Index performance metrics
+  - [ ] Use `@st.cache_data(ttl=300)` for collections list
+  - [ ] Use `@st.cache_data(ttl=60)` for search results
+  - [ ] Error handling with user-friendly messages
+
+- [ ] **Create Test Suite** (`tests/ui/tools/test_qdrant_dashboard.py` + `tests/services/test_qdrant_client.py`):
+  - [ ] Test `list_collections()` with empty/multiple collections
+  - [ ] Test `get_collection_stats()` with valid/invalid collection
+  - [ ] Test `search_by_text()` with various queries
+  - [ ] Test collection creation with validation
+  - [ ] Test collection deletion with confirmation
+  - [ ] Test error scenarios (Qdrant unavailable, invalid params)
+  - [ ] Test UI caching behavior
+  - [ ] Mock Ollama embedding generation
+  - [ ] 16 unit tests minimum
+
+**Design Reference**: DASHBOARD_DESIGN.md § "Qdrant Manager Tab" (Lines 163-189)
+
+**UI Layout**:
+```
+┌─────────────────────────────────┐
+│ 🔍 Qdrant Manager               │
+├─────────────────────────────────┤
+│ Collections Overview:           │
+│ ┌─────────────────────────────┐ │
+│ │ 📁 documents                │ │
+│ │ Vectors: 8,432  Size: 768   │ │
+│ │ Storage: 12.5 MB            │ │
+│ │ [Details] [Search] [Delete] │ │
+│ └─────────────────────────────┘ │
+│                                 │
+│ Search Interface:               │
+│ Query: [____________] [Search]  │
+│ Collection: [documents ▼]       │
+│ Top K: [5 ──●────] (1-20)      │
+│                                 │
+│ Results: 5 matches              │
+│ 1. Score: 0.92 | "text..."     │
+│ 2. Score: 0.87 | "text..."     │
+└─────────────────────────────────┘
+```
+
+**Deliverable**: Qdrant Manager dashboard with collections management and semantic search
+
+**Success Criteria**: ✓ View all collections with stats, ✓ semantic search by text query, ✓ create/delete collections, ✓ responsive UI with caching, ✓ 16 tests passing
+
+---
+
+#### Step 19: Langfuse Observability Dashboard
+
+**Implementation Order**: After Qdrant dashboard (Step 18)
+
+- [ ] **Create Langfuse Client** (`src/services/langfuse_client.py` - NEW):
+  - [ ] Read-only HTTP API wrapper for Langfuse
+  - [ ] Configuration from `LangfuseConfig` (host, public_key, secret_key)
+  - [ ] Methods:
+    - [ ] `get_trace_summary(time_range: str)`: Total traces, avg latency, error rate
+    - [ ] `get_recent_traces(limit: int, filter: dict)`: Recent traces with metadata
+    - [ ] `get_trace_details(trace_id: str)`: Full trace with spans and events
+    - [ ] `is_healthy()`: Check Langfuse API connectivity
+  - [ ] Use requests library with retry logic and timeouts
+  - [ ] Handle authentication (API keys)
+  - [ ] Graceful error handling (service unavailable)
+  - [ ] Response parsing and validation
+
+- [ ] **Create Langfuse Dashboard Component** (`src/ui/tools/langfuse_dashboard.py`):
+  - [ ] **Summary Metrics Section**:
+    - [ ] Display: total traces, traces last 24h, avg latency, error rate
+    - [ ] Use st.metrics() for visual cards
+    - [ ] Time range selector: 24h, 7d, 30d
+    - [ ] Refresh button with last updated timestamp
+  - [ ] **Recent Traces Section**:
+    - [ ] Scrollable list of recent traces (limit 20)
+    - [ ] Display: timestamp, trace name, duration, status (✓/✗)
+    - [ ] Token counts (input/output) if available
+    - [ ] Expandable trace details
+    - [ ] Filter options: status (all/success/error), time range
+  - [ ] **Trace Details Viewer** (expandable):
+    - [ ] Full trace hierarchy (spans)
+    - [ ] Token usage breakdown
+    - [ ] Latency breakdown by component
+    - [ ] Error messages if present
+  - [ ] **Link to Full Langfuse UI**:
+    - [ ] Button to open full dashboard (port 3000)
+    - [ ] Display current Langfuse connection status
+  - [ ] Use `@st.cache_data(ttl=60)` for trace summary
+  - [ ] Use `@st.cache_data(ttl=30)` for recent traces
+  - [ ] Handle Langfuse disabled state gracefully
+
+- [ ] **Create Test Suite** (`tests/services/test_langfuse_client.py` + `tests/ui/tools/test_langfuse_dashboard.py`):
+  - [ ] Test `get_trace_summary()` with various time ranges
+  - [ ] Test `get_recent_traces()` with filtering
+  - [ ] Test `get_trace_details()` with valid/invalid trace IDs
+  - [ ] Test authentication handling
+  - [ ] Test error scenarios (Langfuse unavailable, invalid credentials)
+  - [ ] Test UI rendering with empty/populated data
+  - [ ] Test time range filtering
+  - [ ] Mock HTTP API responses
+  - [ ] 14 unit tests minimum
+
+**Design Reference**: DASHBOARD_DESIGN.md § "Langfuse Observability Tab" (Lines 191-221)
+
+**UI Layout**:
+```
+┌─────────────────────────────────┐
+│ 📊 Langfuse Observability       │
+├─────────────────────────────────┤
+│ Summary:                        │
+│ ┌─────────────────────────────┐ │
+│ │ Total: 1,247  24h: 342      │ │
+│ │ Latency: 2.3s  Errors: 0.2% │ │
+│ └─────────────────────────────┘ │
+│                                 │
+│ Recent Traces:                  │
+│ ┌─────────────────────────────┐ │
+│ │ 📍 [14:32:45] Chat Query    │ │
+│ │    2.1s ✓ | 245→89 tokens  │ │
+│ │    [View Details]           │ │
+│ ├─────────────────────────────┤ │
+│ │ 📍 [14:31:12] Retrieval     │ │
+│ │    0.8s ✓ | 5 docs         │ │
+│ └─────────────────────────────┘ │
+│                                 │
+│ [Full Dashboard →] (port 3000)  │
+└─────────────────────────────────┘
+```
+
+**Deliverable**: Langfuse observability dashboard with trace viewing and metrics
+
+**Success Criteria**: ✓ Display trace summary, ✓ show recent traces, ✓ filter by time range, ✓ view trace details, ✓ link to full Langfuse UI, ✓ 14 tests passing
 
 ---
 
@@ -614,50 +786,146 @@ The design document includes:
 
 ---
 
-#### Step 21: Implement System Health Dashboard
+#### Step 21: System Health Dashboard
 
-- [ ] Enhance `src/services/health_check.py`:
-  - [ ] Add `get_service_metrics()` method (CPU, memory, request counts)
-  - [ ] Add `get_docker_stats()` method (host resource usage)
-  - [ ] Add `get_health_trend()` method (historical metrics)
-  - [ ] Implement metrics collection and caching
-- [ ] Create `src/ui/tools/system_health_dashboard.py`:
-  - [ ] Overall system status indicator
-  - [ ] Per-service metrics display (Ollama, Qdrant, Meilisearch, Langfuse)
-  - [ ] Host Docker resources visualization
-  - [ ] Alert configuration interface
-  - [ ] Health trend charts
-- [ ] Create comprehensive test suite: 18 unit tests
-  - [ ] Metrics collection
-  - [ ] Service status determination
-  - [ ] Docker stats parsing
-  - [ ] Alert configuration
+**Implementation Order**: After Langfuse dashboard (Step 19) or Promptfoo (Step 20)
 
-**Deliverable**: System Health tab with comprehensive monitoring
+- [ ] **Enhance Health Check Service** (`src/services/health_check.py`):
+  - [ ] Add `get_detailed_status()`: Per-service detailed metrics
+    - [ ] Response times, last check timestamp, error messages
+    - [ ] Service versions if available (Ollama version, Qdrant version)
+  - [ ] Add `get_resource_metrics()`: Host system resource usage
+    - [ ] CPU usage, memory usage, disk space
+    - [ ] Docker container stats (if available)
+  - [ ] Add `get_historical_data(time_range: str)`: Status over time
+    - [ ] Uptime percentage per service
+    - [ ] Response time trends
+  - [ ] Add `restart_service(service_name: str)`: Trigger restart (via Docker API if available)
+  - [ ] Caching with short TTL (30 seconds)
 
-**Success Criteria**: ✓ Show all service metrics, ✓ display host resources, ✓ indicate overall status, ✓ 18 tests passing
+- [ ] **Create System Health Dashboard Component** (`src/ui/tools/system_health.py`):
+  - [ ] **Service Status Overview Section**:
+    - [ ] Status cards for each service (Ollama, Qdrant, Meilisearch, Langfuse)
+    - [ ] Color-coded indicators: 🟢 Healthy, 🟡 Degraded, 🔴 Down
+    - [ ] Display: status, response time, uptime, version
+    - [ ] Refresh button with auto-refresh toggle (30s interval)
+  - [ ] **Host Resources Section**:
+    - [ ] CPU usage meter (with visual gauge)
+    - [ ] Memory usage meter (with visual gauge)
+    - [ ] Disk space meter (with visual gauge)
+    - [ ] Docker container resource usage (if available)
+  - [ ] **Historical Trends Section** (Optional):
+    - [ ] Line charts for response times over last 24h
+    - [ ] Uptime percentage bars per service
+    - [ ] Incident log (recent failures)
+  - [ ] **Actions Section**:
+    - [ ] Restart service buttons (with confirmation)
+    - [ ] Run full health check button
+    - [ ] Export diagnostics button (JSON download)
+  - [ ] Use `@st.cache_data(ttl=30)` for health status
+  - [ ] Auto-refresh option with `st.rerun()` every 30s
+
+- [ ] **Create Test Suite** (`tests/services/test_health_check.py` + `tests/ui/tools/test_system_health.py`):
+  - [ ] Test `get_detailed_status()` with all services
+  - [ ] Test `get_resource_metrics()` with various resource levels
+  - [ ] Test `get_historical_data()` with different time ranges
+  - [ ] Test service restart logic (mocked)
+  - [ ] Test UI rendering with healthy/degraded/down states
+  - [ ] Test auto-refresh behavior
+  - [ ] Test resource gauges rendering
+  - [ ] Mock psutil and Docker API calls
+  - [ ] 18 unit tests minimum
+
+**Design Reference**: DASHBOARD_DESIGN.md § "System Health Tab" (Lines 257-293)
+
+**UI Layout**:
+```
+┌─────────────────────────────────┐
+│ 🏥 System Health                │
+├─────────────────────────────────┤
+│ Service Status:                 │
+│ ┌─────────────────────────────┐ │
+│ │ 🟢 Ollama  │ 2.3s │ 99.8%  │ │
+│ │ 🟢 Qdrant  │ 0.8s │ 100%   │ │
+│ │ 🟢 Meili   │ 1.2s │ 99.9%  │ │
+│ │ 🟡 Langfuse│ 5.1s │ 98.2%  │ │
+│ └─────────────────────────────┘ │
+│                                 │
+│ Host Resources:                 │
+│ CPU:    [████████░░] 78%       │
+│ Memory: [█████░░░░░] 52%       │
+│ Disk:   [███░░░░░░░] 34%       │
+│                                 │
+│ [🔄 Refresh] [Auto-refresh ☑]   │
+│ Last updated: 10 seconds ago    │
+└─────────────────────────────────┘
+```
+
+**Deliverable**: System Health dashboard with real-time service monitoring
+
+**Success Criteria**: ✓ Display all service statuses, ✓ show host resources, ✓ auto-refresh functionality, ✓ restart services (if Docker API available), ✓ 18 tests passing
 
 ---
 
-#### Step 22: Integration & Validation
+#### Step 22: Integration Testing & Validation
 
-- [ ] Integration testing: All 4 management tools working together
-  - [ ] Test navigation between all tools
-  - [ ] Test data caching behavior
-  - [ ] Test error scenarios (service unavailable)
-  - [ ] Test feature flag disabling/enabling
-- [ ] Performance testing: Dashboard responsiveness
-  - [ ] Sidebar rendering < 200ms
-  - [ ] Tool content rendering < 500ms
-  - [ ] Data caching working correctly
-- [ ] End-to-end testing: Complete user workflows
-  - [ ] User navigates all tools
-  - [ ] User performs tool-specific actions
-  - [ ] UI remains responsive
+**Implementation Order**: Final step after all dashboard tools implemented (Steps 17-21)
 
-**Deliverable**: All Phase 4b components integrated and tested
+- [ ] **Create Integration Test Suite** (`tests/integration/test_dashboard_integration.py`):
+  - [ ] Test sidebar navigation between all tools
+  - [ ] Test feature flag toggling (enable/disable tools dynamically)
+  - [ ] Test data flow: User interaction → Service client → Backend
+  - [ ] Test caching behavior across page refreshes
+  - [ ] Test error handling propagation (service unavailable scenarios)
+  - [ ] Test concurrent tool usage (multiple tabs/sessions)
+  - [ ] Test backward compatibility (existing 4 tools still work)
+  - [ ] 10 integration tests minimum
 
-**Success Criteria**: ✓ All 9 components work together, ✓ <500ms page load, ✓ all tests passing, ✓ feature flags control visibility
+- [ ] **Performance Testing**:
+  - [ ] Measure page load times for each dashboard tool
+  - [ ] Benchmark: <500ms initial load, <200ms cached load
+  - [ ] Test with large datasets (1000+ vectors, 100+ traces)
+  - [ ] Profile Streamlit caching effectiveness
+  - [ ] Identify and fix performance bottlenecks
+
+- [ ] **End-to-End Workflow Validation**:
+  - [ ] **Scenario 1: Knowledge Base Management**:
+    - [ ] Upload document via Knowledge Base tool
+    - [ ] Verify in Qdrant Manager (collection updated)
+    - [ ] Search via Qdrant dashboard
+    - [ ] Query via Chat tool
+    - [ ] View trace in Langfuse dashboard
+  - [ ] **Scenario 2: System Monitoring**:
+    - [ ] Generate 50 chat queries
+    - [ ] Monitor service health in real-time
+    - [ ] View traces in Langfuse
+    - [ ] Check resource usage trends
+  - [ ] **Scenario 3: Feature Flag Testing**:
+    - [ ] Disable Langfuse via feature flag
+    - [ ] Verify Langfuse tab hidden
+    - [ ] Verify agent still works without observability
+    - [ ] Re-enable and verify tab reappears
+
+- [ ] **User Acceptance Testing Checklist**:
+  - [ ] All 6 tabs render correctly
+  - [ ] Navigation smooth with no errors
+  - [ ] Caching reduces redundant API calls
+  - [ ] Error messages user-friendly
+  - [ ] Mobile responsive (basic)
+  - [ ] Documentation updated
+
+- [ ] **Validation Checkpoints**:
+  - [ ] Verify 60+ tests passing (Steps 17-21 combined)
+  - [ ] No regressions in existing functionality
+  - [ ] All services accessible via Docker Compose
+  - [ ] Configuration via .env working
+  - [ ] Logs clear and actionable
+
+**Design Reference**: DASHBOARD_DESIGN.md § "Data Flow & Caching" (Lines 402-442)
+
+**Deliverable**: Complete Phase 4b with validated, production-ready dashboard
+
+**Success Criteria**: ✓ All integration tests pass, ✓ performance benchmarks met, ✓ E2E workflows validated, ✓ no regressions, ✓ documentation complete
 
 ---
 
@@ -665,9 +933,9 @@ The design document includes:
 
 **Estimated Effort**: 3-4 weeks (following DASHBOARD_DESIGN.md)
 
-**Components**: 5 new dashboard tools + 1 navigation component + 3 service client enhancements
+**Components**: 5 dashboard tools + 1 navigation component + 3 service client enhancements
 
-**Test Coverage**: 60+ unit tests (Qdrant 16, Langfuse 14, Promptfoo 12, Health 18)
+**Test Coverage**: 60+ unit tests (Navigation 8, Qdrant 16, Langfuse 14, Promptfoo 12, Health 18, Integration 10)
 
 ---
 
@@ -676,14 +944,15 @@ The design document includes:
 **Phase 4b Complete When**:
 
 - [ ] Sidebar navigation renders with all tools
+- [ ] Feature flags control tool visibility dynamically
 - [ ] Qdrant Manager tab shows collections and search
 - [ ] Langfuse Observability tab shows recent traces
-- [ ] Promptfoo tab allows test creation and comparison
 - [ ] System Health tab shows all service metrics
-- [ ] Feature flags control tool visibility
+- [ ] Promptfoo tab works (if implemented) or gracefully skipped
 - [ ] All 60+ tests passing
 - [ ] Dashboard components responsive and cached
 - [ ] No external calls without error handling
+- [ ] Backward compatibility with existing 4 tools verified
 
 ---
 

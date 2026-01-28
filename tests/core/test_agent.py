@@ -94,7 +94,7 @@ class TestAgentOrchestrator:
         """Test that processed message is added to history."""
         conv_id = agent.start_conversation()
 
-        agent.ollama_client.chat = Mock(return_value="Response text")
+        agent.ollama_client.generate = Mock(return_value="Response text")  # Mock generate, not chat
         agent.retrieval_engine.retrieve_relevant_docs = Mock(return_value=[])
 
         agent.process_message(conv_id, "Hello assistant")
@@ -108,7 +108,7 @@ class TestAgentOrchestrator:
         """Test message processing with document retrieval."""
         conv_id = agent.start_conversation()
 
-        agent.ollama_client.chat = Mock(return_value="Generated response")
+        agent.ollama_client.generate = Mock(return_value="Generated response")
 
         mock_docs = [
             RetrievalResult(
@@ -130,7 +130,7 @@ class TestAgentOrchestrator:
         """Test message processing without retrieval."""
         conv_id = agent.start_conversation()
 
-        agent.ollama_client.chat = Mock(return_value="Simple response")
+        agent.ollama_client.generate = Mock(return_value="Simple response")
 
         response = agent.process_message(conv_id, "Hello", use_retrieval=False)
 
@@ -302,7 +302,7 @@ class TestAgentOrchestrator:
         """Test multi-turn conversation flow."""
         conv_id = agent.start_conversation()
 
-        agent.ollama_client.chat = Mock(
+        agent.ollama_client.generate = Mock(
             side_effect=["Response 1", "Response 2", "Response 3"]
         )
         agent.retrieval_engine.retrieve_relevant_docs = Mock(return_value=[])
