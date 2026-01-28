@@ -15,6 +15,7 @@ from src.models.agent import AgentConfig, AgentMessage, MessageRole, Conversatio
 from src.models.retrieval import RetrievalResult
 from src.services.ollama_client import OllamaClient
 from src.security.guard import LLMGuard, ThreatLevel
+from src.observability import get_langfuse_observability
 from src.config import get_config
 
 logger = logging.getLogger(__name__)
@@ -64,6 +65,9 @@ class AgentOrchestrator:
         else:
             self.llm_guard = llm_guard
 
+        # Initialize Langfuse observability
+        self.observability = get_langfuse_observability()
+
         # Define available tools
         self.tools = {
             "retrieve_documents": self._retrieve_documents,
@@ -73,7 +77,8 @@ class AgentOrchestrator:
 
         logger.info(
             f"Initialized AgentOrchestrator with model {self.config.model_name}, "
-            f"LLM Guard enabled={self.llm_guard.enabled}"
+            f"LLM Guard enabled={self.llm_guard.enabled}, "
+            f"Langfuse observability enabled={self.observability.enabled}"
         )
 
     def start_conversation(self, metadata: Optional[Dict] = None) -> str:
@@ -170,6 +175,15 @@ class AgentOrchestrator:
                         top_k=5,
                     )
                     logger.info(f"Retrieved {len(retrieved_docs)} documents")
+
+                    # Track retrieval metrics in Langfuse
+                    self.observability.track_retrieval(
+                        conversation_id=conversation_id,
+                        query=processed_message,
+                        results_count=len(retrieved_docs),
+                        retrieval_type="hybrid",
+                    )
+
                 except Exception as e:
                     logger.warning(f"Document retrieval failed: {e}")
 
@@ -181,7 +195,9 @@ class AgentOrchestrator:
             )
 
             # Generate response
-            response_text = self._invoke_llm(context, stream_callback)
+            response_text = self._invoke_llm(
+                context, stream_callback, conversation_id=conversation_id
+            )
 
             # Scan LLM output for security threats
             output_scan_result = self.llm_guard.scan_llm_output(
@@ -215,11 +231,25 @@ class AgentOrchestrator:
                 },
             )
 
+            # Track agent decision in Langfuse
+            self.observability.track_agent_decision(
+                conversation_id=conversation_id,
+                decision_type="rag_response",
+                metadata={
+                    "documents_used": len(retrieved_docs),
+                    "used_retrieval": use_retrieval,
+                    "response_length": len(response_text),
+                },
+            )
+
             # Format response with sources
             formatted_response = self._format_response_with_sources(
                 response_text,
                 retrieved_docs,
             )
+
+            # Flush Langfuse traces
+            self.observability.flush()
 
             logger.info(f"Generated response for conversation {conversation_id}")
             return formatted_response
@@ -347,16 +377,21 @@ class AgentOrchestrator:
         self,
         prompt: str,
         stream_callback: Optional[Callable[[str], None]] = None,
+        conversation_id: Optional[str] = None,
     ) -> str:
         """Invoke LLM to generate response.
 
         Args:
             prompt: Complete prompt for LLM
             stream_callback: Optional callback for streaming tokens (not currently used)
+            conversation_id: Optional conversation ID for observability tracking
 
         Returns:
             Generated response text
         """
+        import time
+        start_time = time.time()
+
         try:
             response = self.ollama_client.generate(
                 model=self.config.model_name,
@@ -365,6 +400,21 @@ class AgentOrchestrator:
                 temperature=self.config.temperature,
                 max_tokens=self.config.max_tokens,
             )
+
+            # Track LLM generation in Langfuse
+            if self.observability and conversation_id:
+                duration_ms = (time.time() - start_time) * 1000
+                self.observability.track_llm_generation(
+                    conversation_id=conversation_id,
+                    model=self.config.model_name,
+                    prompt=prompt,
+                    response=response,
+                    duration_ms=duration_ms,
+                    metadata={
+                        "temperature": self.config.temperature,
+                        "max_tokens": self.config.max_tokens,
+                    },
+                )
 
             if stream_callback and isinstance(response, str):
                 # If streaming is implemented, invoke callback

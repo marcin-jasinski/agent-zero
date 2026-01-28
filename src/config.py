@@ -2,6 +2,22 @@
 
 This module provides centralized configuration management with validation,
 type safety, and environment variable loading.
+
+Environment Modes:
+- development: Local experimentation, optional guards, detailed logging
+- staging: Pre-production testing, guards enabled, moderate logging  
+- production: Full security enforcement, observability required, minimal logging
+
+Security Requirements by Environment:
+- development: LLM Guard optional, Langfuse optional, debug allowed
+- staging: LLM Guard required, Langfuse required, no debug mode
+- production: LLM Guard required, Langfuse required, no debug mode, strict validation
+
+Environment Variable Naming:
+For nested configurations in AppConfig, use the nested delimiter format:
+- Top-level: APP_<FIELD>=value (e.g., APP_ENV=production)
+- Nested fields: APP_<PARENT>__<FIELD>=value (e.g., APP_SECURITY__LLM_GUARD_ENABLED=true)
+- Note: Double underscore (__) separates parent from child field name
 """
 
 import logging
@@ -10,6 +26,9 @@ from typing import Literal
 
 from pydantic import Field, HttpUrl, field_validator, ConfigDict
 from pydantic_settings import BaseSettings
+
+
+logger = logging.getLogger(__name__)
 
 
 class OllamaConfig(BaseSettings):
@@ -177,15 +196,88 @@ class AppConfig(BaseSettings):
         return v
 
     def model_post_init(self, __context):
-        """Post-initialization validation."""
-        # In production, certain settings must be enforced
+        """Post-initialization validation and environment-specific enforcement.
+        
+        Raises:
+            ValueError: If configuration violates environment-specific requirements
+        """
+        self._validate_environment_requirements()
+        self._log_environment_configuration()
+
+    def _validate_environment_requirements(self) -> None:
+        """Validate configuration meets requirements for current environment.
+        
+        Development: Permissive settings for local experimentation
+        Staging: Security guards enabled, observability required
+        Production: Strict security and observability enforcement
+        
+        Raises:
+            ValueError: If configuration violates environment requirements
+        """
         if self.env == "production":
+            # Production: Strict security and observability
             if self.debug:
-                raise ValueError("debug must be False in production")
+                raise ValueError(
+                    "Production environment error: debug mode must be disabled"
+                )
             if not self.langfuse.enabled:
-                raise ValueError("Langfuse must be enabled in production")
+                raise ValueError(
+                    "Production environment error: Langfuse observability is required. "
+                    "Set LANGFUSE_ENABLED=true"
+                )
             if not self.security.llm_guard_enabled:
-                raise ValueError("LLM Guard must be enabled in production")
+                raise ValueError(
+                    "Production environment error: LLM Guard security scanning is required. "
+                    "Set LLM_GUARD_ENABLED=true"
+                )
+            if self.log_level == "DEBUG":
+                raise ValueError(
+                    "Production environment error: log_level must not be DEBUG. "
+                    "Use INFO or higher"
+                )
+        
+        elif self.env == "staging":
+            # Staging: Security guards required, debug discouraged
+            if self.debug:
+                logger.warning(
+                    "⚠️ Staging environment: debug mode enabled. "
+                    "Consider disabling for production-like testing"
+                )
+            if not self.langfuse.enabled:
+                raise ValueError(
+                    "Staging environment error: Langfuse observability is required. "
+                    "Set LANGFUSE_ENABLED=true"
+                )
+            if not self.security.llm_guard_enabled:
+                raise ValueError(
+                    "Staging environment error: LLM Guard security scanning is required. "
+                    "Set LLM_GUARD_ENABLED=true"
+                )
+        
+        elif self.env == "development":
+            # Development: Flexible settings with warnings
+            if not self.security.llm_guard_enabled:
+                logger.info(
+                    "ℹ️ Development mode: LLM Guard disabled. "
+                    "Enable with LLM_GUARD_ENABLED=true to test security features"
+                )
+            if not self.langfuse.enabled:
+                logger.info(
+                    "ℹ️ Development mode: Langfuse disabled. "
+                    "Enable with LANGFUSE_ENABLED=true to test observability"
+                )
+
+    def _log_environment_configuration(self) -> None:
+        """Log current environment configuration for visibility."""
+        logger.info("=" * 70)
+        logger.info(f"🚀 Agent Zero Configuration Loaded")
+        logger.info("=" * 70)
+        logger.info(f"Environment: {self.env.upper()}")
+        logger.info(f"Debug Mode: {self.debug}")
+        logger.info(f"Log Level: {self.log_level}")
+        logger.info(f"LLM Guard: {'✓ Enabled' if self.security.llm_guard_enabled else '✗ Disabled'}")
+        logger.info(f"Langfuse: {'✓ Enabled' if self.langfuse.enabled else '✗ Disabled'}")
+        logger.info("=" * 70)
 
     model_config = ConfigDict(
         extra="ignore",  # Ignore extra fields from env variables

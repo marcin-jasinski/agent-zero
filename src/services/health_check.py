@@ -10,6 +10,7 @@ from typing import Dict
 from src.services.meilisearch_client import MeilisearchClient
 from src.services.ollama_client import OllamaClient
 from src.services.qdrant_client import QdrantVectorClient
+from src.observability import get_langfuse_observability
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,7 @@ class HealthChecker:
         self._ollama_client = None
         self._qdrant_client = None
         self._meilisearch_client = None
+        self._observability = None
 
     def _get_ollama_client(self) -> OllamaClient:
         """Get or create Ollama client."""
@@ -54,6 +56,12 @@ class HealthChecker:
         if self._meilisearch_client is None:
             self._meilisearch_client = MeilisearchClient()
         return self._meilisearch_client
+
+    def _get_observability(self):
+        """Get or create Langfuse observability instance."""
+        if self._observability is None:
+            self._observability = get_langfuse_observability()
+        return self._observability
 
     def check_ollama(self) -> ServiceStatus:
         """Check Ollama LLM service health."""
@@ -138,6 +146,44 @@ class HealthChecker:
                 message=f"Connection error: {str(e)}",
             )
 
+    def check_langfuse(self) -> ServiceStatus:
+        """Check Langfuse observability service health."""
+        try:
+            observability = self._get_observability()
+
+            if not observability.enabled:
+                return ServiceStatus(
+                    name="Langfuse",
+                    is_healthy=True,
+                    message="Observability disabled (optional)",
+                    details={"enabled": False},
+                )
+
+            is_healthy = observability.is_healthy()
+
+            if is_healthy:
+                return ServiceStatus(
+                    name="Langfuse",
+                    is_healthy=True,
+                    message="Observability service is operational",
+                    details={"enabled": True},
+                )
+            else:
+                return ServiceStatus(
+                    name="Langfuse",
+                    is_healthy=False,
+                    message="Service not responding to health check",
+                    details={"enabled": True},
+                )
+        except Exception as e:
+            logger.error(f"Langfuse health check failed: {e}")
+            return ServiceStatus(
+                name="Langfuse",
+                is_healthy=False,
+                message=f"Connection error: {str(e)}",
+                details={"enabled": True},
+            )
+
     def check_all(self) -> Dict[str, ServiceStatus]:
         """Check health of all services.
 
@@ -150,6 +196,7 @@ class HealthChecker:
             "ollama": self.check_ollama(),
             "qdrant": self.check_qdrant(),
             "meilisearch": self.check_meilisearch(),
+            "langfuse": self.check_langfuse(),
         }
 
         # Log overall health

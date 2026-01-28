@@ -41,6 +41,8 @@ services:
         condition: service_healthy
       meilisearch:
         condition: service_healthy
+      langfuse:
+        condition: service_healthy
     healthcheck:
       test:
         - CMD
@@ -247,48 +249,49 @@ services:
       - "com.agent-zero.description=Analytics database for Langfuse"
 
   # ============================================================================
-  # LANGFUSE: Observability & LLM Tracing Dashboard (DISABLED FOR PHASE 1 - ENABLE IN PHASE 4)
+  # LANGFUSE: Observability & LLM Tracing Dashboard
   # ============================================================================
-  # langfuse:
-  #   image: langfuse/langfuse:latest
-  #   container_name: agent-zero-langfuse
-  #   ports:
-  #     - "3000:3000"
-  #   environment:
-  #     - DATABASE_URL=postgresql://${POSTGRES_USER:-langfuse}:${POSTGRES_PASSWORD:-changeme123}@postgres:5432/${POSTGRES_DB:-langfuse}
-  #     - CLICKHOUSE_URL=clickhouse://clickhouse:9000/langfuse
-  #     - CLICKHOUSE_MIGRATION_URL=clickhouse://clickhouse:9000/langfuse
-  #     - CLICKHOUSE_USER=langfuse
-  #     - CLICKHOUSE_PASSWORD=clickhouse123
-  #     - NEXTAUTH_SECRET=${LANGFUSE_SECRET_KEY:-your-secret-key-change-in-production-min32chars}
-  #     - NEXTAUTH_URL=http://localhost:3000
-  #     - SALT=${LANGFUSE_SECRET_KEY:-your-secret-key-change-in-production-min32chars}
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     clickhouse:
-  #       condition: service_healthy
-  #   healthcheck:
-  #     test:
-  #       - CMD
-  #       - curl
-  #       - -f
-  #       - http://localhost:3000/health
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 5
-  #     start_period: 60s
-  #   networks:
-  #     - agent-zero-network
-  #   restart: unless-stopped
-  #   mem_limit: 512m
-  #   cpus: "1"
-  #   labels:
-  #     - "com.agent-zero.service=langfuse"
-  #     - "com.agent-zero.description=LLM observability and tracing dashboard"
+  langfuse:
+    image: langfuse/langfuse:latest
+    container_name: agent-zero-langfuse
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-langfuse}:${POSTGRES_PASSWORD:-changeme123}@postgres:5432/${POSTGRES_DB:-langfuse}
+      - CLICKHOUSE_URL=clickhouse://clickhouse:9000/langfuse
+      - CLICKHOUSE_MIGRATION_URL=clickhouse://clickhouse:9000/langfuse
+      - CLICKHOUSE_USER=langfuse
+      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-clickhouse123}
+      - NEXTAUTH_SECRET=${LANGFUSE_SECRET_KEY:-your-secret-key-change-in-production-min32chars}
+      - NEXTAUTH_URL=http://localhost:3000
+      - SALT=${LANGFUSE_SECRET_KEY:-your-secret-key-change-in-production-min32chars}
+      # ⚠️ FOR LOCAL DEVELOPMENT ONLY - Do not expose to internet without changing secrets!
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - -f
+        - http://localhost:3000/health
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - agent-zero-network
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: "1"
+    labels:
+      - "com.agent-zero.service=langfuse"
+      - "com.agent-zero.description=LLM observability and tracing dashboard"
 
   # ============================================================================
-  # NOTE: PostgreSQL and ClickHouse remain active for Phase 2 database support
+  # NOTE: PostgreSQL and ClickHouse are shared infrastructure for Langfuse
   # ============================================================================
 
 # ============================================================================
