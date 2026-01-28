@@ -1,6 +1,11 @@
 # Agent Zero (L.A.B.) - Implementation Plan
 
-**Status**: Plan Approved ✓ | Last Updated: 2026-01-10
+**Status**: Plan Approved ✓ | Last Updated: 2026-01-28
+
+**⚠️ IMPORTANT: Project Context**  
+This is a **LOCAL DEVELOPMENT PLAYGROUND** for a single software engineer to experiment with AI agents and RAG pipelines on their local machine. This is **NOT** a production multi-user system. Design decisions and architecture prioritize simplicity, learnability, and experimentation over enterprise-scale concerns.
+
+**📋 Code Review Status**: Comprehensive review completed (2026-01-28) - See [CODE_REVIEW_ADDENDUM.md](CODE_REVIEW_ADDENDUM.md) for findings contextualized to local dev usage.
 
 ---
 
@@ -8,9 +13,10 @@
 
 1. [Project Definition](#project-definition)
 2. [Implementation Phases](#implementation-phases)
-3. [Validation Checkpoints](#validation-checkpoints)
-4. [Critical Design Decisions](#critical-design-decisions)
-5. [Progress Tracking](#progress-tracking)
+3. [Code Review Findings & Improvements](#code-review-findings--improvements)
+4. [Validation Checkpoints](#validation-checkpoints)
+5. [Critical Design Decisions](#critical-design-decisions)
+6. [Progress Tracking](#progress-tracking)
 
 ---
 
@@ -677,9 +683,11 @@ The design document includes:
 
 ---
 
-### PHASE 5: Testing & Documentation
+### PHASE 5: Testing, Documentation & UX Polish
 
-**Goal**: Ensure code quality and developer experience.
+**Goal**: Ensure code quality, developer experience, and address code review findings.
+
+**Updated Based on Code Review (2026-01-28)**: Added Steps 19.5-19.8 for UX improvements and documentation polish.
 
 #### Step 16: Pytest Setup & Fixtures
 
@@ -745,15 +753,140 @@ The design document includes:
 
 ---
 
+#### Step 19.5: UX Improvements (Code Review Priority 🔴)
+
+**Added from Code Review**: Address high-priority user experience issues
+
+- [ ] **Add Progress Indicators**:
+  - [ ] Chat tab: Show spinner during LLM calls with "Agent is thinking..."
+  - [ ] Knowledge Base: Progress bar for document ingestion
+  - [ ] All service calls: Spinner with timeout indication
+  - [ ] Success/error feedback after operations
+- [ ] **Surface Errors to UI**:
+  - [ ] Replace silent failures with `st.error()` messages
+  - [ ] Add troubleshooting hints for common errors
+  - [ ] Show actionable next steps ("Check if Ollama is running")
+  - [ ] Log errors with full context (stack traces)
+- [ ] **Complete Knowledge Base Features**:
+  - [ ] Remove TODOs and implement document upload
+  - [ ] Implement document search functionality
+  - [ ] Add document list with metadata
+  - [ ] Add delete document capability
+- [ ] **Improve Startup Experience**:
+  - [ ] Add retry logic with exponential backoff for services
+  - [ ] Better error messages if services not ready
+  - [ ] Show which service is causing startup failure
+  - [ ] Add startup progress indicator
+
+**Deliverable**: UI provides clear feedback during all operations
+
+**Success Criteria**: ✓ All operations show progress, ✓ Errors visible to user, ✓ Knowledge Base fully functional
+
+---
+
+#### Step 19.6: Example Content & Onboarding
+
+**Added from Code Review**: Improve learning experience with examples
+
+- [ ] **Sample Documents**:
+  - [ ] Add 2-3 sample PDFs to `data/samples/`
+  - [ ] Pre-load on first startup (optional)
+  - [ ] Topics: RAG explanation, LLM concepts, Agent architecture
+- [ ] **Example Queries**:
+  - [ ] Add suggested queries in Chat tab
+  - [ ] "Try asking: What is RAG? How do embeddings work?"
+  - [ ] Show example multi-turn conversations
+- [ ] **Quick Start Tutorial**:
+  - [ ] Add help button in UI
+  - [ ] Show guided tour on first launch
+  - [ ] Explain each tab's purpose
+
+**Deliverable**: New users have immediate hands-on examples
+
+**Success Criteria**: ✓ Sample documents available, ✓ Example queries provided, ✓ Tutorial accessible
+
+---
+
+#### Step 19.7: Documentation Polish (Code Review Priority 🟡)
+
+**Added from Code Review**: Clarify local dev context and security
+
+- [ ] **Update README.md**:
+  - [ ] Add prominent "⚠️ FOR LOCAL DEVELOPMENT ONLY" section
+  - [ ] Warn: "Do NOT expose port 8501 to public internet"
+  - [ ] Explain default passwords are for localhost only
+  - [ ] Add section: "What This Is (And Isn't)"
+  - [ ] Clarify single-user experimentation focus
+- [ ] **Docker Compose Comments**:
+  - [ ] Add "# FOR LOCAL DEV ONLY" to password defaults
+  - [ ] Warn about security if exposing to network
+  - [ ] Document why defaults are okay for localhost
+- [ ] **Troubleshooting Guide**:
+  - [ ] "Service not starting" diagnostics
+  - [ ] "Ollama model not found" solutions
+  - [ ] "Out of memory" guidance
+  - [ ] Port conflicts resolution
+- [ ] **Architecture Documentation**:
+  - [ ] Explain trade-offs for local dev
+  - [ ] Why synchronous is okay for single user
+  - [ ] Why in-memory state is acceptable
+
+**Deliverable**: Clear documentation of local dev nature and security context
+
+**Success Criteria**: ✓ Local dev context clear in README, ✓ Security warnings present, ✓ Troubleshooting guide complete
+
+---
+
+#### Step 19.8: Testing Improvements (Code Review Priority 🟡)
+
+**Added from Code Review**: Address test coverage gaps
+
+- [ ] **Enable Skipped Tests**:
+  - [ ] Fix security tests in `tests/security/test_guard.py`
+  - [ ] Remove `@pytest.mark.skip` decorators
+  - [ ] Mock llm-guard properly for testing
+- [ ] **Add Integration Tests**:
+  - [ ] Create `tests/integration/test_rag_pipeline.py`
+  - [ ] Test: Upload PDF → Search → Chat with sources
+  - [ ] Test with real Docker services (mark as integration)
+  - [ ] Add to optional test suite
+- [ ] **Test Error Scenarios**:
+  - [ ] Service unavailable handling
+  - [ ] Timeout scenarios
+  - [ ] Invalid input handling
+  - [ ] Malformed responses
+- [ ] **Add Test Documentation**:
+  - [ ] Explain unit vs integration tests
+  - [ ] How to run different test suites
+  - [ ] How to add new tests
+
+**Deliverable**: Comprehensive test coverage including error paths
+
+**Success Criteria**: ✓ No skipped tests, ✓ Integration tests passing, ✓ Error scenarios covered
+
+---
+
 ### PHASE 5 Validation Checkpoint
 
 **Phase 5 Complete When**:
 
+**Original Goals**:
 - [ ] `pytest` runs with >80% coverage
 - [ ] `pytest -m integration` passes
 - [ ] README is complete and clear
 - [ ] Architecture diagram is accurate
 - [ ] New developer can understand project in <20 minutes
+
+**Added from Code Review**:
+- [ ] All operations show progress indicators in UI
+- [ ] Errors are visible to user with troubleshooting hints
+- [ ] Knowledge Base upload/search fully implemented
+- [ ] Startup errors are clear and actionable
+- [ ] "LOCAL DEV ONLY" warnings present in documentation
+- [ ] Example documents and queries available
+- [ ] Security tests enabled and passing
+- [ ] At least one e2e integration test passing
+- [ ] Troubleshooting guide complete
 
 ---
 
@@ -812,6 +945,220 @@ The design document includes:
 
 ---
 
+## Code Review Findings & Improvements
+
+**Review Date**: 2026-01-28  
+**Context**: Local single-user development playground  
+**Full Reports**: [CODE_REVIEW_ADDENDUM.md](CODE_REVIEW_ADDENDUM.md), [CRITICAL_CODE_REVIEW.md](CRITICAL_CODE_REVIEW.md)
+
+**Overall Assessment**: **Grade B+** - Well-designed for local experimentation with targeted improvements needed
+
+### Phase 1-3: Existing Implementation Review
+
+#### ✅ What's Working Well (Keep As-Is)
+
+1. **Architecture for Single-User Local Dev**
+   - ✅ Synchronous I/O is appropriate (no concurrent users)
+   - ✅ In-memory conversation storage acceptable for experimentation
+   - ✅ Streamlit session state usage is correct pattern
+   - ✅ Default passwords in docker-compose OK for localhost (with documentation)
+   - ✅ No authentication needed for localhost-only usage
+   - ✅ Current service client approach works fine for local scale
+
+2. **Code Quality**
+   - ✅ Clean project structure with clear separation of concerns
+   - ✅ Comprehensive type hints throughout
+   - ✅ Good use of Pydantic for configuration
+   - ✅ Google-style docstrings present
+   - ✅ Test coverage for core functionality (312 tests)
+
+3. **Development Experience**
+   - ✅ Easy docker-compose setup
+   - ✅ DevContainer integration working
+   - ✅ Hot reload for fast iteration
+   - ✅ Clear code structure for learning
+
+#### 🔴 High Priority Issues (Affects User Experience)
+
+**MUST FIX for Phase 5:**
+
+1. **Missing Progress Indicators** - HIGH IMPACT
+   - **Issue**: UI freezes during long operations (LLM calls 10-30s, document ingestion 30-60s) with no feedback
+   - **Impact**: User doesn't know if app is working or crashed
+   - **Files Affected**: `src/ui/components/chat.py`, `src/ui/components/knowledge_base.py`
+   - **Fix**: Add progress spinners, status messages, and estimated time
+   - **Example**:
+     ```python
+     # Current (no feedback during LLM call)
+     response = agent.process_message(message)
+     
+     # Should be (with progress)
+     with st.spinner("🤔 Agent is thinking..."):
+         response = agent.process_message(message)
+     st.success("✅ Response generated!")
+     ```
+   - **Priority**: 🔴 HIGH - Directly affects experimentation experience
+
+2. **Poor Error Visibility** - HIGH IMPACT
+   - **Issue**: Errors logged but not shown to user; silent failures confuse during experimentation
+   - **Impact**: User doesn't know what went wrong or how to fix it
+   - **Files Affected**: Throughout `src/services/`, `src/core/`
+   - **Fix**: Surface errors in UI with actionable messages
+   - **Example**:
+     ```python
+     # Current (silent failure)
+     except Exception as e:
+         logger.error(f"Failed: {e}")
+         return []
+     
+     # Should be (user-visible)
+     except Exception as e:
+         logger.error(f"Failed: {e}", exc_info=True)
+         st.error(f"❌ Operation failed: {str(e)}")
+         st.info("💡 Troubleshooting: Check if Ollama service is running")
+         return []
+     ```
+   - **Priority**: 🔴 HIGH - Critical for debugging during learning
+
+3. **Incomplete Features (TODOs)** - HIGH IMPACT
+   - **Issue**: Knowledge Base has TODOs instead of working upload/search
+   - **Files**: `src/ui/components/knowledge_base.py:68,127`
+   - **Impact**: Advertised features don't work; confusing for users
+   - **Fix**: Either implement or remove features
+   - **Priority**: 🔴 HIGH - Affects core RAG experimentation
+
+4. **Startup Error Messages** - HIGH IMPACT
+   - **Issue**: Unclear errors if services aren't ready; no retry logic
+   - **Files**: `src/startup.py`
+   - **Impact**: First-time users get confused by cryptic errors
+   - **Fix**: Better error messages, automatic retries, clear instructions
+   - **Priority**: 🔴 HIGH - Affects first impression
+
+#### 🟡 Medium Priority Issues (Should Fix for Quality)
+
+**RECOMMENDED for Phase 5:**
+
+1. **Security Documentation Gaps**
+   - **Issue**: Default passwords need "FOR LOCAL DEV ONLY" warnings
+   - **Files**: `docker-compose.yml`, `README.md`
+   - **Fix**: Add prominent warnings and guidance for network exposure
+   - **Priority**: 🟡 MEDIUM
+
+2. **ClickHouse Password Hardcoded**
+   - **Issue**: No env var override option (line 222)
+   - **Files**: `docker-compose.yml`
+   - **Fix**: Make it overridable like other services
+   - **Priority**: 🟡 MEDIUM
+
+3. **Test Coverage Gaps**
+   - **Issue**: Security tests skipped, no integration tests
+   - **Files**: `tests/security/test_guard.py`, `tests/integration/`
+   - **Fix**: Enable skipped tests, add basic integration tests
+   - **Priority**: 🟡 MEDIUM
+
+4. **Better Logging for Learning**
+   - **Issue**: Logs don't show RAG pipeline details
+   - **Fix**: Log retrieval results, similarity scores, agent decisions
+   - **Priority**: 🟡 MEDIUM - Helps understand how RAG works
+
+5. **Code Quality Issues**
+   - **Issue**: Broad exception handling, inconsistent error return types
+   - **Files**: Throughout codebase
+   - **Fix**: More specific exception types, consistent error handling
+   - **Priority**: 🟡 MEDIUM
+
+#### 🟢 Low Priority Improvements (Nice-to-Have)
+
+**OPTIONAL for Future Phases:**
+
+1. **Export/Import Conversations**
+   - **Feature**: Save interesting sessions for later
+   - **Priority**: 🟢 LOW - Would be nice for learning
+
+2. **Example Documents/Queries**
+   - **Feature**: Pre-load sample PDFs and example queries
+   - **Priority**: 🟢 LOW - Improves onboarding
+
+3. **Streaming Responses**
+   - **Feature**: Show incremental LLM output
+   - **Priority**: 🟢 LOW - Better UX but not critical
+
+4. **Singleton Service Clients**
+   - **Feature**: Share clients across sessions
+   - **Priority**: 🟢 LOW - Minor optimization
+
+5. **Optional SQLite Persistence**
+   - **Feature**: Persist conversations between restarts
+   - **Priority**: 🟢 LOW - Current in-memory is fine
+
+#### ⚪ Issues NOT Applicable (Production-Only Concerns)
+
+**SKIP - Not relevant for local dev:**
+
+- ⚪ Async/await refactor (unnecessary for single user)
+- ⚪ Complex connection pooling (localhost doesn't need it)
+- ⚪ Authentication system (local-only by design)
+- ⚪ Horizontal scaling (single machine)
+- ⚪ Load balancing (single user)
+- ⚪ Advanced monitoring (logs are sufficient)
+- ⚪ CI/CD pipeline (optional for personal projects)
+
+### Action Items by Phase
+
+#### Phase 5: Testing & Documentation (Current)
+
+**Must Add Based on Review:**
+
+- [ ] **Step 19.5: UX Improvements** (2-3 days)
+  - [ ] Add progress spinners to all long operations
+  - [ ] Surface errors to UI with actionable messages
+  - [ ] Complete Knowledge Base upload/search features
+  - [ ] Improve startup error messages with retry logic
+  - [ ] Add "LOCAL DEV ONLY" warnings to README and docker-compose
+
+- [ ] **Step 19.6: Example Content** (1 day)
+  - [ ] Add sample PDF documents
+  - [ ] Add example queries in Chat tab
+  - [ ] Add quick start tutorial in UI
+
+- [ ] **Step 19.7: Documentation Updates** (1 day)
+  - [ ] Clarify "local development playground" in README
+  - [ ] Add warning about not exposing to internet
+  - [ ] Document default passwords as localhost-only
+  - [ ] Add troubleshooting guide
+
+- [ ] **Step 19.8: Testing Fixes** (1-2 days)
+  - [ ] Enable skipped security tests
+  - [ ] Add basic integration test (e2e workflow)
+  - [ ] Test error scenarios properly
+
+#### Phase 6: Polish & Hardening (Future)
+
+**Optional Improvements:**
+
+- [ ] Export/import conversations
+- [ ] Streaming responses in chat
+- [ ] Better RAG pipeline visualization
+- [ ] Conversation history viewer
+- [ ] Performance profiling
+
+### Review Summary
+
+**Grade**: B+ (85/100) - Well-designed for local experimentation
+
+**Breakdown**:
+- Setup & Getting Started: A (90/100)
+- Architecture for Purpose: B+ (88/100)
+- Code Quality: B (83/100)
+- User Experience: B- (78/100) ← **Main area for improvement**
+- Documentation: B- (80/100)
+- Testing: C+ (75/100)
+- Feature Completeness: B- (78/100)
+
+**Recommendation**: This is **ready for its intended use** as a local playground, with targeted UX improvements in Phase 5 that would significantly enhance the learning experience.
+
+---
+
 ## Progress Tracking
 
 ### Quick Status Reference
@@ -852,11 +1199,15 @@ Phase 4b: Tool Dashboards & Management Interface ⭐ NEW
 ├─ Step 22: Integration & Validation ..................... ⏳ Not Started
 └─ Phase 4b Total: 60+ unit tests, 5 new dashboard tools
 
-Phase 5: Testing & Documentation
+Phase 5: Testing, Documentation & UX Polish ⭐ UPDATED
 ├─ Step 16: Pytest Setup ................................. ⏳ Not Started
 ├─ Step 17: Unit Tests ................................... ⏳ Not Started
 ├─ Step 18: Integration Tests ............................ ⏳ Not Started
-└─ Step 19: Documentation ................................ ⏳ Not Started
+├─ Step 19: Documentation ................................ ⏳ Not Started
+├─ Step 19.5: UX Improvements (Code Review) .............. ⏳ Not Started 🔴 HIGH PRIORITY
+├─ Step 19.6: Example Content ............................ ⏳ Not Started
+├─ Step 19.7: Documentation Polish (Code Review) ......... ⏳ Not Started 🟡 MEDIUM PRIORITY
+└─ Step 19.8: Testing Improvements (Code Review) ......... ⏳ Not Started 🟡 MEDIUM PRIORITY
 ```
 
 ### Update Log
@@ -893,7 +1244,8 @@ Phase 5: Testing & Documentation
 
 ---
 
-**Document Version**: 1.2  
-**Last Updated**: 2026-01-18  
+**Document Version**: 1.3  
+**Last Updated**: 2026-01-28  
 **Maintained By**: Senior AI Architect  
-**Status**: Phase 3 Complete - Ready for Phase 4
+**Status**: Phase 3 Complete - Phase 5 Updated with Code Review Findings  
+**Code Review**: Completed 2026-01-28 (see CODE_REVIEW_ADDENDUM.md)
