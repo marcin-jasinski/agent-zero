@@ -29,9 +29,11 @@ from src.ui.tools import (
     initialize_settings_session,
     render_chat_interface,
     render_knowledge_base,
+    render_langfuse_dashboard,
     render_logs,
     render_qdrant_dashboard,
     render_settings,
+    render_system_health_dashboard,
 )
 
 # Configure logging
@@ -179,30 +181,29 @@ def setup_navigation() -> SidebarNavigation:
             category="management"
         ))
     
-    # TODO: Implement remaining management tools in subsequent steps
-    # if config.dashboard.show_langfuse_dashboard:
+    # Langfuse Observability Dashboard (Step 19)
+    if config.dashboard.show_langfuse_dashboard:
+        nav.register_tool(ToolDefinition(
+            key="langfuse_dashboard",
+            icon="📊",
+            label="Langfuse Observability",
+            description="View traces and metrics",
+            render_func=render_langfuse_dashboard,
+            enabled=True,
+            category="management"
+        ))
     
-    # if config.dashboard.show_langfuse_dashboard:
-    #     nav.register_tool(ToolDefinition(
-    #         key="langfuse_dashboard",
-    #         icon="📊",
-    #         label="Langfuse Observability",
-    #         description="View traces and metrics",
-    #         render_func=render_langfuse_dashboard,
-    #         enabled=True,
-    #         category="management"
-    #     ))
-    
-    # if config.dashboard.show_system_health:
-    #     nav.register_tool(ToolDefinition(
-    #         key="system_health",
-    #         icon="🏥",
-    #         label="System Health",
-    #         description="Monitor service health",
-    #         render_func=render_system_health_dashboard,
-    #         enabled=True,
-    #         category="management"
-    #     ))
+    # System Health Dashboard (Step 21)
+    if config.dashboard.show_system_health:
+        nav.register_tool(ToolDefinition(
+            key="system_health",
+            icon="🏥",
+            label="System Health",
+            description="Monitor service health and resources",
+            render_func=render_system_health_dashboard,
+            enabled=True,
+            category="management"
+        ))
     
     logger.info(f"Navigation configured with {len(nav.tools)} tools")
     return nav

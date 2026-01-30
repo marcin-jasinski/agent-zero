@@ -129,11 +129,14 @@ class TestOllamaInitialization:
     def test_ollama_initialization_success(self, mock_health_checker, mock_ollama_client, mock_config):
         """Test successful Ollama initialization."""
         startup = ApplicationStartup()
-        startup.config.ollama = MagicMock(model="mistral", embedding_dim=384)
+        # Mock config with proper string values for model names
+        startup.config.ollama = MagicMock()
+        startup.config.ollama.model = "mistral"
+        startup.config.ollama.embed_model = "nomic-embed-text"
 
         mock_ollama = MagicMock()
         mock_ollama.is_healthy = MagicMock(return_value=True)
-        mock_ollama.list_models = MagicMock(return_value=["mistral", "llama2"])
+        mock_ollama.list_models = MagicMock(return_value=["mistral", "nomic-embed-text", "llama2"])
         mock_ollama_client.return_value = mock_ollama
 
         startup._initialize_ollama()
@@ -160,7 +163,7 @@ class TestOllamaInitialization:
         assert len(startup.statuses) >= 1
         ollama_status = [s for s in startup.statuses if s.step_name == "Ollama Initialization"][0]
         assert ollama_status.success is True  # Graceful degradation
-        assert "not yet ready" in ollama_status.message
+        assert "not ready" in ollama_status.message  # Updated to match new message format
 
     @patch("src.startup.get_config")
     @patch("src.startup.OllamaClient")
@@ -302,10 +305,19 @@ class TestApplicationStartupRun:
         """Test successful full startup."""
         startup = ApplicationStartup()
 
-        # Setup mocks
-        startup.config.ollama = MagicMock(model="mistral", embedding_dim=384)
-        startup.config.qdrant = MagicMock(embeddings_collection="embeddings")
-        startup.config.meilisearch = MagicMock(documents_index="documents")
+        # Setup mocks with proper string values for model/collection names
+        startup.config.ollama = MagicMock()
+        startup.config.ollama.model = "mistral"
+        startup.config.ollama.embed_model = "nomic-embed-text"
+        startup.config.ollama.embedding_dim = 384
+        
+        startup.config.qdrant = MagicMock()
+        startup.config.qdrant.embeddings_collection = "embeddings"
+        startup.config.qdrant.collection_name = "embeddings"
+        
+        startup.config.meilisearch = MagicMock()
+        startup.config.meilisearch.documents_index = "documents"
+        startup.config.meilisearch.index_name = "documents"
 
         startup.health_checker.check_all = MagicMock(
             return_value={
@@ -317,7 +329,7 @@ class TestApplicationStartupRun:
 
         mock_ollama = MagicMock()
         mock_ollama.is_healthy = MagicMock(return_value=True)
-        mock_ollama.list_models = MagicMock(return_value=["mistral"])
+        mock_ollama.list_models = MagicMock(return_value=["mistral", "nomic-embed-text"])
         mock_ollama_client.return_value = mock_ollama
 
         mock_qdrant = MagicMock()

@@ -132,7 +132,12 @@ class DocumentIngestor:
             )
 
     def ingest_pdf_bytes(
-        self, pdf_bytes: bytes, filename: str, document_title: Optional[str] = None
+        self, 
+        pdf_bytes: bytes, 
+        filename: str, 
+        document_title: Optional[str] = None,
+        chunk_size: Optional[int] = None,
+        chunk_overlap: Optional[int] = None,
     ) -> IngestionResult:
         """Ingest PDF from bytes (e.g., file upload).
 
@@ -140,6 +145,8 @@ class DocumentIngestor:
             pdf_bytes: Raw PDF file bytes
             filename: Original filename for reference
             document_title: Optional custom document title
+            chunk_size: Override default chunk size
+            chunk_overlap: Override default chunk overlap
 
         Returns:
             IngestionResult with success status, document ID, and chunk count
@@ -158,14 +165,28 @@ class DocumentIngestor:
             if not text.strip():
                 raise ValueError("PDF contains no extractable text")
 
-            # Split into chunks
-            chunks = self._chunk_document(text, filename, document_title or Path(filename).stem)
+            # Use custom chunk settings if provided
+            original_chunk_size = self.chunk_size
+            original_chunk_overlap = self.chunk_overlap
+            
+            if chunk_size is not None:
+                self.chunk_size = chunk_size
+            if chunk_overlap is not None:
+                self.chunk_overlap = chunk_overlap
 
-            if not chunks:
-                raise ValueError("No chunks created from document")
+            try:
+                # Split into chunks
+                chunks = self._chunk_document(text, filename, document_title or Path(filename).stem)
 
-            # Generate embeddings and store
-            self._process_chunks(chunks, document_id)
+                if not chunks:
+                    raise ValueError("No chunks created from document")
+
+                # Generate embeddings and store
+                self._process_chunks(chunks, document_id)
+            finally:
+                # Restore original settings
+                self.chunk_size = original_chunk_size
+                self.chunk_overlap = original_chunk_overlap
 
             duration = time.time() - start_time
             logger.info(
@@ -183,6 +204,81 @@ class DocumentIngestor:
         except Exception as e:
             duration = time.time() - start_time
             logger.error(f"Failed to ingest PDF bytes {filename}: {str(e)}", exc_info=True)
+            return IngestionResult(
+                success=False,
+                document_id=document_id,
+                error=str(e),
+                duration_seconds=duration,
+            )
+
+    def ingest_text(
+        self, 
+        text: str, 
+        source_name: str, 
+        document_title: Optional[str] = None,
+        chunk_size: Optional[int] = None,
+        chunk_overlap: Optional[int] = None,
+    ) -> IngestionResult:
+        """Ingest plain text or markdown content.
+
+        Args:
+            text: Raw text content to ingest
+            source_name: Source identifier (e.g., filename)
+            document_title: Optional custom document title
+            chunk_size: Override default chunk size
+            chunk_overlap: Override default chunk overlap
+
+        Returns:
+            IngestionResult with success status, document ID, and chunk count
+        """
+        start_time = time.time()
+        document_id = str(uuid4())
+
+        try:
+            logger.info(f"Starting ingestion of text: {source_name}")
+
+            if not text or not text.strip():
+                raise ValueError("Text content cannot be empty")
+
+            # Use custom chunk settings if provided
+            original_chunk_size = self.chunk_size
+            original_chunk_overlap = self.chunk_overlap
+            
+            if chunk_size is not None:
+                self.chunk_size = chunk_size
+            if chunk_overlap is not None:
+                self.chunk_overlap = chunk_overlap
+
+            try:
+                # Split into chunks
+                chunks = self._chunk_document(text, source_name, document_title or source_name)
+
+                if not chunks:
+                    raise ValueError("No chunks created from text")
+
+                # Generate embeddings and store
+                self._process_chunks(chunks, document_id)
+            finally:
+                # Restore original settings
+                self.chunk_size = original_chunk_size
+                self.chunk_overlap = original_chunk_overlap
+
+            duration = time.time() - start_time
+            logger.info(
+                f"Successfully ingested {len(chunks)} chunks from {source_name} "
+                f"in {duration:.2f}s"
+            )
+
+            return IngestionResult(
+                success=True,
+                document_id=document_id,
+                chunks_count=len(chunks),
+                duration_seconds=duration,
+            )
+
+        except Exception as e:
+            duration = time.time() - start_time
+            logger.error(f"Failed to ingest text {source_name}: {str(e)}", exc_info=True)
             return IngestionResult(
                 success=False,
                 document_id=document_id,

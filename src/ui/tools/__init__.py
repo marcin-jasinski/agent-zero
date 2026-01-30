@@ -22,9 +22,11 @@ from src.ui.tools.knowledge_base import (
     initialize_kb_session,
     render_knowledge_base,
 )
+from src.ui.tools.langfuse_dashboard import render_langfuse_dashboard
 from src.ui.tools.logs import initialize_logs_session, render_logs
 from src.ui.tools.qdrant_dashboard import render_qdrant_dashboard
 from src.ui.tools.settings import initialize_settings_session, render_settings
+from src.ui.tools.system_health import render_system_health_dashboard
 
 __all__ = [
     "initialize_chat_session",
@@ -36,4 +38,6 @@ __all__ = [
     "initialize_settings_session",
     "render_settings",
     "render_qdrant_dashboard",
+    "render_langfuse_dashboard",
+    "render_system_health_dashboard",
 ]

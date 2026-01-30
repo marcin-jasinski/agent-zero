@@ -1,3 +1,17 @@
+# ==============================================================================
+# AGENT ZERO - Docker Compose Configuration
+# ==============================================================================
+# ⚠️  FOR LOCAL DEVELOPMENT ONLY - DO NOT EXPOSE TO PUBLIC INTERNET  ⚠️
+#
+# This configuration uses default/simple credentials because it's designed
+# for single-user local development on localhost. If you need to expose
+# services externally, you MUST:
+#   1. Change all default passwords
+#   2. Implement proper authentication
+#   3. Use HTTPS/TLS for all connections
+#   4. Review and harden security settings
+# ==============================================================================
+
 services:
   # ============================================================================
   # APP-AGENT: Core Python Application with Streamlit UI (A.P.I.)
@@ -8,7 +22,7 @@ services:
       dockerfile: docker/Dockerfile.app-agent
     container_name: agent-zero-app
     ports:
-      - "8501:8501" # Streamlit UI (A.P.I.)
+      - "8501:8501" # Streamlit UI (A.P.I.) - LOCALHOST ONLY, do not expose publicly
     environment:
       - APP_ENV=${APP_ENV:-development}
       - APP_DEBUG=${APP_DEBUG:-true}
@@ -158,6 +172,7 @@ services:
     environment:
       - POSTGRES_DB=${POSTGRES_DB:-langfuse}
       - POSTGRES_USER=${POSTGRES_USER:-langfuse}
+      # ⚠️ LOCAL DEV ONLY - Change this password if exposing to network!
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme123}
       - POSTGRES_INITDB_ARGS=--encoding=UTF8
     volumes:
