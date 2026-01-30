@@ -23,6 +23,7 @@ from src.ui.tools.knowledge_base import (
     render_knowledge_base,
 )
 from src.ui.tools.logs import initialize_logs_session, render_logs
+from src.ui.tools.qdrant_dashboard import render_qdrant_dashboard
 from src.ui.tools.settings import initialize_settings_session, render_settings
 
 __all__ = [
@@ -34,4 +35,5 @@ __all__ = [
     "render_logs",
     "initialize_settings_session",
     "render_settings",
+    "render_qdrant_dashboard",
 ]

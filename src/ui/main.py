@@ -30,6 +30,7 @@ from src.ui.tools import (
     render_chat_interface,
     render_knowledge_base,
     render_logs,
+    render_qdrant_dashboard,
     render_settings,
 )
 
@@ -167,17 +168,19 @@ def setup_navigation() -> SidebarNavigation:
         ))
     
     # Register Management Tools (Phase 4b - feature flagged)
-    # TODO: Implement these tools in subsequent steps
-    # if config.dashboard.show_qdrant_manager:
-    #     nav.register_tool(ToolDefinition(
-    #         key="qdrant_manager",
-    #         icon="🔍",
-    #         label="Qdrant Manager",
-    #         description="Manage vector database",
-    #         render_func=render_qdrant_manager,
-    #         enabled=True,
-    #         category="management"
-    #     ))
+    if config.dashboard.show_qdrant_manager:
+        nav.register_tool(ToolDefinition(
+            key="qdrant_manager",
+            icon="🔍",
+            label="Qdrant Manager",
+            description="Manage vector database",
+            render_func=render_qdrant_dashboard,
+            enabled=True,
+            category="management"
+        ))
+    
+    # TODO: Implement remaining management tools in subsequent steps
+    # if config.dashboard.show_langfuse_dashboard:
     
     # if config.dashboard.show_langfuse_dashboard:
     #     nav.register_tool(ToolDefinition(
