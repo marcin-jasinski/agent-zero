@@ -4,6 +4,37 @@
 
 ---
 
+## ⚠️ FOR LOCAL DEVELOPMENT ONLY
+
+> **IMPORTANT SECURITY NOTICE**
+>
+> Agent Zero is designed for **single-user local development and experimentation**. It is **NOT** intended for production deployment or multi-user access.
+>
+> **Do NOT:**
+> - Expose port 8501 to the public internet
+> - Use default passwords in production environments
+> - Run this on a publicly accessible server
+>
+> **Default credentials are intentionally simple** because this is meant to run on `localhost` only. If you need to expose services externally, you MUST change all passwords and implement proper authentication.
+
+---
+
+## 🎯 What This Is (And Isn't)
+
+### ✅ What Agent Zero IS:
+- A **learning playground** for AI/RAG development
+- A **local development environment** for single users
+- A **demonstration** of agentic RAG architecture
+- A **starting point** for building your own AI tools
+
+### ❌ What Agent Zero is NOT:
+- A production-ready multi-user application
+- A secure system for public deployment
+- A replacement for enterprise AI solutions
+- Suitable for handling sensitive data in shared environments
+
+---
+
 ## 🚀 Quick Start
 
 ### 1. Clone Repository
@@ -175,6 +206,27 @@ systemctl start docker
 # Open Docker Desktop application
 ```
 
+### Service Not Starting
+
+**Symptoms**: Container exits immediately or enters restart loop
+
+```bash
+# Check container logs
+docker logs agent-zero-app -f
+docker logs agent-zero-ollama -f
+
+# Check resource limits (services may need more memory)
+docker stats
+
+# Restart specific service
+docker-compose restart ollama
+```
+
+**Common causes**:
+- Insufficient memory (Ollama needs ~4GB minimum)
+- Port already in use (check with `netstat -tulpn | grep 8501`)
+- Docker resource limits too low
+
 ### GPU Not Detected
 
 ```bash
@@ -185,12 +237,62 @@ nvidia-smi
 docker run --rm --runtime=nvidia nvidia/cuda:11.8.0-base-ubuntu22.04 nvidia-smi
 ```
 
-### Models Not Loading
+**For Apple Silicon**: GPU is automatic via Metal. No configuration needed.
+
+### Ollama Model Not Found
 
 ```bash
+# Manually pull required models
 docker exec agent-zero-ollama ollama pull ministral-3:3b
 docker exec agent-zero-ollama ollama pull nomic-embed-text-v2-moe
+
+# List available models
+docker exec agent-zero-ollama ollama list
 ```
+
+**Note**: First startup automatically pulls models, but this can take 5-10 minutes.
+
+### Out of Memory Errors
+
+**Symptoms**: Container killed, "OOM" in logs, services crashing
+
+**Solutions**:
+1. Increase Docker memory limit (Docker Desktop → Settings → Resources)
+2. Use a smaller model: Set `OLLAMA_MODEL=llama3.2:1b` in `.env`
+3. Close other applications to free RAM
+4. Reduce Qdrant/Meilisearch memory limits in `docker-compose.yml`
+
+**Minimum requirements**: 8GB RAM (16GB recommended)
+
+### Port Conflicts
+
+**Symptoms**: "Address already in use" error
+
+```bash
+# Find what's using the port (example: 8501)
+# Linux/macOS
+lsof -i :8501
+
+# Windows
+netstat -ano | findstr :8501
+
+# Kill the process or change ports in docker-compose.yml
+```
+
+### Search Returns No Results
+
+**Check**:
+1. Documents are indexed (Knowledge Base → Documents tab)
+2. Qdrant is healthy (System Health tab)
+3. Meilisearch is healthy (System Health tab)
+4. Embeddings model is loaded: `docker exec agent-zero-ollama ollama list`
+
+### Chat Not Responding
+
+**Check**:
+1. Ollama service is running: `docker ps | grep ollama`
+2. Model is available: `docker exec agent-zero-ollama ollama list`
+3. Check logs: `docker logs agent-zero-app -f`
 
 For more help, see [CROSS_PLATFORM_GUIDE.md](CROSS_PLATFORM_GUIDE.md#troubleshooting).
 

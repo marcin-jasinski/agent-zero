@@ -54,7 +54,7 @@ def render_logs() -> None:
 
     Displays application logs with filtering and real-time streaming capabilities.
     """
-    st.header("📋 System Logs")
+    st.header("System Logs")
 
     # Initialize session state
     initialize_logs_session()
@@ -132,7 +132,7 @@ def render_logs() -> None:
 
     else:
         log_container.info(
-            "📭 No logs available yet. Start the application to see logs here.\n\n"
+            "No logs available yet. Start the application to see logs here.\n\n"
             "Expected log file: `/app/logs/app.log`"
         )
 
@@ -143,7 +143,7 @@ def render_logs() -> None:
     col1, col2 = st.columns(2)
 
     with col1:
-        if st.button("📥 Download Current Logs"):
+        if st.button("Download Current Logs"):
             if log_file.exists():
                 with open(log_file, "r") as f:
                     log_data = f.read()
@@ -163,7 +163,7 @@ def render_logs() -> None:
             try:
                 if log_file.exists():
                     log_file.unlink()  # Delete the file
-                    st.success("✅ Logs cleared")
+                    st.success("Logs cleared")
                     st.rerun()
             except Exception as e:
                 st.error(f"Could not clear logs: {e}")
@@ -172,12 +172,12 @@ def render_logs() -> None:
     if auto_refresh:
         import time
 
-        st.info("⏳ Auto-refreshing every 2 seconds...")
+        st.info("Auto-refreshing every 2 seconds...")
         time.sleep(2)
         st.rerun()
 
     st.divider()
     st.caption(
-        "💡 Tip: Logs are written to `/app/logs/app.log` inside the container. "
+        "Tip: Logs are written to `/app/logs/app.log` inside the container. "
         "Use `docker-compose logs app` to view logs in your terminal."
     )

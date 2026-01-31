@@ -14,6 +14,9 @@ from src.core.memory import ConversationManager
 from src.models.agent import AgentConfig, AgentMessage, MessageRole, ConversationState
 from src.models.retrieval import RetrievalResult
 from src.services.ollama_client import OllamaClient
+from src.security.guard import LLMGuard, ThreatLevel
+from src.observability import get_langfuse_observability
+from src.config import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +37,7 @@ class AgentOrchestrator:
         ollama_client: OllamaClient,
         retrieval_engine: RetrievalEngine,
         config: Optional[AgentConfig] = None,
+        llm_guard: Optional[LLMGuard] = None,
     ) -> None:
         """Initialize the agent orchestrator.
 
@@ -41,11 +45,28 @@ class AgentOrchestrator:
             ollama_client: Client for LLM inference
             retrieval_engine: Engine for document retrieval
             config: Agent configuration (uses defaults if not provided)
+            llm_guard: Optional LLM Guard for security scanning (creates default if None)
         """
         self.ollama_client = ollama_client
         self.retrieval_engine = retrieval_engine
         self.config = config or AgentConfig()
         self.memory = ConversationManager()
+
+        # Initialize LLM Guard from app config if not provided
+        if llm_guard is None:
+            app_config = get_config()
+            self.llm_guard = LLMGuard(
+                enabled=app_config.security.llm_guard_enabled,
+                input_scan_enabled=app_config.security.llm_guard_input_scan,
+                output_scan_enabled=app_config.security.llm_guard_output_scan,
+                max_input_length=app_config.security.max_input_length,
+                max_output_length=app_config.security.max_output_length,
+            )
+        else:
+            self.llm_guard = llm_guard
+
+        # Initialize Langfuse observability
+        self.observability = get_langfuse_observability()
 
         # Define available tools
         self.tools = {
@@ -54,7 +75,11 @@ class AgentOrchestrator:
             "get_current_time": self._get_current_time,
         }
 
-        logger.info(f"Initialized AgentOrchestrator with model {self.config.model_name}")
+        logger.info(
+            f"Initialized AgentOrchestrator with model {self.config.model_name}, "
+            f"LLM Guard enabled={self.llm_guard.enabled}, "
+            f"Langfuse observability enabled={self.observability.enabled}"
+        )
 
     def start_conversation(self, metadata: Optional[Dict] = None) -> str:
         """Start a new conversation session.
@@ -109,11 +134,36 @@ class AgentOrchestrator:
             raise ValueError("User message cannot be empty")
 
         try:
+            # Scan user input for security threats
+            input_scan_result = self.llm_guard.scan_user_input(user_message)
+
+            # Block critical threats
+            if not input_scan_result.is_safe:
+                logger.warning(
+                    f"User input blocked: threat_level={input_scan_result.threat_level.value}, "
+                    f"violations={input_scan_result.violations}"
+                )
+
+                if input_scan_result.threat_level in [ThreatLevel.CRITICAL, ThreatLevel.HIGH]:
+                    error_msg = (
+                        "Your message was blocked due to security concerns. "
+                        f"Detected violations: {', '.join(input_scan_result.violations[:2])}"
+                    )
+                    logger.error(f"Critical threat blocked for conversation {conversation_id}")
+                    return error_msg
+
+            # Use sanitized input if available
+            processed_message = (
+                input_scan_result.sanitized_content
+                if input_scan_result.sanitized_content
+                else user_message
+            )
+
             # Add user message to history
             self.memory.add_message(
                 conversation_id,
                 MessageRole.USER,
-                user_message,
+                processed_message,
             )
 
             # Retrieve relevant documents
@@ -121,22 +171,53 @@ class AgentOrchestrator:
             if use_retrieval:
                 try:
                     retrieved_docs = self.retrieval_engine.retrieve_relevant_docs(
-                        user_message,
+                        processed_message,
                         top_k=5,
                     )
                     logger.info(f"Retrieved {len(retrieved_docs)} documents")
+
+                    # Track retrieval metrics in Langfuse
+                    self.observability.track_retrieval(
+                        conversation_id=conversation_id,
+                        query=processed_message,
+                        results_count=len(retrieved_docs),
+                        retrieval_type="hybrid",
+                    )
+
                 except Exception as e:
                     logger.warning(f"Document retrieval failed: {e}")
 
             # Build context
             context = self._build_prompt(
                 conversation_id,
-                user_message,
+                processed_message,
                 retrieved_docs,
             )
 
             # Generate response
-            response_text = self._invoke_llm(context, stream_callback)
+            response_text = self._invoke_llm(
+                context, stream_callback, conversation_id=conversation_id
+            )
+
+            # Scan LLM output for security threats
+            output_scan_result = self.llm_guard.scan_llm_output(
+                response_text, original_prompt=processed_message
+            )
+
+            # Block unsafe outputs
+            if not output_scan_result.is_safe:
+                logger.warning(
+                    f"LLM output blocked: threat_level={output_scan_result.threat_level.value}, "
+                    f"violations={output_scan_result.violations}"
+                )
+
+                if output_scan_result.threat_level in [ThreatLevel.CRITICAL, ThreatLevel.HIGH]:
+                    response_text = (
+                        "I apologize, but I cannot provide that response due to safety concerns. "
+                        "Please rephrase your question."
+                    )
+                elif output_scan_result.sanitized_content:
+                    response_text = output_scan_result.sanitized_content
 
             # Add response to history
             sources = self._extract_sources(retrieved_docs)
@@ -150,11 +231,25 @@ class AgentOrchestrator:
                 },
             )
 
+            # Track agent decision in Langfuse
+            self.observability.track_agent_decision(
+                conversation_id=conversation_id,
+                decision_type="rag_response",
+                metadata={
+                    "documents_used": len(retrieved_docs),
+                    "used_retrieval": use_retrieval,
+                    "response_length": len(response_text),
+                },
+            )
+
             # Format response with sources
             formatted_response = self._format_response_with_sources(
                 response_text,
                 retrieved_docs,
             )
+
+            # Flush Langfuse traces
+            self.observability.flush()
 
             logger.info(f"Generated response for conversation {conversation_id}")
             return formatted_response
@@ -282,16 +377,21 @@ class AgentOrchestrator:
         self,
         prompt: str,
         stream_callback: Optional[Callable[[str], None]] = None,
+        conversation_id: Optional[str] = None,
     ) -> str:
         """Invoke LLM to generate response.
 
         Args:
             prompt: Complete prompt for LLM
             stream_callback: Optional callback for streaming tokens (not currently used)
+            conversation_id: Optional conversation ID for observability tracking
 
         Returns:
             Generated response text
         """
+        import time
+        start_time = time.time()
+
         try:
             response = self.ollama_client.generate(
                 model=self.config.model_name,
@@ -300,6 +400,21 @@ class AgentOrchestrator:
                 temperature=self.config.temperature,
                 max_tokens=self.config.max_tokens,
             )
+
+            # Track LLM generation in Langfuse
+            if self.observability and conversation_id:
+                duration_ms = (time.time() - start_time) * 1000
+                self.observability.track_llm_generation(
+                    conversation_id=conversation_id,
+                    model=self.config.model_name,
+                    prompt=prompt,
+                    response=response,
+                    duration_ms=duration_ms,
+                    metadata={
+                        "temperature": self.config.temperature,
+                        "max_tokens": self.config.max_tokens,
+                    },
+                )
 
             if stream_callback and isinstance(response, str):
                 # If streaming is implemented, invoke callback

@@ -198,6 +198,64 @@ class TestHealthCheckerMeilisearchCheck:
             assert "network error" in status.message.lower()
 
 
+class TestHealthCheckerLangfuseCheck:
+    """Test Langfuse health check."""
+
+    def test_check_langfuse_healthy(self, health_checker):
+        """Test successful Langfuse check."""
+        with patch.object(health_checker, "_get_observability") as mock_get:
+            mock_obs = Mock()
+            mock_obs.enabled = True
+            mock_obs.is_healthy.return_value = True
+            mock_get.return_value = mock_obs
+
+            status = health_checker.check_langfuse()
+
+            assert status.name == "Langfuse"
+            assert status.is_healthy is True
+            assert "operational" in status.message.lower()
+            assert status.details["enabled"] is True
+
+    def test_check_langfuse_disabled(self, health_checker):
+        """Test Langfuse check when disabled."""
+        with patch.object(health_checker, "_get_observability") as mock_get:
+            mock_obs = Mock()
+            mock_obs.enabled = False
+            mock_get.return_value = mock_obs
+
+            status = health_checker.check_langfuse()
+
+            assert status.name == "Langfuse"
+            assert status.is_healthy is True
+            assert "disabled" in status.message.lower()
+            assert status.details["enabled"] is False
+
+    def test_check_langfuse_unhealthy(self, health_checker):
+        """Test failing Langfuse check."""
+        with patch.object(health_checker, "_get_observability") as mock_get:
+            mock_obs = Mock()
+            mock_obs.enabled = True
+            mock_obs.is_healthy.return_value = False
+            mock_get.return_value = mock_obs
+
+            status = health_checker.check_langfuse()
+
+            assert status.name == "Langfuse"
+            assert status.is_healthy is False
+            assert "not responding" in status.message.lower()
+
+    def test_check_langfuse_error(self, health_checker):
+        """Test Langfuse check with exception."""
+        with patch.object(health_checker, "_get_observability") as mock_get:
+            mock_get.side_effect = Exception("Connection failed")
+
+            status = health_checker.check_langfuse()
+
+            assert status.name == "Langfuse"
+            assert status.is_healthy is False
+            assert "connection error" in status.message.lower()
+
+
 class TestHealthCheckerCheckAll:
     """Test checking all services."""
 
@@ -205,58 +263,67 @@ class TestHealthCheckerCheckAll:
         """Test check_all when all services are healthy."""
         with patch.object(health_checker, "check_ollama") as mock_ollama, \
              patch.object(health_checker, "check_qdrant") as mock_qdrant, \
-             patch.object(health_checker, "check_meilisearch") as mock_meilisearch:
+             patch.object(health_checker, "check_meilisearch") as mock_meilisearch, \
+             patch.object(health_checker, "check_langfuse") as mock_langfuse:
 
             mock_ollama.return_value = ServiceStatus("Ollama", is_healthy=True)
             mock_qdrant.return_value = ServiceStatus("Qdrant", is_healthy=True)
             mock_meilisearch.return_value = ServiceStatus("Meilisearch", is_healthy=True)
+            mock_langfuse.return_value = ServiceStatus("Langfuse", is_healthy=True)
 
             result = health_checker.check_all()
 
-            assert len(result) == 3
+            assert len(result) == 4
             assert all(status.is_healthy for status in result.values())
 
     def test_check_all_partial_failure(self, health_checker):
         """Test check_all when some services fail."""
         with patch.object(health_checker, "check_ollama") as mock_ollama, \
              patch.object(health_checker, "check_qdrant") as mock_qdrant, \
-             patch.object(health_checker, "check_meilisearch") as mock_meilisearch:
+             patch.object(health_checker, "check_meilisearch") as mock_meilisearch, \
+             patch.object(health_checker, "check_langfuse") as mock_langfuse:
 
             mock_ollama.return_value = ServiceStatus("Ollama", is_healthy=True)
             mock_qdrant.return_value = ServiceStatus("Qdrant", is_healthy=False)
             mock_meilisearch.return_value = ServiceStatus("Meilisearch", is_healthy=True)
+            mock_langfuse.return_value = ServiceStatus("Langfuse", is_healthy=True)
 
             result = health_checker.check_all()
 
-            assert len(result) == 3
+            assert len(result) == 4
             assert result["ollama"].is_healthy is True
             assert result["qdrant"].is_healthy is False
             assert result["meilisearch"].is_healthy is True
+            assert result["langfuse"].is_healthy is True
 
     def test_check_all_all_failed(self, health_checker):
         """Test check_all when all services fail."""
         with patch.object(health_checker, "check_ollama") as mock_ollama, \
              patch.object(health_checker, "check_qdrant") as mock_qdrant, \
-             patch.object(health_checker, "check_meilisearch") as mock_meilisearch:
+             patch.object(health_checker, "check_meilisearch") as mock_meilisearch, \
+             patch.object(health_checker, "check_langfuse") as mock_langfuse:
 
             mock_ollama.return_value = ServiceStatus("Ollama", is_healthy=False)
             mock_qdrant.return_value = ServiceStatus("Qdrant", is_healthy=False)
             mock_meilisearch.return_value = ServiceStatus("Meilisearch", is_healthy=False)
+            mock_langfuse.return_value = ServiceStatus("Langfuse", is_healthy=False)
 
             result = health_checker.check_all()
 
-            assert len(result) == 3
+            assert len(result) == 4
             assert not any(status.is_healthy for status in result.values())
 
     def test_check_all_returns_dict(self, health_checker):
         """Test that check_all returns a dict."""
         with patch.object(health_checker, "check_ollama") as mock_ollama, \
              patch.object(health_checker, "check_qdrant") as mock_qdrant, \
-             patch.object(health_checker, "check_meilisearch") as mock_meilisearch:
+             patch.object(health_checker, "check_meilisearch") as mock_meilisearch, \
+             patch.object(health_checker, "check_langfuse") as mock_langfuse:
 
             mock_ollama.return_value = ServiceStatus("Ollama", is_healthy=True)
             mock_qdrant.return_value = ServiceStatus("Qdrant", is_healthy=True)
             mock_meilisearch.return_value = ServiceStatus("Meilisearch", is_healthy=True)
+            mock_langfuse.return_value = ServiceStatus("Langfuse", is_healthy=True)
 
             result = health_checker.check_all()
 
@@ -264,6 +331,7 @@ class TestHealthCheckerCheckAll:
             assert "ollama" in result
             assert "qdrant" in result
             assert "meilisearch" in result
+            assert "langfuse" in result
 
 
 class TestHealthCheckerAllHealthy:
@@ -276,6 +344,7 @@ class TestHealthCheckerAllHealthy:
                 "ollama": ServiceStatus("Ollama", is_healthy=True),
                 "qdrant": ServiceStatus("Qdrant", is_healthy=True),
                 "meilisearch": ServiceStatus("Meilisearch", is_healthy=True),
+                "langfuse": ServiceStatus("Langfuse", is_healthy=True),
             }
 
             assert health_checker.all_healthy is True
@@ -287,6 +356,7 @@ class TestHealthCheckerAllHealthy:
                 "ollama": ServiceStatus("Ollama", is_healthy=True),
                 "qdrant": ServiceStatus("Qdrant", is_healthy=False),
                 "meilisearch": ServiceStatus("Meilisearch", is_healthy=True),
+                "langfuse": ServiceStatus("Langfuse", is_healthy=True),
             }
 
             assert health_checker.all_healthy is False

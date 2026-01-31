@@ -23,7 +23,7 @@ def render_settings() -> None:
 
     Displays configuration options for LLM, embeddings, and system parameters.
     """
-    st.header("⚙️ Settings & Configuration")
+    st.header("Settings & Configuration")
 
     # Initialize session state
     initialize_settings_session()
@@ -33,7 +33,7 @@ def render_settings() -> None:
 
     # Create tabs for settings categories
     set_tab1, set_tab2, set_tab3, set_tab4 = st.tabs(
-        ["🤖 LLM", "🔍 Embeddings", "💾 Database", "🔒 Security"]
+        ["LLM", "Embeddings", "Database", "Security"]
     )
 
     with set_tab1:
@@ -122,7 +122,7 @@ def render_settings() -> None:
                 help="Read-only: dimension of selected model",
             )
 
-        st.info("ℹ️ Embeddings are used for semantic search in Qdrant vector database.")
+        st.info("Embeddings are used for semantic search in Qdrant vector database.")
 
     with set_tab3:
         st.subheader("Database Configuration")
@@ -176,7 +176,7 @@ def render_settings() -> None:
             st.metric("Current Environment", config.env)
 
         with col2:
-            st.metric("Debug Mode", "🔴 ON" if config.debug else "🟢 OFF")
+            st.metric("Debug Mode", "ON" if config.debug else "OFF")
 
         st.divider()
         st.write("**LLM Guard Settings**")
@@ -199,21 +199,21 @@ def render_settings() -> None:
         col1, col2 = st.columns(2)
 
         with col1:
-            st.success("✅ OLLAMA_BASE_URL: Configured")
+            st.success("OLLAMA_BASE_URL: Configured")
 
         with col2:
-            st.success("✅ MEILISEARCH_API_KEY: Configured")
+            st.success("MEILISEARCH_API_KEY: Configured")
 
-        st.info("⚠️ Secrets are read from environment variables and cannot be edited via UI.")
+        st.info("Note: Secrets are read from environment variables and cannot be edited via UI.")
 
     # Save settings button
     st.divider()
     col1, col2, col3 = st.columns([1, 1, 2])
 
     with col1:
-        if st.button("💾 Save Settings", use_container_width=True):
+        if st.button("Save Settings", use_container_width=True):
             st.session_state.settings_modified = True
-            st.success("✅ Settings saved! (Configuration will be applied in Phase 2 Step 7)")
+            st.success("Settings saved! (Configuration will be applied in Phase 2 Step 7)")
 
     with col2:
         if st.button("↩️ Reset", use_container_width=True):
@@ -221,4 +221,4 @@ def render_settings() -> None:
             st.rerun()
 
     with col3:
-        st.caption("💡 Tip: Some settings require application restart to take effect.")
+        st.caption("Tip: Some settings require application restart to take effect.")
