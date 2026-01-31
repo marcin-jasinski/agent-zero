@@ -2,10 +2,12 @@
 
 This module provides observability tracking for Langfuse integration,
 tracking LLM calls, tool usage, agent decisions, and execution metrics.
+
+Uses Langfuse SDK v2 API with trace-based tracking.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 from datetime import datetime
 
 from langfuse import Langfuse
@@ -22,6 +24,8 @@ class LangfuseObservability:
     - Trace management for conversations
     - Custom metrics tracking (retrieval count, confidence scores)
     - Error handling and graceful degradation
+    
+    Uses Langfuse SDK v2 trace-based API.
     """
 
     def __init__(self) -> None:
@@ -34,6 +38,8 @@ class LangfuseObservability:
         self.config = get_config()
         self.enabled = self.config.langfuse.enabled
         self.client: Optional[Langfuse] = None
+        # Cache active traces by conversation_id
+        self._traces: Dict[str, Any] = {}
 
         if self.enabled:
             try:
@@ -74,6 +80,24 @@ class LangfuseObservability:
             logger.error(f"Langfuse initialization failed: {e}")
             raise ConnectionError(f"Cannot connect to Langfuse at {self.config.langfuse.host}: {e}")
 
+    def _get_or_create_trace(self, conversation_id: str, name: str = "agent-zero-conversation") -> Any:
+        """Get existing trace or create new one for conversation.
+        
+        Args:
+            conversation_id: Unique conversation identifier
+            name: Name for the trace
+            
+        Returns:
+            Langfuse trace object
+        """
+        if conversation_id not in self._traces:
+            self._traces[conversation_id] = self.client.trace(
+                id=conversation_id,
+                name=name,
+                metadata={"created_at": datetime.utcnow().isoformat()},
+            )
+        return self._traces[conversation_id]
+
     def track_retrieval(
         self,
         conversation_id: str,
@@ -93,17 +117,17 @@ class LangfuseObservability:
             return
 
         try:
-            # Track as score
-            self.client.create_score(
-                name="retrieval_count",
-                value=results_count,
-                trace_id=conversation_id,
-            )
-
-            # Log the event (simplified without trace linkage for now)
-            logger.info(
-                f"Retrieval event: conversation_id={conversation_id}, "
-                f"query={query[:50]}, results={results_count}, type={retrieval_type}"
+            trace = self._get_or_create_trace(conversation_id)
+            
+            # Create a span for the retrieval operation
+            trace.span(
+                name="document_retrieval",
+                input={"query": query[:500], "type": retrieval_type},
+                output={"results_count": results_count},
+                metadata={
+                    "retrieval_type": retrieval_type,
+                    "timestamp": datetime.utcnow().isoformat(),
+                },
             )
 
             logger.debug(
@@ -113,6 +137,7 @@ class LangfuseObservability:
 
         except Exception as e:
             logger.error(f"Failed to track retrieval metrics: {e}")
+
     def track_llm_generation(
         self,
         conversation_id: str,
@@ -136,8 +161,9 @@ class LangfuseObservability:
             return
 
         try:
+            trace = self._get_or_create_trace(conversation_id)
+            
             generation_metadata = {
-                "model": model,
                 "duration_ms": duration_ms,
                 "prompt_length": len(prompt),
                 "response_length": len(response),
@@ -147,16 +173,14 @@ class LangfuseObservability:
             if metadata:
                 generation_metadata.update(metadata)
 
-            # Use start_generation for manual tracking
-            generation = self.client.start_generation(
+            # Use trace.generation() for LLM calls (Langfuse v2 API)
+            trace.generation(
                 name="llm_generation",
-                trace_id=conversation_id,
-                input=prompt[:1000],  # Truncate for storage
-                output=response[:1000],  # Truncate for storage
+                input=prompt[:2000],  # Truncate for storage
+                output=response[:2000],  # Truncate for storage
                 model=model,
                 metadata=generation_metadata,
             )
-            generation.end()
 
             logger.debug(
                 f"Tracked LLM generation: conversation_id={conversation_id}, "
@@ -165,6 +189,7 @@ class LangfuseObservability:
 
         except Exception as e:
             logger.error(f"Failed to track LLM generation: {e}")
+
     def track_agent_decision(
         self,
         conversation_id: str,
@@ -184,6 +209,8 @@ class LangfuseObservability:
             return
 
         try:
+            trace = self._get_or_create_trace(conversation_id)
+            
             event_metadata = {
                 "decision_type": decision_type,
                 "timestamp": datetime.utcnow().isoformat(),
@@ -195,10 +222,11 @@ class LangfuseObservability:
             if metadata:
                 event_metadata.update(metadata)
 
-            # Log the event (simplified without trace linkage for now)
-            logger.info(
-                f"Agent decision event: conversation_id={conversation_id}, "
-                f"type={decision_type}, tool={tool_used}, metadata={event_metadata}"
+            # Create a span for the agent decision
+            trace.span(
+                name=f"agent_decision_{decision_type}",
+                input={"decision_type": decision_type, "tool": tool_used},
+                metadata=event_metadata,
             )
 
             logger.debug(
@@ -226,10 +254,12 @@ class LangfuseObservability:
             return
 
         try:
-            self.client.create_score(
+            trace = self._get_or_create_trace(conversation_id)
+            
+            # Use trace.score() for Langfuse v2 API
+            trace.score(
                 name="answer_confidence",
                 value=confidence,
-                trace_id=conversation_id,
                 comment=reasoning,
             )
 
@@ -240,6 +270,27 @@ class LangfuseObservability:
 
         except Exception as e:
             logger.error(f"Failed to track confidence score: {e}")
+
+    def end_conversation(self, conversation_id: str) -> None:
+        """End tracking for a conversation and flush data.
+        
+        Args:
+            conversation_id: Unique conversation identifier
+        """
+        if not self.enabled or not self.client:
+            return
+            
+        try:
+            # Remove from cache
+            if conversation_id in self._traces:
+                del self._traces[conversation_id]
+            
+            # Flush to ensure data is sent
+            self.client.flush()
+            
+            logger.debug(f"Ended conversation tracking: {conversation_id}")
+        except Exception as e:
+            logger.error(f"Failed to end conversation tracking: {e}")
 
     def flush(self) -> None:
         """Flush pending traces to Langfuse.

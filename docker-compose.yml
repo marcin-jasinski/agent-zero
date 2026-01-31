@@ -39,8 +39,11 @@ services:
       - QDRANT_PORT=6333
       - QDRANT_COLLECTION_NAME=${QDRANT_COLLECTION_NAME:-documents}
       - MEILISEARCH_HOST=http://meilisearch:7700
+      - MEILISEARCH_API_KEY=${MEILISEARCH_API_KEY:-meilisearch-master-key-changeme-min16chars}
       - MEILISEARCH_INDEX_NAME=${MEILISEARCH_INDEX_NAME:-documents}
       - LANGFUSE_HOST=http://langfuse:3000
+      - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY:-}
+      - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY:-}
       - LANGFUSE_ENABLED=${LANGFUSE_ENABLED:-true}
       - LLM_GUARD_ENABLED=${LLM_GUARD_ENABLED:-false}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
@@ -198,85 +201,16 @@ services:
       - "5432"
 
   # ============================================================================
-  # ZOOKEEPER: Coordination Service for ClickHouse
-  # ============================================================================
-  zookeeper:
-    image: zookeeper:latest
-    container_name: agent-zero-zookeeper
-    environment:
-      - ZOO_CFG_SERVER_1=zookeeper:2888:3888
-    ports:
-      - "2181:2181"
-    volumes:
-      - zookeeper-data:/var/lib/zookeeper
-    healthcheck:
-      test:
-        - CMD
-        - echo
-        - stat
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-    networks:
-      - agent-zero-network
-    restart: unless-stopped
-    mem_limit: 512m
-    cpus: "0.5"
-    labels:
-      - "com.agent-zero.service=zookeeper"
-      - "com.agent-zero.description=Coordination service for ClickHouse replication"
-
-  # ============================================================================
-  # CLICKHOUSE: Analytics Database for Langfuse
-  # ============================================================================
-  clickhouse:
-    image: clickhouse/clickhouse-server:latest
-    container_name: agent-zero-clickhouse
-    environment:
-      - CLICKHOUSE_DB=langfuse
-      - CLICKHOUSE_USER=langfuse
-      - CLICKHOUSE_PASSWORD=clickhouse123
-      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
-    volumes:
-      - clickhouse-data:/var/lib/clickhouse
-      - ./docker/clickhouse-config.xml:/etc/clickhouse-server/config.d/zookeeper.xml
-    healthcheck:
-      test:
-        - CMD
-        - clickhouse-client
-        - --query
-        - SELECT 1
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    depends_on:
-      zookeeper:
-        condition: service_healthy
-    networks:
-      - agent-zero-network
-    restart: unless-stopped
-    mem_limit: 1g
-    cpus: "1"
-    labels:
-      - "com.agent-zero.service=clickhouse"
-      - "com.agent-zero.description=Analytics database for Langfuse"
-
-  # ============================================================================
   # LANGFUSE: Observability & LLM Tracing Dashboard
   # ============================================================================
+  # NOTE: Langfuse v2 uses PostgreSQL only (no ClickHouse required)
   langfuse:
-    image: langfuse/langfuse:latest
+    image: langfuse/langfuse:2.95.1
     container_name: agent-zero-langfuse
     ports:
       - "3000:3000"
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-langfuse}:${POSTGRES_PASSWORD:-changeme123}@postgres:5432/${POSTGRES_DB:-langfuse}
-      - CLICKHOUSE_URL=clickhouse://clickhouse:9000/langfuse
-      - CLICKHOUSE_MIGRATION_URL=clickhouse://clickhouse:9000/langfuse
-      - CLICKHOUSE_USER=langfuse
-      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-clickhouse123}
       - NEXTAUTH_SECRET=${LANGFUSE_SECRET_KEY:-your-secret-key-change-in-production-min32chars}
       - NEXTAUTH_URL=http://localhost:3000
       - SALT=${LANGFUSE_SECRET_KEY:-your-secret-key-change-in-production-min32chars}
@@ -284,14 +218,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      clickhouse:
-        condition: service_healthy
     healthcheck:
-      test:
-        - CMD
-        - curl
-        - -f
-        - http://localhost:3000/health
+      test: ["CMD-SHELL", "node -e \"const os = require('os'); fetch('http://' + os.hostname() + ':3000/api/public/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -306,7 +234,7 @@ services:
       - "com.agent-zero.description=LLM observability and tracing dashboard"
 
   # ============================================================================
-  # NOTE: PostgreSQL and ClickHouse are shared infrastructure for Langfuse
+  # NOTE: PostgreSQL is the backing store for Langfuse v2
   # ============================================================================
 
 # ============================================================================
@@ -354,17 +282,3 @@ volumes:
     labels:
       - "com.agent-zero.volume=postgres-data"
       - "com.agent-zero.description=PostgreSQL database storage for Langfuse"
-
-  # ClickHouse data
-  clickhouse-data:
-    driver: local
-    labels:
-      - "com.agent-zero.volume=clickhouse-data"
-      - "com.agent-zero.description=ClickHouse analytics storage for Langfuse"
-
-  # Zookeeper data
-  zookeeper-data:
-    driver: local
-    labels:
-      - "com.agent-zero.volume=zookeeper-data"
-      - "com.agent-zero.description=Zookeeper coordination data for ClickHouse"

@@ -178,8 +178,8 @@ class MeilisearchClient:
             index = self.client.index(index_uid)
             stats = index.get_stats()
             return {
-                "documents_count": stats.get("numberOfDocuments", 0),
-                "is_indexing": stats.get("isIndexing", False),
+                "documents_count": getattr(stats, "number_of_documents", 0),
+                "is_indexing": getattr(stats, "is_indexing", False),
             }
         except Exception as e:
             logger.error(f"Failed to get index stats: {e}")
@@ -193,7 +193,7 @@ class MeilisearchClient:
         """
         try:
             indexes = self.client.get_indexes()
-            return [idx.get("uid", "") for idx in indexes.get("results", [])]
+            return [idx.uid for idx in indexes.get("results", [])]
         except Exception as e:
             logger.error(f"Failed to list indexes: {e}")
             return []

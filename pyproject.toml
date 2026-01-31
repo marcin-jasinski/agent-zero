@@ -31,7 +31,7 @@ dependencies = [
     "meilisearch>=0.30.0",
     "pypdf>=3.17.0",
     "llm-guard>=0.3.0",
-    "langfuse>=2.0.0",
+    "langfuse>=2.0.0,<3.0.0",
     "requests>=2.31.0",
     "python-multipart>=0.0.6",
 ]

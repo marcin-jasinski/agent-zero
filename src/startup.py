@@ -249,6 +249,17 @@ class ApplicationStartup:
             else:
                 logger.info(f"  ✓ All required models available")
 
+            # Warm up LLM model to preload into memory (reduces first-response latency)
+            llm_model = self.config.ollama.model
+            logger.info(f"  → Warming up LLM model '{llm_model}' (preloading into memory)...")
+            try:
+                if ollama.warm_up(llm_model):
+                    logger.info(f"  ✓ LLM model '{llm_model}' preloaded and ready")
+                else:
+                    logger.warning(f"  ⚠ LLM warm-up failed, model will load on first request")
+            except Exception as e:
+                logger.warning(f"  ⚠ LLM warm-up error: {e}")
+
             self.statuses.append(
                 StartupStatus(
                     step_name="Ollama Initialization",

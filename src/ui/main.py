@@ -274,6 +274,105 @@ def render_sidebar_status() -> None:
         st.caption("💡 Agent Zero: Local-First, Secure-by-Design")
 
 
+def _render_loading_screen() -> None:
+    """Render a loading screen with progress bar during startup."""
+    # Center the loading content
+    st.markdown(
+        """
+        <style>
+        .loading-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 60vh;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown("## 🤖 Agent Zero")
+        st.markdown("### Initializing Local Agent Builder...")
+        st.markdown("---")
+        
+        # Progress bar placeholder
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        detail_text = st.empty()
+        
+        # Step definitions with progress percentages
+        steps = [
+            (0.05, "🔄 Starting initialization...", "Loading configuration"),
+            (0.15, "🏥 Checking service health...", "Verifying Ollama, Qdrant, Meilisearch, Langfuse"),
+            (0.40, "🧠 Initializing Ollama LLM...", "Checking models and warming up"),
+            (0.65, "📊 Initializing Qdrant...", "Setting up vector database"),
+            (0.85, "🔍 Initializing Meilisearch...", "Setting up keyword search"),
+            (1.0, "✅ Startup complete!", "Ready to use"),
+        ]
+        
+        # Show initial state
+        progress_bar.progress(steps[0][0])
+        status_text.markdown(f"**{steps[0][1]}**")
+        detail_text.caption(steps[0][2])
+        
+        return progress_bar, status_text, detail_text, steps
+
+
+def _run_startup_with_progress() -> tuple[bool, list]:
+    """Run startup sequence with progress updates.
+    
+    Returns:
+        Tuple of (success, startup_statuses)
+    """
+    from src.startup import ApplicationStartup
+    
+    # Get progress UI elements from session state
+    progress_bar = st.session_state.get("_progress_bar")
+    status_text = st.session_state.get("_status_text")
+    detail_text = st.session_state.get("_detail_text")
+    steps = st.session_state.get("_steps")
+    
+    startup = ApplicationStartup()
+    
+    def update_progress(step_index: int) -> None:
+        """Update progress bar and status text."""
+        if progress_bar and steps and step_index < len(steps):
+            progress_bar.progress(steps[step_index][0])
+            if status_text:
+                status_text.markdown(f"**{steps[step_index][1]}**")
+            if detail_text:
+                detail_text.caption(steps[step_index][2])
+    
+    # Step 1: Health check
+    update_progress(1)
+    startup._check_services()
+    
+    # Step 2: Ollama
+    update_progress(2)
+    startup._initialize_ollama()
+    
+    # Step 3: Qdrant
+    update_progress(3)
+    startup._initialize_qdrant()
+    
+    # Step 4: Meilisearch
+    update_progress(4)
+    startup._initialize_meilisearch()
+    
+    # Complete
+    update_progress(5)
+    startup._log_startup_summary()
+    
+    # Check for critical failures
+    critical_failed = [s for s in startup.statuses if not s.success and "critical" in s.message.lower()]
+    success = len(critical_failed) == 0
+    
+    return success, startup.get_status()
+
+
 def main() -> None:
     """Main application entry point."""
     # Load configuration
@@ -286,10 +385,32 @@ def main() -> None:
         st.session_state.startup_complete = False
 
     if not st.session_state.startup_complete:
-        startup = ApplicationStartup()
-        startup.run()
+        # Show loading screen
+        progress_bar, status_text, detail_text, steps = _render_loading_screen()
+        
+        # Store in session state for progress updates
+        st.session_state._progress_bar = progress_bar
+        st.session_state._status_text = status_text
+        st.session_state._detail_text = detail_text
+        st.session_state._steps = steps
+        
+        # Run startup with progress
+        import time
+        time.sleep(0.3)  # Brief pause for UI to render
+        
+        success, statuses = _run_startup_with_progress()
+        
         st.session_state.startup_complete = True
-        st.session_state.startup_status = startup.get_status()
+        st.session_state.startup_status = statuses
+        
+        # Clean up temporary session state
+        for key in ["_progress_bar", "_status_text", "_detail_text", "_steps"]:
+            if key in st.session_state:
+                del st.session_state[key]
+        
+        # Brief pause to show completion, then rerun to show main UI
+        time.sleep(0.5)
+        st.rerun()
 
     # Initialize all session states for existing tools
     initialize_chat_session()

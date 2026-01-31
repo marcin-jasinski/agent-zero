@@ -25,6 +25,8 @@ def initialize_chat_session() -> None:
         st.session_state.agent_initialized = False
     if "last_error" not in st.session_state:
         st.session_state.last_error = None
+    if "user_input" not in st.session_state:
+        st.session_state.user_input = ""
 
 
 def _initialize_agent() -> tuple[bool, Optional[str]]:
@@ -159,19 +161,6 @@ def render_chat_interface() -> None:
                             st.error(content)
             else:
                 st.info("👋 No messages yet. Start a conversation!")
-                
-                # Show example queries for new users
-                st.markdown("### 💡 Try asking:")
-                example_queries = [
-                    "What is RAG and how does it work?",
-                    "Explain embeddings in simple terms",
-                    "How does Agent Zero process documents?",
-                    "What are the components of an AI agent?",
-                ]
-                for query in example_queries:
-                    if st.button(f"📝 {query}", key=f"example_{query[:20]}"):
-                        st.session_state.messages.append({"role": "user", "content": query})
-                        st.rerun()
 
         st.divider()
 
@@ -179,9 +168,11 @@ def render_chat_interface() -> None:
         st.subheader("Send Message")
         user_input = st.text_area(
             "Your message:",
+            value=st.session_state.user_input,
             placeholder="Ask the agent a question or request...",
             height=100,
             label_visibility="collapsed",
+            key="chat_input",
         )
 
         col_send, col_clear = st.columns([3, 1])
@@ -189,8 +180,14 @@ def render_chat_interface() -> None:
         with col_send:
             if st.button("📤 Send", use_container_width=True):
                 if user_input.strip():
+                    # Store the message before clearing input
+                    message_to_send = user_input.strip()
+                    
+                    # Clear the input field
+                    st.session_state.user_input = ""
+                    
                     # Add user message to history
-                    st.session_state.messages.append({"role": "user", "content": user_input})
+                    st.session_state.messages.append({"role": "user", "content": message_to_send})
 
                     # Initialize agent if needed
                     if not st.session_state.agent_initialized or "agent" not in st.session_state:
@@ -209,7 +206,7 @@ def render_chat_interface() -> None:
                     progress_placeholder = st.empty()
                     with progress_placeholder.container():
                         with st.spinner("🤔 Agent is thinking... (querying knowledge base and generating response)"):
-                            response, error = _process_message(user_input)
+                            response, error = _process_message(message_to_send)
                     
                     progress_placeholder.empty()
                     

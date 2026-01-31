@@ -144,20 +144,20 @@ class QdrantVectorClient:
             List of results with id, score, and payload
         """
         try:
-            results = self.client.search(
+            results = self.client.query_points(
                 collection_name=collection_name,
-                query_vector=query_vector,
+                query=query_vector,
                 limit=limit,
                 score_threshold=score_threshold,
             )
 
             return [
                 {
-                    "id": result.id,
-                    "score": result.score,
-                    "payload": result.payload,
+                    "id": point.id,
+                    "score": point.score,
+                    "payload": point.payload,
                 }
-                for result in results
+                for point in results.points
             ]
         except Exception as e:
             logger.error(f"Search failed: {e}")
