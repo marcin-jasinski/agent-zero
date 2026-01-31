@@ -128,9 +128,9 @@ def _get_status_icon(is_healthy: bool) -> str:
         is_healthy: Whether the service is healthy
         
     Returns:
-        Emoji icon for status
+        Text indicator for status
     """
-    return "🟢" if is_healthy else "🔴"
+    return "[OK]" if is_healthy else "[FAIL]"
 
 
 def _get_status_color(is_healthy: bool) -> str:
@@ -218,16 +218,16 @@ def _render_service_status_section(statuses: Dict[str, dict]) -> None:
     Args:
         statuses: Dictionary of service statuses
     """
-    st.subheader("🔧 Service Status")
+    st.subheader("Service Status")
     
     # Summary row
     healthy_count = sum(1 for s in statuses.values() if s["is_healthy"])
     total_count = len(statuses)
     
     if healthy_count == total_count:
-        st.success(f"✅ All {total_count} services are healthy")
+        st.success(f"All {total_count} services are healthy")
     else:
-        st.warning(f"⚠️ {healthy_count}/{total_count} services healthy")
+        st.warning(f"{healthy_count}/{total_count} services healthy")
     
     # Service cards in a grid
     col1, col2 = st.columns(2)
@@ -241,7 +241,7 @@ def _render_service_status_section(statuses: Dict[str, dict]) -> None:
 
 def _render_host_resources_section() -> None:
     """Render the host resources monitoring section."""
-    st.subheader("💻 Host Resources")
+    st.subheader("Host Resources")
     
     metrics = _get_resource_metrics()
     
@@ -278,7 +278,7 @@ def _render_host_resources_section() -> None:
 
 def _render_system_info_section() -> None:
     """Render the system information section."""
-    st.subheader("ℹ️ System Information")
+    st.subheader("System Information")
     
     info = _get_system_info()
     config = get_config()
@@ -308,12 +308,12 @@ def _render_system_info_section() -> None:
 
 def _render_actions_section() -> None:
     """Render the actions section with refresh and export."""
-    st.subheader("🔧 Actions")
+    st.subheader("Actions")
     
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        if st.button("🔄 Refresh All", use_container_width=True):
+        if st.button("Refresh All", use_container_width=True):
             st.cache_data.clear()
             st.session_state.pop("system_health_checker", None)
             st.rerun()
@@ -327,7 +327,7 @@ def _render_actions_section() -> None:
         st.session_state.auto_refresh_health = auto_refresh
     
     with col3:
-        if st.button("📥 Export Diagnostics", use_container_width=True):
+        if st.button("Export Diagnostics", use_container_width=True):
             _export_diagnostics()
 
 
@@ -352,7 +352,7 @@ def _export_diagnostics() -> None:
     json_str = json.dumps(diagnostics, indent=2, default=str)
     
     st.download_button(
-        label="💾 Download JSON",
+        label="Download JSON",
         data=json_str,
         file_name=f"agent_zero_diagnostics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
         mime="application/json",
@@ -365,7 +365,7 @@ def render_system_health_dashboard() -> None:
     
     Main entry point for the System Health dashboard tool.
     """
-    st.header("🏥 System Health")
+    st.header("System Health")
     st.caption("Monitor service health, host resources, and system status")
     
     # Auto-refresh logic

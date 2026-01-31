@@ -59,7 +59,7 @@ class SidebarNavigation:
         nav = SidebarNavigation()
         nav.register_tool(ToolDefinition(
             key="chat",
-            icon="💬",
+            icon=">",
             label="Chat",
             description="Chat with Agent Zero",
             render_func=render_chat_interface,
@@ -121,21 +121,21 @@ class SidebarNavigation:
         - Active tool indicator
         """
         with st.sidebar:
-            st.title("🤖 Agent Zero")
+            st.title("Agent Zero")
             st.caption("L.A.B. - Local Agent Builder")
             st.divider()
             
             # Core Tools Section
             core_tools = self.get_enabled_tools(category="core")
             if core_tools:
-                st.subheader("📌 Core Tools")
+                st.subheader("Core Tools")
                 self._render_tool_buttons(core_tools)
                 st.divider()
             
             # Management Tools Section
             mgmt_tools = self.get_enabled_tools(category="management")
             if mgmt_tools:
-                st.subheader("🛠️ Management Tools")
+                st.subheader("Management Tools")
                 self._render_tool_buttons(mgmt_tools)
                 st.divider()
             
@@ -154,8 +154,8 @@ class SidebarNavigation:
             # Determine if button is active
             is_active = st.session_state[self._session_key] == tool.key
             
-            # Render button with icon and label
-            button_label = f"{tool.icon} {tool.label}"
+            # Render button with label only (no icon)
+            button_label = tool.label
             button_type = "primary" if is_active else "secondary"
             
             if st.button(
@@ -196,7 +196,7 @@ class SidebarNavigation:
         active_tool = self.get_active_tool()
         
         if not active_tool:
-            st.error("❌ No tool selected or tool not found")
+            st.error("No tool selected or tool not found")
             logger.error("No active tool to render")
             return
         
@@ -206,7 +206,7 @@ class SidebarNavigation:
             active_tool.render_func()
         except Exception as e:
             logger.exception(f"Error rendering tool {active_tool.key}: {e}")
-            st.error(f"❌ Error rendering {active_tool.label}: {str(e)}")
+            st.error(f"Error rendering {active_tool.label}: {str(e)}")
     
     def render(self) -> None:
         """Main render method - displays sidebar and active tool content.

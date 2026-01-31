@@ -114,17 +114,17 @@ def render_chat_interface() -> None:
     Displays message history, handles user input, and sends queries
     to the agent for processing.
     """
-    st.header("💬 Chat Interface")
+    st.header("Chat Interface")
 
     # Initialize session state
     initialize_chat_session()
     
     # Display any previous errors
     if st.session_state.last_error:
-        st.error(f"⚠️ {st.session_state.last_error}")
+        st.error(f"Warning: {st.session_state.last_error}")
         col1, col2 = st.columns([1, 4])
         with col1:
-            if st.button("🔄 Retry Connection", use_container_width=True):
+            if st.button("Retry Connection", use_container_width=True):
                 st.session_state.last_error = None
                 st.session_state.agent_initialized = False
                 if "agent" in st.session_state:
@@ -160,7 +160,7 @@ def render_chat_interface() -> None:
                         with st.chat_message("assistant"):
                             st.error(content)
             else:
-                st.info("👋 No messages yet. Start a conversation!")
+                st.info("No messages yet. Start a conversation!")
 
         st.divider()
 
@@ -178,7 +178,7 @@ def render_chat_interface() -> None:
         col_send, col_clear = st.columns([3, 1])
 
         with col_send:
-            if st.button("📤 Send", use_container_width=True):
+            if st.button("Send", use_container_width=True):
                 if user_input.strip():
                     # Store the message before clearing input
                     message_to_send = user_input.strip()
@@ -191,13 +191,13 @@ def render_chat_interface() -> None:
 
                     # Initialize agent if needed
                     if not st.session_state.agent_initialized or "agent" not in st.session_state:
-                        with st.spinner("🔄 Initializing Agent Zero... (connecting to services)"):
+                        with st.spinner("Initializing Agent Zero... (connecting to services)"):
                             success, error = _initialize_agent()
                             if not success:
                                 st.session_state.last_error = error
                                 st.session_state.messages.append({
                                     "role": "error",
-                                    "content": f"⚠️ {error}"
+                                    "content": f"Warning: {error}"
                                 })
                                 st.rerun()
                                 return
@@ -205,7 +205,7 @@ def render_chat_interface() -> None:
                     # Process message with agent
                     progress_placeholder = st.empty()
                     with progress_placeholder.container():
-                        with st.spinner("🤔 Agent is thinking... (querying knowledge base and generating response)"):
+                        with st.spinner("Agent is thinking... (querying knowledge base and generating response)"):
                             response, error = _process_message(message_to_send)
                     
                     progress_placeholder.empty()
@@ -213,7 +213,7 @@ def render_chat_interface() -> None:
                     if error:
                         st.session_state.messages.append({
                             "role": "error",
-                            "content": f"⚠️ {error}"
+                            "content": f"Warning: {error}"
                         })
                         st.session_state.last_error = error
                     else:
@@ -225,10 +225,10 @@ def render_chat_interface() -> None:
 
                     st.rerun()
                 else:
-                    st.warning("⚠️ Please enter a message.")
+                    st.warning("Please enter a message.")
 
         with col_clear:
-            if st.button("🗑️ Clear", use_container_width=True):
+            if st.button("Clear", use_container_width=True):
                 st.session_state.messages = []
                 st.session_state.last_error = None
                 st.rerun()
@@ -238,9 +238,9 @@ def render_chat_interface() -> None:
         
         # Show agent status
         if st.session_state.agent_initialized:
-            st.success("🟢 Agent Ready")
+            st.success("Agent Ready")
         else:
-            st.warning("🟡 Agent Idle")
+            st.warning("Agent Idle")
         
         st.metric(
             "Messages",
@@ -254,7 +254,7 @@ def render_chat_interface() -> None:
             )
 
         # Export conversation
-        if st.button("💾 Export"):
+        if st.button("Export"):
             import json
 
             conversation_json = json.dumps(st.session_state.messages, indent=2)

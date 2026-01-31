@@ -77,12 +77,12 @@ def search_collection_cached(
 
 def render_collections_overview() -> None:
     """Render collections overview section."""
-    st.subheader("📁 Collections Overview")
+    st.subheader("Collections Overview")
     
     # Refresh button
     col1, col2 = st.columns([4, 1])
     with col2:
-        if st.button("🔄 Refresh", key="qdrant_refresh", use_container_width=True):
+        if st.button("Refresh", key="qdrant_refresh", use_container_width=True):
             get_collections_cached.clear()
             st.rerun()
     
@@ -95,7 +95,7 @@ def render_collections_overview() -> None:
     
     # Display collections in expandable cards
     for collection in collections:
-        with st.expander(f"📁 {collection['name']}", expanded=False):
+        with st.expander(f"{collection['name']}", expanded=False):
             col1, col2, col3 = st.columns(3)
             
             with col1:
@@ -119,7 +119,7 @@ def render_collections_overview() -> None:
             col1, col2 = st.columns(2)
             with col1:
                 if st.button(
-                    "🔍 Search",
+                    "Search",
                     key=f"search_{collection['name']}",
                     use_container_width=True,
                 ):
@@ -151,13 +151,13 @@ def render_collections_overview() -> None:
                     else:
                         # Request confirmation
                         st.session_state[f"confirm_delete_{collection['name']}"] = True
-                        st.warning(f"⚠️ Click 'Delete' again to confirm deletion of '{collection['name']}'")
+                        st.warning(f"Click 'Delete' again to confirm deletion of '{collection['name']}'")
                         st.rerun()
 
 
 def render_create_collection_form() -> None:
     """Render create collection form."""
-    st.subheader("➕ Create New Collection")
+    st.subheader("Create New Collection")
     
     with st.form("create_collection_form"):
         name = st.text_input(
@@ -209,7 +209,7 @@ def render_create_collection_form() -> None:
 
 def render_search_interface() -> None:
     """Render semantic search interface."""
-    st.subheader("🔍 Semantic Search")
+    st.subheader("Semantic Search")
     
     # Get available collections
     collections = get_collections_cached()
@@ -255,7 +255,7 @@ def render_search_interface() -> None:
     col1, col2 = st.columns([3, 1])
     
     with col1:
-        search_button = st.button("🔍 Search", use_container_width=True, type="primary")
+        search_button = st.button("Search", use_container_width=True, type="primary")
     
     with col2:
         if st.button("🗑️ Clear", use_container_width=True):
@@ -295,11 +295,11 @@ def render_search_interface() -> None:
             
             # Color code by score
             if score >= 0.8:
-                score_color = "🟢"
+                score_color = "[HIGH]"
             elif score >= 0.6:
-                score_color = "🟡"
+                score_color = "[MED]"
             else:
-                score_color = "🔴"
+                score_color = "[LOW]"
             
             with st.expander(f"{score_color} **{i}.** Score: {score:.4f} | {source} (chunk {chunk_index})"):
                 st.write(content[:500] + ("..." if len(content) > 500 else ""))
@@ -322,20 +322,20 @@ def render_qdrant_dashboard() -> None:
     initialize_qdrant_session()
     
     # Header
-    st.header("🔍 Qdrant Manager")
+    st.header("Qdrant Manager")
     st.caption("Vector Database Management Interface")
     
     # Check Qdrant health
     try:
         qdrant = QdrantVectorClient()
         if not qdrant.is_healthy():
-            st.error("❌ Qdrant service is not responding. Please check your configuration.")
+            st.error("Qdrant service is not responding. Please check your configuration.")
             return
     except Exception as e:
-        st.error(f"❌ Failed to connect to Qdrant: {str(e)}")
+        st.error(f"Failed to connect to Qdrant: {str(e)}")
         return
     
-    st.success("✅ Connected to Qdrant")
+    st.success("Connected to Qdrant")
     st.divider()
     
     # Collections Overview
@@ -345,7 +345,7 @@ def render_qdrant_dashboard() -> None:
     
     # Create Collection Toggle
     if st.button(
-        "➕ Create New Collection" if not st.session_state.qdrant_show_create_form else "❌ Cancel",
+        "Create New Collection" if not st.session_state.qdrant_show_create_form else "Cancel",
         key="toggle_create_form",
     ):
         st.session_state.qdrant_show_create_form = not st.session_state.qdrant_show_create_form

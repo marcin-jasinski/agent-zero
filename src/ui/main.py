@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 # Configure Streamlit page
 st.set_page_config(
     page_title="Agent Zero - L.A.B.",
-    page_icon="🤖",
+    page_icon=None,
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -70,6 +70,8 @@ def render_system_health_sidebar() -> None:
     This will eventually be replaced by the full System Health dashboard tool.
     For now, provides quick status view in sidebar.
     """
+    config = get_config()
+    
     with st.sidebar:
         st.divider()
         st.subheader("Service Status")
@@ -81,11 +83,31 @@ def render_system_health_sidebar() -> None:
         health_checker = st.session_state.health_checker
         service_statuses = health_checker.check_all()
 
-        # Display each service status
+        # External URLs for browser access (localhost, not internal Docker hostnames)
+        # These are the ports exposed by docker-compose to the host machine
+        service_urls = {
+            "Ollama": "http://localhost:11434",
+            "Qdrant": "http://localhost:6333",
+            "Meilisearch": "http://localhost:7700",
+            "Langfuse": "http://localhost:3000",
+        }
+        
         for service_name, status in service_statuses.items():
-            icon = "✅" if status.is_healthy else "❌"
+            status_indicator = "[OK]" if status.is_healthy else "[FAIL]"
             status_text = "Healthy" if status.is_healthy else "Unhealthy"
-            st.write(f"{icon} {status.name}: {status_text}")
+            
+            # Get URL for this service (if available)
+            service_url = service_urls.get(status.name, "")
+            
+            if service_url:
+                # Render as clickable link with status
+                st.markdown(
+                    f"{status_indicator} **{status.name}**: {status_text} "
+                    f"[Open]({service_url})",
+                    help=f"Click 'Open' to access {status.name} dashboard"
+                )
+            else:
+                st.write(f"{status_indicator} {status.name}: {status_text}")
 
             if status.message:
                 st.caption(status.message)
@@ -96,14 +118,13 @@ def render_system_health_sidebar() -> None:
         col1, col2 = st.columns(2)
 
         with col1:
-            if st.button("🔄 Refresh", use_container_width=True, key="refresh_health"):
+            if st.button("Refresh", use_container_width=True, key="refresh_health"):
                 # Clear health checker cache to force new checks
                 st.session_state.health_checker = HealthChecker()
                 st.rerun()
 
         with col2:
-            if st.button("ℹ️ About", use_container_width=True, key="about_btn"):
-                config = get_config()
+            if st.button("About", use_container_width=True, key="about_btn"):
                 st.info(
                     f"**Agent Zero (L.A.B.)**\n\n"
                     f"Version: {config.app_version}\n\n"
@@ -112,7 +133,7 @@ def render_system_health_sidebar() -> None:
                 )
 
         st.divider()
-        st.caption("💡 Agent Zero: Local-First, Secure-by-Design")
+        st.caption("Agent Zero: Local-First, Secure-by-Design")
 
 
 def setup_navigation() -> SidebarNavigation:
@@ -128,7 +149,7 @@ def setup_navigation() -> SidebarNavigation:
     if config.dashboard.show_chat:
         nav.register_tool(ToolDefinition(
             key="chat",
-            icon="💬",
+            icon=">",
             label="Chat",
             description="Chat with Agent Zero",
             render_func=render_chat_interface,
@@ -139,7 +160,7 @@ def setup_navigation() -> SidebarNavigation:
     if config.dashboard.show_knowledge_base:
         nav.register_tool(ToolDefinition(
             key="knowledge_base",
-            icon="📚",
+            icon=">",
             label="Knowledge Base",
             description="Upload and manage documents",
             render_func=render_knowledge_base,
@@ -150,7 +171,7 @@ def setup_navigation() -> SidebarNavigation:
     if config.dashboard.show_settings:
         nav.register_tool(ToolDefinition(
             key="settings",
-            icon="⚙️",
+            icon=">",
             label="Settings",
             description="Configure Agent Zero",
             render_func=render_settings,
@@ -161,7 +182,7 @@ def setup_navigation() -> SidebarNavigation:
     if config.dashboard.show_logs:
         nav.register_tool(ToolDefinition(
             key="logs",
-            icon="📋",
+            icon=">",
             label="Logs",
             description="View system logs",
             render_func=render_logs,
@@ -173,7 +194,7 @@ def setup_navigation() -> SidebarNavigation:
     if config.dashboard.show_qdrant_manager:
         nav.register_tool(ToolDefinition(
             key="qdrant_manager",
-            icon="🔍",
+            icon=">",
             label="Qdrant Manager",
             description="Manage vector database",
             render_func=render_qdrant_dashboard,
@@ -185,7 +206,7 @@ def setup_navigation() -> SidebarNavigation:
     if config.dashboard.show_langfuse_dashboard:
         nav.register_tool(ToolDefinition(
             key="langfuse_dashboard",
-            icon="📊",
+            icon=">",
             label="Langfuse Observability",
             description="View traces and metrics",
             render_func=render_langfuse_dashboard,
@@ -197,7 +218,7 @@ def setup_navigation() -> SidebarNavigation:
     if config.dashboard.show_system_health:
         nav.register_tool(ToolDefinition(
             key="system_health",
-            icon="🏥",
+            icon=">",
             label="System Health",
             description="Monitor service health and resources",
             render_func=render_system_health_dashboard,
@@ -226,7 +247,7 @@ def render_sidebar_status() -> None:
         with col1:
             st.metric("Environment", config.env)
         with col2:
-            st.metric("Debug", "🟢 ON" if config.debug else "🔴 OFF")
+            st.metric("Debug", "ON" if config.debug else "OFF")
 
         st.divider()
 
@@ -242,9 +263,9 @@ def render_sidebar_status() -> None:
 
         # Display each service status
         for service_name, status in service_statuses.items():
-            icon = "✅" if status.is_healthy else "❌"
+            status_indicator = "[OK]" if status.is_healthy else "[FAIL]"
             status_text = "Healthy" if status.is_healthy else "Unhealthy"
-            st.write(f"{icon} {status.name}: {status_text}")
+            st.write(f"{status_indicator} {status.name}: {status_text}")
 
             if status.message:
                 st.caption(status.message)
@@ -256,13 +277,13 @@ def render_sidebar_status() -> None:
         col1, col2 = st.columns(2)
 
         with col1:
-            if st.button("🔄 Refresh", use_container_width=True):
+            if st.button("Refresh", use_container_width=True):
                 # Clear health checker cache to force new checks
                 st.session_state.health_checker = HealthChecker()
                 st.rerun()
 
         with col2:
-            if st.button("ℹ️ About", use_container_width=True):
+            if st.button("About", use_container_width=True):
                 st.info(
                     f"**Agent Zero (L.A.B.)**\n\n"
                     f"Version: {config.app_version}\n\n"
@@ -271,7 +292,7 @@ def render_sidebar_status() -> None:
                 )
 
         st.divider()
-        st.caption("💡 Agent Zero: Local-First, Secure-by-Design")
+        st.caption("Agent Zero: Local-First, Secure-by-Design")
 
 
 def _render_loading_screen() -> None:
@@ -294,7 +315,7 @@ def _render_loading_screen() -> None:
     
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        st.markdown("## 🤖 Agent Zero")
+        st.markdown("## Agent Zero")
         st.markdown("### Initializing Local Agent Builder...")
         st.markdown("---")
         
@@ -305,12 +326,12 @@ def _render_loading_screen() -> None:
         
         # Step definitions with progress percentages
         steps = [
-            (0.05, "🔄 Starting initialization...", "Loading configuration"),
-            (0.15, "🏥 Checking service health...", "Verifying Ollama, Qdrant, Meilisearch, Langfuse"),
-            (0.40, "🧠 Initializing Ollama LLM...", "Checking models and warming up"),
-            (0.65, "📊 Initializing Qdrant...", "Setting up vector database"),
-            (0.85, "🔍 Initializing Meilisearch...", "Setting up keyword search"),
-            (1.0, "✅ Startup complete!", "Ready to use"),
+            (0.05, "Starting initialization...", "Loading configuration"),
+            (0.15, "Checking service health...", "Verifying Ollama, Qdrant, Meilisearch, Langfuse"),
+            (0.40, "Initializing Ollama LLM...", "Checking models and warming up"),
+            (0.65, "Initializing Qdrant...", "Setting up vector database"),
+            (0.85, "Initializing Meilisearch...", "Setting up keyword search"),
+            (1.0, "Startup complete!", "Ready to use"),
         ]
         
         # Show initial state
@@ -427,20 +448,14 @@ def main() -> None:
     # Render system health in sidebar (below navigation)
     render_system_health_sidebar()
     
-    # Main Content Area
-    # Header
-    st.title("🤖 Agent Zero (L.A.B.)")
-    st.markdown("**Local Agent Builder** - Build and test AI agents locally with ease")
-    st.divider()
-    
-    # Render active tool content
+    # Main Content Area - render active tool content directly
     nav.render_active_tool()
 
     # Footer
     st.divider()
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.caption("🔗 Built with [Streamlit](https://streamlit.io/)")
+        st.caption("Built with [Streamlit](https://streamlit.io/)")
     with col2:
         st.caption(f"Version: {config.app_version}")
     with col3:
@@ -452,5 +467,5 @@ if __name__ == "__main__":
         main()
     except Exception as e:
         logger.error(f"Application error: {e}", exc_info=True)
-        st.error(f"❌ Application error: {str(e)}")
+        st.error(f"Application error: {str(e)}")
         st.stop()

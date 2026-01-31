@@ -85,7 +85,7 @@ def _render_summary_metrics(summary: dict) -> None:
     Args:
         summary: Trace summary dictionary
     """
-    st.subheader("📈 Summary Metrics")
+    st.subheader("Summary Metrics")
     
     col1, col2, col3, col4 = st.columns(4)
     
@@ -211,7 +211,7 @@ def _render_trace_card(trace: dict, expanded: bool = False) -> None:
         tokens_str = f" | {trace['input_tokens']}→{trace['output_tokens']} tokens"
     
     with st.expander(
-        f"📍 [{timestamp}] {trace['name']} | {duration} {status_icon}{tokens_str}",
+        f"[{timestamp}] {trace['name']} | {duration} {status_icon}{tokens_str}",
         expanded=expanded
     ):
         col1, col2 = st.columns(2)
@@ -240,7 +240,7 @@ def _render_recent_traces(traces: list, show_details: bool = False) -> None:
         traces: List of trace dictionaries
         show_details: Whether to show detailed view
     """
-    st.subheader("📜 Recent Traces")
+    st.subheader("Recent Traces")
     
     if not traces:
         st.info("No traces found. Start using the agent to generate traces!")
@@ -255,7 +255,7 @@ def _render_recent_traces(traces: list, show_details: bool = False) -> None:
 def _render_langfuse_disabled() -> None:
     """Render UI when Langfuse is disabled."""
     st.warning(
-        "⚠️ **Langfuse Observability is Disabled**\n\n"
+        "**Langfuse Observability is Disabled**\n\n"
         "To enable Langfuse, set `LANGFUSE_ENABLED=true` in your `.env` file "
         "and ensure the Langfuse service is running."
     )
@@ -264,10 +264,10 @@ def _render_langfuse_disabled() -> None:
     ### Why use Langfuse?
     
     Langfuse provides:
-    - 📊 **Trace tracking** for all LLM calls
-    - 📈 **Performance metrics** and latency analysis
-    - 🔍 **Debugging** for agent decisions
-    - 📉 **Cost tracking** for token usage
+    - **Trace tracking** for all LLM calls
+    - **Performance metrics** and latency analysis
+    - **Debugging** for agent decisions
+    - **Cost tracking** for token usage
     
     ### Quick Setup
     
@@ -284,7 +284,7 @@ def _render_langfuse_disabled() -> None:
 def _render_connection_error() -> None:
     """Render UI when Langfuse connection fails."""
     st.error(
-        "❌ **Cannot Connect to Langfuse**\n\n"
+        "**Cannot Connect to Langfuse**\n\n"
         "The Langfuse service is not responding. Please check:\n"
         "- Is the Langfuse container running?\n"
         "- Is the host URL correct in your configuration?\n"
@@ -294,7 +294,7 @@ def _render_connection_error() -> None:
     config = get_config()
     st.info(f"Current Langfuse host: `{config.langfuse.host}`")
     
-    if st.button("🔄 Retry Connection"):
+    if st.button("Retry Connection"):
         st.cache_data.clear()
         st.rerun()
 
@@ -304,7 +304,7 @@ def render_langfuse_dashboard() -> None:
     
     Main entry point for the Langfuse dashboard tool.
     """
-    st.header("📊 Langfuse Observability")
+    st.header("Langfuse Observability")
     st.caption("Monitor agent traces, performance metrics, and token usage")
     
     config = get_config()
@@ -351,7 +351,7 @@ def render_langfuse_dashboard() -> None:
     
     with col4:
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🔄 Refresh", use_container_width=True):
+        if st.button("Refresh", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
     
@@ -378,7 +378,7 @@ def render_langfuse_dashboard() -> None:
     st.divider()
     
     # Full dashboard link
-    st.subheader("🔗 Full Dashboard")
+    st.subheader("Full Dashboard")
     
     dashboard_url = client.get_full_dashboard_url()
     

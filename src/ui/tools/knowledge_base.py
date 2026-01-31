@@ -108,9 +108,9 @@ def _render_service_error(error_msg: str, service_hint: str) -> None:
         error_msg: The error message to display
         service_hint: Hint about which service to check
     """
-    st.error(f"❌ {error_msg}")
+    st.error(f"Error: {error_msg}")
     st.info(f"""
-💡 **Troubleshooting Steps:**
+**Troubleshooting Steps:**
 1. Check if services are running: `docker-compose ps`
 2. Start services if needed: `docker-compose up -d`
 3. Check service logs: `docker-compose logs {service_hint}`
@@ -118,7 +118,7 @@ def _render_service_error(error_msg: str, service_hint: str) -> None:
     """)
     col1, col2 = st.columns([1, 4])
     with col1:
-        if st.button("🔄 Retry", key=f"retry_{service_hint}"):
+        if st.button("Retry", key=f"retry_{service_hint}"):
             # Clear cached services to force reconnection
             for key in ["document_ingestor", "retrieval_engine", "ingestor_error", "retrieval_error"]:
                 if key in st.session_state:
@@ -132,13 +132,13 @@ def render_knowledge_base() -> None:
     Allows users to upload documents, view indexed documents,
     and manage the knowledge base.
     """
-    st.header("📚 Knowledge Base Management")
+    st.header("Knowledge Base Management")
 
     # Initialize session state
     initialize_kb_session()
 
     # Create tabs for KB management
-    kb_tab1, kb_tab2, kb_tab3 = st.tabs(["📤 Upload", "📋 Documents", "🔍 Search"])
+    kb_tab1, kb_tab2, kb_tab3 = st.tabs(["Upload", "Documents", "Search"])
 
     with kb_tab1:
         st.subheader("Upload Documents")
@@ -152,7 +152,7 @@ def render_knowledge_base() -> None:
         )
 
         if uploaded_file:
-            st.info(f"📄 File: {uploaded_file.name} ({uploaded_file.size} bytes)")
+            st.info(f"File: {uploaded_file.name} ({uploaded_file.size} bytes)")
 
             col1, col2 = st.columns(2)
 
@@ -172,7 +172,7 @@ def render_knowledge_base() -> None:
                     value=50,
                 )
 
-            if st.button("✅ Index Document", use_container_width=True):
+            if st.button("Index Document", use_container_width=True):
                 ingestor, error = _get_ingestor()
                 
                 if ingestor is None:
@@ -191,19 +191,19 @@ def render_knowledge_base() -> None:
                         
                         try:
                             # Step 1: Read file
-                            status_text.text("📖 Reading file...")
+                            status_text.text("Reading file...")
                             progress_bar.progress(10)
                             file_bytes = uploaded_file.read()
                             time.sleep(0.2)  # Brief pause for UX
                             
                             # Step 2: Parse content
-                            status_text.text("📝 Parsing document content...")
+                            status_text.text("Parsing document content...")
                             progress_bar.progress(25)
                             file_ext = uploaded_file.name.lower().split(".")[-1]
                             time.sleep(0.2)
                             
                             # Step 3: Chunk and embed
-                            status_text.text("✂️ Chunking document and generating embeddings...")
+                            status_text.text("Chunking document and generating embeddings...")
                             progress_bar.progress(40)
                             
                             # Step 4: Process based on file type
@@ -225,13 +225,13 @@ def render_knowledge_base() -> None:
                                 )
                             
                             # Step 5: Indexing
-                            status_text.text("📊 Indexing in vector database...")
+                            status_text.text("Indexing in vector database...")
                             progress_bar.progress(80)
                             time.sleep(0.2)
                             
                             # Complete
                             progress_bar.progress(100)
-                            status_text.text("✅ Complete!")
+                            status_text.text("Complete!")
                             time.sleep(0.3)
                             
                             if result.success:
@@ -244,23 +244,23 @@ def render_knowledge_base() -> None:
                                 })
                                 st.session_state.kb_last_error = None
                                 progress_container.empty()
-                                st.success(f"✅ Document '{uploaded_file.name}' indexed successfully! ({result.chunks_count} chunks in {result.duration_seconds:.1f}s)")
+                                st.success(f"Document '{uploaded_file.name}' indexed successfully! ({result.chunks_count} chunks in {result.duration_seconds:.1f}s)")
                                 st.balloons()
                                 st.rerun()
                             else:
                                 progress_container.empty()
-                                st.error(f"❌ Failed to index document: {result.error}")
+                                st.error(f"Failed to index document: {result.error}")
                                 st.session_state.kb_last_error = result.error
                                 
                         except UnicodeDecodeError as e:
                             progress_container.empty()
-                            st.error("❌ Failed to read file: Invalid text encoding. Please ensure the file is UTF-8 encoded.")
+                            st.error("Failed to read file: Invalid text encoding. Please ensure the file is UTF-8 encoded.")
                             logger.error(f"Unicode decode error: {e}")
                         except Exception as e:
                             progress_container.empty()
                             logger.error(f"Document indexing error: {e}", exc_info=True)
-                            st.error(f"❌ Error during indexing: {str(e)}")
-                            st.info("💡 Check the Logs tab for more details")
+                            st.error(f"Error during indexing: {str(e)}")
+                            st.info("Check the Logs tab for more details")
 
     with kb_tab2:
         st.subheader("Indexed Documents")
@@ -283,14 +283,14 @@ def render_knowledge_base() -> None:
                 )
 
             with col2:
-                if st.button("🗑️ Delete"):
+                if st.button("Delete"):
                     st.session_state.documents = [
                         doc for doc in st.session_state.documents if doc["filename"] != doc_to_delete
                     ]
-                    st.success("✅ Document deleted!")
+                    st.success("Document deleted!")
                     st.rerun()
         else:
-            st.info("📭 No documents indexed yet. Upload a document to get started.")
+            st.info("No documents indexed yet. Upload a document to get started.")
 
     with kb_tab3:
         st.subheader("Search Knowledge Base")
@@ -307,7 +307,7 @@ def render_knowledge_base() -> None:
         )
 
         if search_query:
-            if st.button("🔍 Search", use_container_width=True):
+            if st.button("Search", use_container_width=True):
                 retrieval, error = _get_retrieval_engine()
                 
                 if retrieval is None:
@@ -323,13 +323,13 @@ def render_knowledge_base() -> None:
                         status_text = st.empty()
                         
                         try:
-                            status_text.text("🔎 Searching knowledge base...")
+                            status_text.text("Searching knowledge base...")
                             progress_bar.progress(30)
                             
                             # Map search type to retrieval parameter
                             use_hybrid = search_type == "Hybrid"
                             
-                            status_text.text(f"📊 Running {search_type.lower()} search...")
+                            status_text.text(f"Running {search_type.lower()} search...")
                             progress_bar.progress(60)
                             
                             if search_type == "Keyword":
@@ -342,7 +342,7 @@ def render_knowledge_base() -> None:
                                 )
                             
                             progress_bar.progress(100)
-                            status_text.text("✅ Search complete!")
+                            status_text.text("Search complete!")
                             time.sleep(0.2)
                             progress_container.empty()
                             
@@ -359,7 +359,7 @@ def render_knowledge_base() -> None:
                                         st.markdown("**Content:**")
                                         st.text(result.content[:500] + "..." if len(result.content) > 500 else result.content)
                             else:
-                                st.info("🔍 No results found for your query.")
+                                st.info("No results found for your query.")
                                 st.markdown("""
 **Tips to improve search results:**
 - Try different keywords or phrases
@@ -370,7 +370,7 @@ def render_knowledge_base() -> None:
                         except Exception as e:
                             progress_container.empty()
                             logger.error(f"Search error: {e}", exc_info=True)
-                            st.error(f"❌ Search failed: {str(e)}")
-                            st.info("💡 Make sure you have indexed some documents first")
+                            st.error(f"Search failed: {str(e)}")
+                            st.info("Make sure you have indexed some documents first")
         else:
-            st.info("💡 Enter a search query to find relevant documents from your knowledge base.")
+            st.info("Enter a search query to find relevant documents from your knowledge base.")
