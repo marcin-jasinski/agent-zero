@@ -255,17 +255,22 @@ class TestOllamaClientPullModel:
 
     def test_pull_model_success(self, ollama_client):
         """Test successful model pull."""
-        with patch.object(ollama_client, "_make_request") as mock_request:
-            mock_request.return_value = {}
-
+        # Mock the session.post method since pull_model uses it directly (not _make_request)
+        mock_response = Mock()
+        mock_response.raise_for_status = Mock()
+        mock_response.iter_lines = Mock(return_value=[
+            b'{"status": "pulling"}'.decode(),
+            b'{"status": "success"}'.decode(),
+        ])
+        
+        with patch.object(ollama_client.session, "post", return_value=mock_response):
             result = ollama_client.pull_model("ministral-3:3b")
-
             assert result is True
 
     def test_pull_model_failure(self, ollama_client):
         """Test failed model pull."""
-        with patch.object(ollama_client, "_make_request") as mock_request:
-            mock_request.side_effect = RequestException("Model not available")
+        with patch.object(ollama_client.session, "post") as mock_post:
+            mock_post.side_effect = RequestException("Model not available")
 
             result = ollama_client.pull_model("nonexistent:model")
 
@@ -273,8 +278,8 @@ class TestOllamaClientPullModel:
 
     def test_pull_model_network_error(self, ollama_client):
         """Test network error during pull."""
-        with patch.object(ollama_client, "_make_request") as mock_request:
-            mock_request.side_effect = ConnectionError("Network unavailable")
+        with patch.object(ollama_client.session, "post") as mock_post:
+            mock_post.side_effect = ConnectionError("Network unavailable")
 
             result = ollama_client.pull_model("model:tag")
 

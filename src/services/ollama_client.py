@@ -19,12 +19,12 @@ logger = logging.getLogger(__name__)
 class OllamaClient:
     """Client for Ollama LLM service."""
 
-    def __init__(self, base_url: Optional[str] = None, timeout: int = 30):
+    def __init__(self, base_url: Optional[str] = None, timeout: int = 120):
         """Initialize Ollama client.
 
         Args:
             base_url: Base URL for Ollama service (e.g., http://ollama:11434)
-            timeout: Request timeout in seconds
+            timeout: Request timeout in seconds (default 120s for LLM generation)
 
         Raises:
             ValueError: If base_url is empty or timeout is not positive
@@ -179,6 +179,33 @@ class OllamaClient:
         except Exception as e:
             logger.error(f"Embedding generation failed: {e}")
             raise
+
+    def warm_up(self, model: str) -> bool:
+        """Warm up/preload a model into memory.
+
+        Sends a minimal generation request to load the model weights into memory,
+        reducing latency on the first real user request.
+
+        Args:
+            model: Model name to warm up
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            logger.info(f"Warming up model '{model}'...")
+            payload = {
+                "model": model,
+                "prompt": "Hello",
+                "stream": False,
+                "options": {"num_predict": 1},  # Generate minimal output
+            }
+            self._make_request("post", "/api/generate", json=payload)
+            logger.info(f"Model '{model}' warmed up successfully")
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to warm up model '{model}': {e}")
+            return False
 
     def pull_model(self, model: str) -> bool:
         """Pull a model from Ollama library.

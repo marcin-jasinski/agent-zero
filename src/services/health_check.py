@@ -207,6 +207,29 @@ class HealthChecker:
 
         return status_map
 
+    def check_service(self, service_name: str) -> ServiceStatus:
+        """Check health of a specific service by name.
+        
+        Args:
+            service_name: Name of the service to check (ollama, qdrant, meilisearch, langfuse)
+            
+        Returns:
+            ServiceStatus for the requested service, or None if service name is invalid
+        """
+        service_checks = {
+            "ollama": self.check_ollama,
+            "qdrant": self.check_qdrant,
+            "meilisearch": self.check_meilisearch,
+            "langfuse": self.check_langfuse,
+        }
+        
+        check_func = service_checks.get(service_name.lower())
+        if check_func:
+            return check_func()
+        
+        logger.warning(f"Unknown service name: {service_name}")
+        return None
+
     @property
     def all_healthy(self) -> bool:
         """Check if all services are healthy.

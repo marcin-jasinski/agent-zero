@@ -183,18 +183,18 @@ class TestDocumentIngestor:
             ),
         ]
 
-        ingestor.ollama_client.generate_embedding = Mock(return_value=[0.1] * 384)
+        ingestor.ollama_client.embed = Mock(return_value=[0.1] * 384)
 
         ingestor._process_chunks(chunks, "doc_id")
 
-        # Verify embeddings were generated
-        assert ingestor.ollama_client.generate_embedding.call_count >= 2
+        # Verify embeddings were generated (method is 'embed' not 'generate_embedding')
+        assert ingestor.ollama_client.embed.call_count >= 2
 
         # Verify chunks were stored in Qdrant
         assert ingestor.qdrant_client.upsert_vectors.called
 
-        # Verify chunks were indexed in Meilisearch
-        assert ingestor.meilisearch_client.index_documents.called
+        # Verify chunks were indexed in Meilisearch (method is 'add_documents')
+        assert ingestor.meilisearch_client.add_documents.called
 
     def test_ingest_result_creation(self) -> None:
         """Test IngestionResult creation."""
