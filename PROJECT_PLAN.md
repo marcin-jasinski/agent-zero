@@ -1532,16 +1532,362 @@ Phase 5: Testing, Documentation & UX Polish ⭐ COMPLETED
 
 ---
 
-## Next Steps
+### PHASE 6: Intelligent Retrieval & Web Search
 
-1. **Step 19**: Documentation - Create ARCHITECTURE.md and CONTRIBUTING.md
-2. **Production**: Deploy with all security and monitoring features enabled
+**Goal**: Optimize agent performance with smart retrieval routing and add web search capabilities for external information access.
+
+**Performance Impact**:
+- Current: Every query triggers embedding generation (~4-5s)
+- Target: Smart routing reduces unnecessary retrievals by 60-70%
+- General queries: ~2-3s (no retrieval)
+- KB queries: ~5-6s (with retrieval)
+- Web-enhanced queries: ~6-9s (with web fetch)
 
 ---
 
-**Document Version**: 1.6  
-**Last Updated**: 2026-01-30  
+#### Step 23: Intelligent Retrieval Optimization
+
+**Status**: 🔄 TODO
+
+**Objective**: Implement three-stage cascading filter to prevent unnecessary document retrieval, reducing latency for general knowledge queries.
+
+**Implementation**:
+
+- [ ] **Stage 1: Empty Knowledge Base Check** (`src/core/agent.py`):
+  - [ ] Add `_check_kb_availability()` method
+  - [ ] Query Qdrant for document count before retrieval
+  - [ ] If `document_count == 0`: Skip retrieval, log warning, proceed to LLM
+  - [ ] Cache result for 60 seconds (KB doesn't change often)
+  - [ ] **Cost**: 0ms (instant exit when KB empty)
+
+- [ ] **Stage 2: Intent Classification** (`src/core/agent.py`):
+  - [ ] Add `_classify_query_intent(user_message: str) -> bool` method
+  - [ ] Fast LLM prompt (temperature=0.1):
+    ```
+    Classify if this query needs document retrieval from a knowledge base.
+    Return only "YES" or "NO".
+    
+    Examples:
+    - "What is AI?" → NO (general knowledge)
+    - "Explain the RAG architecture from the docs" → YES (specific to KB)
+    - "What time is it?" → NO (tool/factual)
+    - "Summarize the ingestion pipeline" → YES (KB-specific)
+    
+    Query: {user_message}
+    Classification:
+    ```
+  - [ ] Parse response: `needs_kb = "YES" in response.upper()`
+  - [ ] Log decision with reasoning for observability
+  - [ ] **Cost**: 1-2s (fast single-token LLM call)
+  - [ ] **Benefit**: Avoids 4-5s embedding generation for general queries
+
+- [ ] **Stage 3: Semantic Similarity Threshold** (`src/core/retrieval.py`):
+  - [ ] Add `min_relevance_score` parameter to `retrieve_relevant_docs()`
+  - [ ] Default threshold: `0.7` (configurable via env var)
+  - [ ] After retrieval, filter results: `results = [r for r in results if r.score >= threshold]`
+  - [ ] If all results filtered out: Log "Low relevance", return empty list
+  - [ ] Agent handles empty list gracefully: "No relevant documents found"
+  - [ ] **Cost**: 0ms (applies to existing retrieval results)
+
+- [ ] **Configuration** (`src/config.py`):
+  - [ ] Add `retrieval` section to config:
+    ```python
+    class RetrievalConfig(BaseSettings):
+        enable_intent_classification: bool = True
+        intent_classification_temperature: float = 0.1
+        min_similarity_threshold: float = 0.7
+        kb_check_cache_ttl: int = 60  # seconds
+    ```
+  - [ ] Environment variables:
+    - `APP_RETRIEVAL__ENABLE_INTENT_CLASSIFICATION=true`
+    - `APP_RETRIEVAL__MIN_SIMILARITY_THRESHOLD=0.7`
+
+- [ ] **Timing Instrumentation**:
+  - [ ] Add timing logs for each stage:
+    - `[TIMING] KB availability check: 0.00s (empty)`
+    - `[TIMING] Intent classification: 1.23s (needs_kb=False)`
+    - `[TIMING] Similarity filtering: 0.00s (2/5 results above 0.7)`
+  - [ ] Track in Langfuse: `retrieval_skipped`, `intent_classification_result`
+
+- [ ] **Process Flow**:
+  ```python
+  # Stage 1: Empty KB check (0ms)
+  if not _check_kb_availability():
+      logger.info("KB empty, skipping retrieval")
+      use_retrieval = False
+  
+  # Stage 2: Intent classification (1-2s)
+  elif not _classify_query_intent(user_message):
+      logger.info("General query, no KB context needed")
+      use_retrieval = False
+  
+  # Stage 3: Proceed with retrieval (4-5s)
+  else:
+      docs = retrieval_engine.retrieve_relevant_docs(
+          query=user_message,
+          top_k=5,
+          min_score=0.7  # Stage 3: Similarity threshold
+      )
+      if not docs:
+          logger.warning("No documents above similarity threshold")
+  ```
+
+- [ ] **Create Test Suite** (`tests/core/test_agent_retrieval.py`):
+  - [ ] Test empty KB bypass (2 tests)
+  - [ ] Test intent classification with various query types (8 tests)
+    - [ ] General knowledge queries → no retrieval
+    - [ ] KB-specific queries → retrieval
+    - [ ] Edge cases: ambiguous queries, multi-intent
+  - [ ] Test similarity threshold filtering (5 tests)
+    - [ ] All results above threshold → return all
+    - [ ] Some below threshold → filter out
+    - [ ] All below threshold → return empty
+  - [ ] Test cascading logic integration (6 tests)
+  - [ ] Test performance impact (mock timing comparisons)
+  - [ ] **Minimum: 21 unit tests**
+
+**Deliverable**: Smart retrieval routing that skips unnecessary KB lookups
+
+**Success Criteria**:
+- ✓ General queries ("What is AI?") complete in 2-3s (no retrieval)
+- ✓ KB queries with empty KB complete in 2-3s (no embedding generation)
+- ✓ KB queries with low similarity complete in 5-6s (retrieve but ignore)
+- ✓ Relevant KB queries use retrieved documents (normal flow)
+- ✓ 60-70% reduction in unnecessary retrieval operations
+- ✓ 21+ tests passing
+- ✓ Timing logs show each stage
+- ✓ Langfuse tracks intent classification decisions
+
+**Performance Metrics**:
+| Query Type | Before | After | Savings |
+|------------|--------|-------|---------|
+| Empty KB | 7-8s | 2-3s | -5s (70%) |
+| General knowledge | 7-8s | 3-4s | -4s (50%) |
+| KB-relevant | 7-8s | 7-8s | 0s |
+| Low relevance | 7-8s | 7-8s | 0s (but aware) |
+
+---
+
+#### Step 24: Web Search Tool Integration
+
+**Status**: 🔄 TODO
+
+**Objective**: Enable agent to fetch and parse external web content when KB documents don't contain needed information.
+
+**Implementation**:
+
+- [ ] **Add Dependencies** (`pyproject.toml`):
+  ```toml
+  dependencies = [
+      "httpx>=0.27.0",        # Modern async HTTP client
+      "beautifulsoup4>=4.12.0",  # HTML parsing
+      "html2text>=2024.2.0",     # HTML to markdown conversion
+      "markdownify>=0.13.0",     # Alternative HTML converter
+      "urllib3>=2.0.0",          # URL parsing and validation
+  ]
+  ```
+
+- [ ] **Create Web Search Service** (`src/services/web_search_client.py`):
+  - [ ] Class: `WebSearchClient`:
+    - [ ] `__init__(timeout: int = 10, max_content_size: int = 500_000)`
+    - [ ] HTTP client with retry strategy (3 retries, exponential backoff)
+    - [ ] User-Agent header: `"Mozilla/5.0 (Agent-Zero/1.0)"`
+    - [ ] Respect `robots.txt` (check before fetching)
+  
+  - [ ] Method: `fetch_url(url: str) -> WebSearchResult`:
+    - [ ] **URL Validation**:
+      - [ ] Schema must be `http://` or `https://`
+      - [ ] No localhost, 127.0.0.1, or private IP ranges (security)
+      - [ ] Valid domain format
+      - [ ] Reject file://, ftp://, data:// schemes
+    - [ ] **Request Configuration**:
+      - [ ] Timeout: 10 seconds (configurable)
+      - [ ] Max redirects: 3
+      - [ ] SSL verification: enabled
+      - [ ] Max content size: 500KB (prevent memory issues)
+      - [ ] Stream response and check size before full download
+    - [ ] **Rate Limiting**:
+      - [ ] In-memory cache: 1 req/second per domain
+      - [ ] Simple token bucket algorithm
+      - [ ] Log rate limit hits
+    - [ ] **Error Handling**:
+      - [ ] Timeout → return error with timeout message
+      - [ ] HTTP 4xx/5xx → return error with status code
+      - [ ] Network error → return error with connection details
+      - [ ] SSL error → return error about certificate
+      - [ ] All errors logged to Langfuse
+
+  - [ ] Method: `parse_html(html: str) -> str`:
+    - [ ] Remove: `<script>`, `<style>`, `<nav>`, `<footer>`, `<aside>`, `<iframe>`
+    - [ ] Remove: ads, tracking pixels, social media embeds
+    - [ ] Remove: comments, forms (unless relevant)
+    - [ ] Convert to clean markdown using `html2text`:
+      - [ ] Preserve headings hierarchy
+      - [ ] Preserve links with text
+      - [ ] Preserve code blocks
+      - [ ] Remove excessive whitespace
+    - [ ] Truncate to max 10,000 characters for LLM context
+    - [ ] Return structured content: title, main content, meta description
+
+  - [ ] Method: `extract_main_content(soup: BeautifulSoup) -> str`:
+    - [ ] Heuristic content extraction:
+      - [ ] Look for `<article>`, `<main>` tags first
+      - [ ] Fall back to largest `<div>` with text
+      - [ ] Use readability score (text/HTML ratio)
+    - [ ] Remove boilerplate (headers, footers, sidebars)
+
+- [ ] **Create Data Model** (`src/models/web_search.py`):
+  ```python
+  @dataclass
+  class WebSearchResult:
+      url: str
+      title: str
+      content: str  # Cleaned markdown
+      metadata: Dict[str, Any]  # meta tags, author, date
+      success: bool
+      error: Optional[str] = None
+      fetch_time: float = 0.0  # seconds
+      content_size: int = 0  # bytes
+  ```
+
+- [ ] **Integrate as Agent Tool** (`src/core/agent.py`):
+  - [ ] Add to `self.tools`:
+    ```python
+    "web_search": self._web_search
+    ```
+  - [ ] Method: `_web_search(url: str) -> Dict[str, Any]`:
+    - [ ] Call `WebSearchClient.fetch_url(url)`
+    - [ ] Return cleaned content or error
+    - [ ] Log to Langfuse: tool use, URL, success/failure
+    - [ ] Track timing: fetch + parse
+  
+  - [ ] LLM System Prompt Enhancement:
+    ```
+    Available tools:
+    - retrieve_documents: Search local knowledge base
+    - web_search(url): Fetch and read web page content
+      * Use when KB doesn't have needed info
+      * Provide full URL (must start with http:// or https://)
+      * Returns cleaned text content from the page
+    
+    Decision flow:
+    1. Check if KB might have info → retrieve_documents
+    2. If KB empty/irrelevant → consider web_search
+    3. Always cite sources (KB or web URL)
+    ```
+
+- [ ] **Configuration** (`src/config.py`):
+  ```python
+  class WebSearchConfig(BaseSettings):
+      enabled: bool = True
+      timeout: int = 10  # seconds
+      max_content_size: int = 500_000  # bytes
+      max_retries: int = 3
+      rate_limit_per_domain: float = 1.0  # requests/second
+      user_agent: str = "Mozilla/5.0 (Agent-Zero/1.0)"
+      respect_robots_txt: bool = True
+  ```
+  - [ ] Environment variables:
+    - `APP_WEB_SEARCH__ENABLED=true`
+    - `APP_WEB_SEARCH__TIMEOUT=10`
+
+- [ ] **Security & Safety**:
+  - [ ] URL whitelist/blacklist support (optional)
+  - [ ] Content-Type validation (only HTML/text)
+  - [ ] Malware check headers (if available)
+  - [ ] Log all fetched URLs for audit
+  - [ ] Respect website terms of service
+
+- [ ] **Create Test Suite** (`tests/services/test_web_search_client.py`):
+  - [ ] Test URL validation (6 tests):
+    - [ ] Valid URLs accepted
+    - [ ] Invalid schemas rejected (file://, localhost)
+    - [ ] Private IPs rejected
+    - [ ] Malformed URLs rejected
+  - [ ] Test HTTP fetching (8 tests):
+    - [ ] Successful fetch returns content
+    - [ ] Timeout handling
+    - [ ] HTTP error codes (404, 500)
+    - [ ] Network errors
+    - [ ] Large content size rejection
+    - [ ] SSL errors
+  - [ ] Test HTML parsing (6 tests):
+    - [ ] Script/style removal
+    - [ ] Markdown conversion
+    - [ ] Main content extraction
+    - [ ] Truncation at max length
+  - [ ] Test rate limiting (4 tests):
+    - [ ] Multiple requests to same domain throttled
+    - [ ] Different domains not affected
+  - [ ] Test agent tool integration (5 tests):
+    - [ ] Tool called correctly
+    - [ ] Results returned to agent
+    - [ ] Errors handled gracefully
+  - [ ] Mock all HTTP requests (no real web calls)
+  - [ ] **Minimum: 29 unit tests**
+
+- [ ] **UI Enhancement** (`src/ui/tools/chat.py`):
+  - [ ] Show web fetch indicator: "🌐 Fetching URL..."
+  - [ ] Display fetched URL in sources
+  - [ ] Show fetch time in message metadata
+
+**Deliverable**: Agent can fetch and parse web pages for external information
+
+**Success Criteria**:
+- ✓ Agent successfully fetches and parses HTML to markdown
+- ✓ URL validation prevents malicious/invalid URLs
+- ✓ Rate limiting prevents abuse (1 req/s per domain)
+- ✓ Timeouts prevent hanging (10s limit)
+- ✓ Large content rejected (>500KB)
+- ✓ Cleaned content preserves structure (headings, links)
+- ✓ Web search tracked in Langfuse
+- ✓ 29+ tests passing
+- ✓ No real HTTP calls in tests (all mocked)
+
+**Example Usage**:
+```
+User: "What's the latest Python release?"
+Agent: "I don't have that in the KB. Let me check python.org..."
+→ Calls web_search("https://www.python.org/downloads/")
+→ Parses HTML, extracts version info
+→ Returns: "According to python.org, the latest stable release is..."
+```
+
+---
+
+### PHASE 6 Validation Checkpoint
+
+**Phase 6 Complete When**:
+
+- [ ] General queries ("What is 2+2?") skip retrieval and answer in 2-3s
+- [ ] KB queries with empty KB skip embedding generation
+- [ ] Intent classification correctly routes 90%+ of queries
+- [ ] Similarity threshold filters low-relevance results
+- [ ] Agent can fetch web pages when prompted
+- [ ] Web content is cleaned and readable
+- [ ] Rate limiting prevents abuse
+- [ ] All security validations working (URL, size, timeout)
+- [ ] 50+ new tests passing (21 retrieval + 29 web search)
+- [ ] Performance improvement visible in Langfuse traces
+
+**Performance Target**:
+- 60-70% of queries complete faster (2-4s vs 7-8s)
+- Web-enhanced queries complete in 6-9s (acceptable for external fetch)
+- No regression for KB-relevant queries
+
+---
+
+## Next Steps
+
+1. **Phase 6**: Implement intelligent retrieval + web search
+2. **Documentation**: Create ARCHITECTURE.md and CONTRIBUTING.md  
+3. **Production**: Deploy with all security and monitoring features enabled
+
+---
+
+**Document Version**: 1.7  
+**Last Updated**: 2026-02-02  
 **Maintained By**: Senior AI Architect  
-**Status**: Phase 5 Complete - All UX and documentation tasks finished  
+**Status**: Phase 5 Complete - Phase 6 planned (intelligent retrieval + web search)  
 **Code Review**: Completed 2026-01-28 (see CODE_REVIEW_ADDENDUM.md)
-**Test Suite**: 404 tests passing, 0 skipped
+**Test Suite**: 404 tests passing, 0 skipped → Target: 454+ after Phase 6
