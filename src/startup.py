@@ -249,8 +249,11 @@ class ApplicationStartup:
             else:
                 logger.info(f"  ✓ All required models available")
 
-            # Warm up LLM model to preload into memory (reduces first-response latency)
+            # Warm up both LLM and embedding models to preload into memory
+            # (reduces first-response latency significantly)
             llm_model = self.config.ollama.model
+            embed_model = self.config.ollama.embed_model
+            
             logger.info(f"  → Warming up LLM model '{llm_model}' (preloading into memory)...")
             try:
                 if ollama.warm_up(llm_model):
@@ -259,6 +262,17 @@ class ApplicationStartup:
                     logger.warning(f"  ⚠ LLM warm-up failed, model will load on first request")
             except Exception as e:
                 logger.warning(f"  ⚠ LLM warm-up error: {e}")
+            
+            logger.info(f"  → Warming up embedding model '{embed_model}' (preloading into memory)...")
+            try:
+                # Generate a test embedding to warm up the model
+                test_embedding = ollama.embed("warmup test")
+                if test_embedding and len(test_embedding) > 0:
+                    logger.info(f"  ✓ Embedding model '{embed_model}' preloaded and ready")
+                else:
+                    logger.warning(f"  ⚠ Embedding warm-up returned empty result")
+            except Exception as e:
+                logger.warning(f"  ⚠ Embedding warm-up error: {e}")
 
             self.statuses.append(
                 StartupStatus(
