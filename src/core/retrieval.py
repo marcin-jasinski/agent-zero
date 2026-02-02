@@ -89,20 +89,25 @@ class RetrievalEngine:
         Returns:
             List of RetrievalResult objects sorted by similarity score
         """
+        import time
         try:
             from src.config import get_config
             config = get_config()
             
             # Generate embedding for query
+            embed_start = time.time()
             query_embedding = self.ollama_client.embed(query)
+            logger.info(f"[TIMING] Embedding generation took {time.time() - embed_start:.2f}s")
 
             # Search Qdrant
+            search_start = time.time()
             search_results = self.qdrant_client.search(
                 collection_name=config.qdrant.collection_name,
                 query_vector=query_embedding,
                 limit=top_k,
                 score_threshold=self.config.min_semantic_score,
             )
+            logger.info(f"[TIMING] Qdrant search took {time.time() - search_start:.2f}s")
 
             results = []
             for result in search_results:

@@ -133,9 +133,15 @@ class AgentOrchestrator:
         if not user_message or not user_message.strip():
             raise ValueError("User message cannot be empty")
 
+        import time
+        start_time = time.time()
+        logger.info(f"[TIMING] Starting message processing")
+
         try:
             # Scan user input for security threats
+            scan_start = time.time()
             input_scan_result = self.llm_guard.scan_user_input(user_message)
+            logger.info(f"[TIMING] Input scan completed in {time.time() - scan_start:.2f}s")
 
             # Block critical threats
             if not input_scan_result.is_safe:
@@ -170,11 +176,12 @@ class AgentOrchestrator:
             retrieved_docs: List[RetrievalResult] = []
             if use_retrieval:
                 try:
+                    retrieval_start = time.time()
                     retrieved_docs = self.retrieval_engine.retrieve_relevant_docs(
                         processed_message,
                         top_k=5,
                     )
-                    logger.info(f"Retrieved {len(retrieved_docs)} documents")
+                    logger.info(f"[TIMING] Retrieval completed in {time.time() - retrieval_start:.2f}s - Retrieved {len(retrieved_docs)} documents")
 
                     # Track retrieval metrics in Langfuse
                     self.observability.track_retrieval(
@@ -187,17 +194,20 @@ class AgentOrchestrator:
                 except Exception as e:
                     logger.warning(f"Document retrieval failed: {e}")
 
-            # Build context
+            prompt_start = time.time()
             context = self._build_prompt(
                 conversation_id,
                 processed_message,
                 retrieved_docs,
             )
+            logger.info(f"[TIMING] Prompt building completed in {time.time() - prompt_start:.2f}s")
 
             # Generate response
+            llm_start = time.time()
             response_text = self._invoke_llm(
                 context, stream_callback, conversation_id=conversation_id
             )
+            logger.info(f"[TIMING] LLM generation completed in {time.time() - llm_start:.2f}s")
 
             # Scan LLM output for security threats
             output_scan_result = self.llm_guard.scan_llm_output(
