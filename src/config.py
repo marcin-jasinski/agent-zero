@@ -159,7 +159,7 @@ class DashboardFeatures(BaseSettings):
     # Management tools (optional, feature-flagged)
     show_qdrant_manager: bool = Field(default=False, description="Show Qdrant Manager dashboard")
     show_langfuse_dashboard: bool = Field(default=False, description="Show Langfuse Observability dashboard")
-    show_promptfoo: bool = Field(default=False, description="Show Promptfoo Testing dashboard")
+    show_promptfoo: bool = Field(default=True, description="Show Promptfoo Testing dashboard")
     show_system_health: bool = Field(default=False, description="Show System Health dashboard")
     
     class Config:

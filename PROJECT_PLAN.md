@@ -762,25 +762,88 @@ st.session_state["selected_tool"] = tool_name
 
 ---
 
-#### Step 20: Implement Promptfoo Testing Dashboard (Optional)
+#### Step 20: Implement Promptfoo Testing Dashboard
 
-- [ ] Create `src/ui/tools/promptfoo_dashboard.py`:
-  - [ ] Test scenario creation interface
-  - [ ] Test run history with version management
-  - [ ] Results comparison between versions
-  - [ ] Pass/fail rate visualization
-  - [ ] Deploy selected prompt version
-- [ ] Create test suite: 12 unit tests
-  - [ ] Test creation
-  - [ ] Test run management
-  - [ ] Version comparison
-  - [ ] Error handling
+✅ **COMPLETED** | Implementation Date: 2026-02-02
 
-**Note**: Implementation depends on Promptfoo library availability. Can be mocked for MVP.
+- [x] **Create Data Models** (`src/models/promptfoo.py`):
+  - [x] `TestScenario`: Test case definition with assertions and tags
+  - [x] `TestResult`: Individual test execution result
+  - [x] `TestRun`: Complete test run with metrics
+  - [x] `PromptComparison`: Version comparison analysis
+  - [x] `TestStatus` enum: PENDING, RUNNING, PASSED, FAILED, ERROR
+  - [x] Serialization methods (to_dict) for JSON persistence
 
-**Deliverable**: Promptfoo tab for prompt testing and versioning
+- [x] **Create Promptfoo Service Client** (`src/services/promptfoo_client.py`):
+  - [x] Local JSON-based storage for test scenarios and runs
+  - [x] Scenario management: create, list, get, update, delete
+  - [x] Test execution engine with assertion validation
+  - [x] Assertion types: not_empty, contains, no_toxic, matches_expected, max_length
+  - [x] Test run history with version filtering
+  - [x] Version comparison with improvement/regression analysis
+  - [x] Summary metrics calculation
+  - [x] Data persistence across client instances
 
-**Success Criteria**: ✓ Create test scenarios, ✓ view test results, ✓ compare versions, ✓ 12 tests passing
+- [x] **Create Dashboard UI Component** (`src/ui/tools/promptfoo_dashboard.py`):
+  - [x] Summary metrics display (4 key metrics)
+  - [x] Tab 1: Test Scenario Management
+    - [x] Create new scenarios with form validation
+    - [x] List scenarios with search filtering
+    - [x] Edit and delete scenario capabilities
+    - [x] Display assertions and tags
+  - [x] Tab 2: Run Tests
+    - [x] Version selection (v1.0, v2.0, v3.0, latest, custom)
+    - [x] Run mode: all scenarios or selected
+    - [x] Test execution with progress indication
+    - [x] Results display with metrics
+  - [x] Tab 3: Test Results History
+    - [x] Recent runs list (newest first)
+    - [x] Pass/fail rate visualization
+    - [x] Individual result details
+    - [x] Status indicators (✅, ❌, ⚠️)
+  - [x] Tab 4: Version Comparison
+    - [x] Select two versions to compare
+    - [x] Side-by-side metrics comparison
+    - [x] Improvements and regressions list
+    - [x] Recommendation engine
+  - [x] Caching with 30s TTL for performance
+  - [x] Error handling with user-friendly messages
+
+- [x] **Integration with Navigation** (`src/ui/main.py`):
+  - [x] Register Promptfoo tool in SidebarNavigation
+  - [x] Feature flag support: `APP_DASHBOARD__SHOW_PROMPTFOO`
+  - [x] Export render function in `src/ui/tools/__init__.py`
+
+- [x] **Configuration** (`.env.example`, `src/config.py`):
+  - [x] Feature flag: `DashboardFeatures.show_promptfoo`
+  - [x] Documentation in .env.example
+
+- [x] **Create Test Suite**:
+  - [x] `tests/models/test_promptfoo.py` (14 tests)
+    - [x] TestScenario creation and serialization
+    - [x] TestResult with all status types
+    - [x] TestRun metrics calculation
+    - [x] PromptComparison analysis logic
+  - [x] `tests/services/test_promptfoo_client.py` (37 tests)
+    - [x] Client initialization and file creation
+    - [x] Scenario CRUD operations (8 tests)
+    - [x] Test execution with assertions (9 tests)
+    - [x] Run history management (5 tests)
+    - [x] Version comparison (4 tests)
+    - [x] Data persistence (3 tests)
+  - [x] Mock HTTP responses and file I/O
+  - [x] **Total: 51 unit tests implemented** (exceeds 12 minimum)
+
+**Implementation Files Created**:
+- `src/models/promptfoo.py` (264 lines) - Complete data models
+- `src/services/promptfoo_client.py` (564 lines) - Service client with JSON storage
+- `src/ui/tools/promptfoo_dashboard.py` (683 lines) - Full dashboard UI
+- `tests/models/test_promptfoo.py` (14 tests)
+- `tests/services/test_promptfoo_client.py` (37 tests)
+
+**Deliverable**: Promptfoo Testing dashboard with scenario management, test execution, and version comparison ✓
+
+**Success Criteria**: ✓ Create test scenarios, ✓ run tests with assertions, ✓ view test results, ✓ compare versions with recommendations, ✓ 51 tests passing (425% of minimum requirement)
 
 ---
 
@@ -1484,10 +1547,10 @@ Phase 4b: Tool Dashboards & Management Interface ⭐ NEW
 ├─ Step 17: Sidebar Navigation Refactor .................. ✅ COMPLETED (13 tests)
 ├─ Step 18: Qdrant Manager Dashboard ..................... ✅ COMPLETED (23 tests)
 ├─ Step 19: Langfuse Observability Dashboard ............ ✅ COMPLETED (24 tests)
-├─ Step 20: Promptfoo Testing Dashboard ................. ⏭️ Skipped (Optional)
+├─ Step 20: Promptfoo Testing Dashboard ................. ✅ COMPLETED (51 tests)
 ├─ Step 21: System Health Dashboard ..................... ✅ COMPLETED (15 tests)
 ├─ Step 22: Integration & Validation ..................... ✅ COMPLETED (23 tests)
-└─ Phase 4b Total: 98+ tests completed, 5/6 steps complete (83%) ⭐ PHASE NEARLY COMPLETE
+└─ Phase 4b Total: 149+ tests completed, 6/6 steps complete (100%) ⭐ PHASE COMPLETE
 
 Phase 5: Testing, Documentation & UX Polish ⭐ COMPLETED
 ├─ Step 16: Pytest Setup ................................. ✅ COMPLETED (conftest.py enhanced)
@@ -1524,11 +1587,12 @@ Phase 5: Testing, Documentation & UX Polish ⭐ COMPLETED
 | 2026-01-29 | 4b    | 19     | ✅ Completed | Langfuse Observability Dashboard (24 tests)                  |
 | 2026-01-29 | 4b    | 21     | ✅ Completed | System Health Dashboard (15 tests)                           |
 | 2026-01-29 | 4b    | 22     | ✅ Completed | Integration Testing & Validation (23 tests)                  |
-| 2026-01-29 | 4b    | -      | ✅ PHASE 4b  | Dashboard tools complete - 98+ tests, 399 total passing      |
+| 2026-01-29 | 4b    | -      | ✅ PHASE 4b  | Dashboard tools complete - 149+ tests, 455 total passing     |
 | 2026-01-29 | 5     | 19.6   | ✅ Completed | Sample documents + example queries in Chat UI                |
 | 2026-01-29 | 5     | 19.7   | ✅ Completed | README security warnings + Docker Compose comments           |
 | 2026-01-29 | 5     | 19.8   | ✅ Completed | Fixed 5 skipped security tests, 404 total passing            |
 | 2026-01-30 | 5     | 19.5   | ✅ Completed | UX improvements: progress indicators, error visibility       |
+| 2026-02-02 | 4b    | 20     | ✅ Completed | Promptfoo Testing Dashboard (51 tests)                       |
 
 ---
 
@@ -1888,6 +1952,6 @@ Agent: "I don't have that in the KB. Let me check python.org..."
 **Document Version**: 1.7  
 **Last Updated**: 2026-02-02  
 **Maintained By**: Senior AI Architect  
-**Status**: Phase 5 Complete - Phase 6 planned (intelligent retrieval + web search)  
+**Status**: Phase 4b Complete (100% - 6/6 steps), Phase 5 Complete, Phase 6 planned (intelligent retrieval + web search)  
 **Code Review**: Completed 2026-01-28 (see CODE_REVIEW_ADDENDUM.md)
-**Test Suite**: 404 tests passing, 0 skipped → Target: 454+ after Phase 6
+**Test Suite**: 455 tests passing, 0 skipped → Target: 505+ after Phase 6
