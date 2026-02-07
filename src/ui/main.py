@@ -31,6 +31,7 @@ from src.ui.tools import (
     render_knowledge_base,
     render_langfuse_dashboard,
     render_logs,
+    render_promptfoo_dashboard,
     render_qdrant_dashboard,
     render_settings,
     render_system_health_dashboard,
@@ -87,7 +88,7 @@ def render_system_health_sidebar() -> None:
         # These are the ports exposed by docker-compose to the host machine
         service_urls = {
             "Ollama": "http://localhost:11434",
-            "Qdrant": "http://localhost:6333",
+            "Qdrant": "http://localhost:6333/dashboard",
             "Meilisearch": "http://localhost:7700",
             "Langfuse": "http://localhost:3000",
         }
@@ -214,6 +215,18 @@ def setup_navigation() -> SidebarNavigation:
             category="management"
         ))
     
+    # Promptfoo Testing Dashboard (Step 20)
+    if config.dashboard.show_promptfoo:
+        nav.register_tool(ToolDefinition(
+            key="promptfoo",
+            icon=">",
+            label="Promptfoo Testing",
+            description="Test and version prompts",
+            render_func=render_promptfoo_dashboard,
+            enabled=True,
+            category="management"
+        ))
+    
     # System Health Dashboard (Step 21)
     if config.dashboard.show_system_health:
         nav.register_tool(ToolDefinition(
@@ -327,10 +340,10 @@ def _render_loading_screen() -> None:
         # Step definitions with progress percentages
         steps = [
             (0.05, "Starting initialization...", "Loading configuration"),
-            (0.15, "Checking service health...", "Verifying Ollama, Qdrant, Meilisearch, Langfuse"),
-            (0.40, "Initializing Ollama LLM...", "Checking models and warming up"),
-            (0.65, "Initializing Qdrant...", "Setting up vector database"),
-            (0.85, "Initializing Meilisearch...", "Setting up keyword search"),
+            (0.15, "Checking service health...", "Loading... or am I?"),
+            (0.40, "Initializing Ollama...", "Loading, please wait... or just buy more RAM"),
+            (0.65, "Initializing Qdrant...", "Adding 1s and 0s..."),
+            (0.85, "Initializing Meilisearch...", "Generating more waiting time..."),
             (1.0, "Startup complete!", "Ready to use"),
         ]
         

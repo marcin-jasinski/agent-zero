@@ -190,10 +190,16 @@ class RetrievalEngine:
         Returns:
             List of RetrievalResult objects sorted by combined relevance score
         """
+        logger.info(f"Using HYBRID search for query: '{query[:100]}...'")
         try:
             # Run both searches in parallel
+            logger.debug("Executing semantic search (Qdrant)...")
             semantic_results = self._semantic_search(query, top_k * 2)  # Get more for merging
+            logger.info(f"Semantic search returned {len(semantic_results)} results")
+            
+            logger.debug("Executing keyword search (Meilisearch)...")
             keyword_results = self._keyword_search(query, top_k * 2)
+            logger.info(f"Keyword search returned {len(keyword_results)} results")
 
             # Merge results by ID, combining scores
             merged: Dict[str, RetrievalResult] = {}

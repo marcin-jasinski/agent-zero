@@ -8,6 +8,7 @@ import hashlib
 import logging
 import os
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
 from pathlib import Path
@@ -106,19 +107,32 @@ class DocumentIngestor:
                 raise ValueError("No chunks created from document")
 
             # Generate embeddings and store
-            self._process_chunks(chunks, document_id)
+            successful, qdrant_fails, meilisearch_fails = self._process_chunks(chunks, document_id)
 
             duration = time.time() - start_time
-            logger.info(
-                f"Successfully ingested {len(chunks)} chunks from {file_path} "
-                f"in {duration:.2f}s"
-            )
+            
+            # Determine overall success
+            partial_failure = (qdrant_fails > 0 or meilisearch_fails > 0)
+            
+            if successful == 0:
+                raise ValueError(f"Failed to ingest any chunks (Qdrant: {qdrant_fails}, Meilisearch: {meilisearch_fails})")
+            
+            if partial_failure:
+                logger.warning(
+                    f"Partially ingested {successful}/{len(chunks)} chunks from {file_path} in {duration:.2f}s "
+                    f"(Qdrant failures: {qdrant_fails}, Meilisearch failures: {meilisearch_fails})"
+                )
+            else:
+                logger.info(
+                    f"Successfully ingested {len(chunks)} chunks from {file_path} in {duration:.2f}s"
+                )
 
             return IngestionResult(
-                success=True,
+                success=(successful > 0),
                 document_id=document_id,
-                chunks_count=len(chunks),
+                chunks_count=successful,
                 duration_seconds=duration,
+                error=f"Partial failures - Qdrant: {qdrant_fails}, Meilisearch: {meilisearch_fails}" if partial_failure else None,
             )
 
         except Exception as e:
@@ -182,22 +196,35 @@ class DocumentIngestor:
                     raise ValueError("No chunks created from document")
 
                 # Generate embeddings and store
-                self._process_chunks(chunks, document_id)
+                successful, qdrant_fails, meilisearch_fails = self._process_chunks(chunks, document_id)
             finally:
                 # Restore original settings
                 self.chunk_size = original_chunk_size
                 self.chunk_overlap = original_chunk_overlap
 
             duration = time.time() - start_time
-            logger.info(
-                f"Successfully ingested {len(chunks)} chunks from {filename} "
-                f"in {duration:.2f}s"
-            )
+            
+            # Determine overall success
+            partial_failure = (qdrant_fails > 0 or meilisearch_fails > 0)
+            
+            if successful == 0:
+                raise ValueError(f"Failed to ingest any chunks (Qdrant: {qdrant_fails}, Meilisearch: {meilisearch_fails})")
+            
+            if partial_failure:
+                logger.warning(
+                    f"Partially ingested {successful}/{len(chunks)} chunks from {filename} in {duration:.2f}s "
+                    f"(Qdrant failures: {qdrant_fails}, Meilisearch failures: {meilisearch_fails})"
+                )
+            else:
+                logger.info(
+                    f"Successfully ingested {len(chunks)} chunks from {filename} in {duration:.2f}s"
+                )
 
             return IngestionResult(
-                success=True,
+                success=(successful > 0),
                 document_id=document_id,
-                chunks_count=len(chunks),
+                chunks_count=successful,
+                error=f"Partial failures - Qdrant: {qdrant_fails}, Meilisearch: {meilisearch_fails}" if partial_failure else None,
                 duration_seconds=duration,
             )
 
@@ -257,17 +284,29 @@ class DocumentIngestor:
                     raise ValueError("No chunks created from text")
 
                 # Generate embeddings and store
-                self._process_chunks(chunks, document_id)
+                successful, qdrant_fails, meilisearch_fails = self._process_chunks(chunks, document_id)
             finally:
                 # Restore original settings
                 self.chunk_size = original_chunk_size
                 self.chunk_overlap = original_chunk_overlap
 
             duration = time.time() - start_time
-            logger.info(
-                f"Successfully ingested {len(chunks)} chunks from {source_name} "
-                f"in {duration:.2f}s"
-            )
+            
+            # Determine overall success
+            partial_failure = (qdrant_fails > 0 or meilisearch_fails > 0)
+            
+            if successful == 0:
+                raise ValueError(f"Failed to ingest any chunks (Qdrant: {qdrant_fails}, Meilisearch: {meilisearch_fails})")
+            
+            if partial_failure:
+                logger.warning(
+                    f"Partially ingested {successful}/{len(chunks)} chunks from {source_name} in {duration:.2f}s "
+                    f"(Qdrant failures: {qdrant_fails}, Meilisearch failures: {meilisearch_fails})"
+                )
+            else:
+                logger.info(
+                    f"Successfully ingested {len(chunks)} chunks from {source_name} in {duration:.2f}s"
+                )
 
             return IngestionResult(
                 success=True,
@@ -421,17 +460,20 @@ class DocumentIngestor:
         return chunks
 
     def _generate_chunk_id(self, source: str, chunk_index: int) -> str:
-        """Generate unique chunk ID from source and index.
+        """Generate unique chunk ID using UUID format for Qdrant compatibility.
 
         Args:
             source: Source filename
             chunk_index: Chunk sequential index
 
         Returns:
-            Unique chunk identifier
+            UUID string compatible with Qdrant point IDs
         """
-        hash_suffix = hashlib.md5(f"{source}_{chunk_index}".encode()).hexdigest()[:8]
-        return f"{Path(source).stem}_{chunk_index}_{hash_suffix}"
+        # Generate deterministic UUID from source and index
+        # Using UUID5 with DNS namespace for reproducibility
+        namespace = uuid.UUID('6ba7b810-9dad-11d1-80b4-00c04fd430c8')
+        chunk_uuid = uuid.uuid5(namespace, f"{source}_{chunk_index}")
+        return str(chunk_uuid)
 
     def _estimate_page(self, full_text: str, chunk_text: str) -> int:
         """Estimate page number where chunk appears.
@@ -449,61 +491,98 @@ class DocumentIngestor:
         # Rough estimate: pages ≈ position / 3000 chars per page
         return max(1, (pos // 3000) + 1)
 
-    def _process_chunks(self, chunks: List[DocumentChunk], document_id: str) -> None:
+    def _process_chunks(self, chunks: List[DocumentChunk], document_id: str) -> Tuple[int, int, int]:
         """Generate embeddings and store chunks in both databases.
 
         Args:
             chunks: List of document chunks to process
             document_id: Document identifier for tracking
+
+        Returns:
+            Tuple of (successful_count, qdrant_failures, meilisearch_failures)
         """
         from src.config import get_config
         config = get_config()
         
+        successful_chunks = 0
+        qdrant_failures = 0
+        meilisearch_failures = 0
+        
         for chunk in chunks:
+            chunk_qdrant_success = False
+            chunk_meilisearch_success = False
+            
             try:
                 # Generate embedding
                 embedding = self.ollama_client.embed(chunk.content)
                 chunk.embedding = embedding
 
                 # Store in Qdrant (vector)
-                self.qdrant_client.upsert_vectors(
-                    collection_name=config.qdrant.collection_name,
-                    points=[
-                        {
-                            "id": chunk.id,
-                            "vector": embedding,
-                            "payload": {
+                try:
+                    qdrant_success = self.qdrant_client.upsert_vectors(
+                        collection_name=config.qdrant.collection_name,
+                        points=[
+                            {
+                                "id": chunk.id,
+                                "vector": embedding,
+                                "payload": {
+                                    "content": chunk.content,
+                                    "source": chunk.source,
+                                    "chunk_index": chunk.chunk_index,
+                                    "document_id": document_id,
+                                    "metadata": chunk.metadata,
+                                },
+                            }
+                        ]
+                    )
+                    chunk_qdrant_success = qdrant_success
+                    if not qdrant_success:
+                        logger.warning(f"Qdrant upsert returned False for chunk {chunk.id}")
+                        qdrant_failures += 1
+                except Exception as e:
+                    logger.error(f"Failed to store chunk {chunk.id} in Qdrant: {e}")
+                    qdrant_failures += 1
+
+                # Store in Meilisearch (keyword)
+                try:
+                    meilisearch_success = self.meilisearch_client.add_documents(
+                        index_uid=config.meilisearch.index_name,
+                        documents=[
+                            {
+                                "id": chunk.id,
                                 "content": chunk.content,
                                 "source": chunk.source,
                                 "chunk_index": chunk.chunk_index,
                                 "document_id": document_id,
-                                "metadata": chunk.metadata,
-                            },
-                        }
-                    ]
-                )
+                                "title": chunk.metadata.get("title", ""),
+                            }
+                        ]
+                    )
+                    chunk_meilisearch_success = meilisearch_success
+                    if not meilisearch_success:
+                        logger.warning(f"Meilisearch add returned False for chunk {chunk.id}")
+                        meilisearch_failures += 1
+                except Exception as e:
+                    logger.error(f"Failed to store chunk {chunk.id} in Meilisearch: {e}")
+                    meilisearch_failures += 1
 
-                # Store in Meilisearch (keyword)
-                self.meilisearch_client.add_documents(
-                    index_uid=config.meilisearch.index_name,
-                    documents=[
-                        {
-                            "id": chunk.id,
-                            "content": chunk.content,
-                            "source": chunk.source,
-                            "chunk_index": chunk.chunk_index,
-                            "document_id": document_id,
-                            "title": chunk.metadata.get("title", ""),
-                        }
-                    ]
-                )
-
-                logger.debug(f"Processed chunk {chunk.id}")
+                # Count as successful if at least one database succeeded
+                if chunk_qdrant_success or chunk_meilisearch_success:
+                    successful_chunks += 1
+                    logger.debug(f"Processed chunk {chunk.id} (Qdrant: {chunk_qdrant_success}, Meilisearch: {chunk_meilisearch_success})")
 
             except Exception as e:
                 logger.error(f"Failed to process chunk {chunk.id}: {e}", exc_info=True)
-                # Continue with other chunks rather than failing completely
+                # Count as failure in both stores
+                qdrant_failures += 1
+                meilisearch_failures += 1
                 continue
+        
+        logger.info(
+            f"Chunk processing complete: {successful_chunks}/{len(chunks)} successful, "
+            f"Qdrant failures: {qdrant_failures}, Meilisearch failures: {meilisearch_failures}"
+        )
+        return successful_chunks, qdrant_failures, meilisearch_failures
 
     def __del__(self) -> None:
         """Cleanup thread pool on deletion."""

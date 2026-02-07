@@ -5,7 +5,7 @@
 **⚠️ IMPORTANT: Project Context**  
 This is a **LOCAL DEVELOPMENT PLAYGROUND** for a single software engineer to experiment with AI agents and RAG pipelines on their local machine. This is **NOT** a production multi-user system. Design decisions and architecture prioritize simplicity, learnability, and experimentation over enterprise-scale concerns.
 
-**📋 Code Review Status**: Comprehensive review completed (2026-01-28) - See [CODE_REVIEW_ADDENDUM.md](CODE_REVIEW_ADDENDUM.md) for findings contextualized to local dev usage.
+**📋 Code Review Status**: Comprehensive review completed (2026-01-28) - Findings contextualized to local dev usage are documented in the "Code Review Findings & Improvements" section below.
 
 ---
 
@@ -502,13 +502,13 @@ This is a **LOCAL DEVELOPMENT PLAYGROUND** for a single software engineer to exp
 
 **Architecture**: Dynamic sidebar navigation with conditional tool rendering based on feature flags and service availability.
 
-**Important**: **READ** [DASHBOARD_DESIGN.md](DASHBOARD_DESIGN.md) before implementation. It contains complete UI mockups, component specifications, data flow diagrams, and implementation guidelines.
+**Important**: Phase 4b dashboard design is complete. Original design specifications were documented in a dedicated design document; all relevant details have been incorporated into the step descriptions below.
 
 ---
 
 #### Step 16: Dashboard Design & Architecture
 
-✅ **DESIGN DOCUMENT COMPLETE** | Reference: [DASHBOARD_DESIGN.md](DASHBOARD_DESIGN.md)
+✅ **DESIGN DOCUMENT COMPLETE** | Design incorporated into step descriptions below
 
 **Design Highlights**:
 - **Sidebar Structure**: Core tools (Chat, KB, Settings, Logs) + Management tools (Qdrant, Langfuse, Promptfoo, System Health)
@@ -534,8 +534,7 @@ st.session_state["selected_tool"] = tool_name
 #### Step 17: Sidebar Navigation & Feature Flags ✅ **COMPLETE**
 
 **Completion Date**: 2026-01-28  
-**Status**: ✅ All tasks completed, 13/13 tests passing  
-**Documentation**: See STEP_17_COMPLETION.md
+**Status**: ✅ All tasks completed, 13/13 tests passing
 
 **Implementation Order**: Foundation for all dashboard tools
 
@@ -590,7 +589,7 @@ st.session_state["selected_tool"] = tool_name
   - [ ] Test backward compatibility with existing tools
   - [ ] 8 unit tests minimum
 
-**Design Reference**: DASHBOARD_DESIGN.md § "Sidebar Navigation Structure" (Lines 96-127)
+**Design Reference**: Phase 4b Dashboard Design specification
 
 **Deliverable**: Dynamic sidebar navigation with feature flag-controlled tool visibility
 
@@ -600,7 +599,7 @@ st.session_state["selected_tool"] = tool_name
 
 #### Step 18: Qdrant Manager Dashboard
 
-✅ **COMPLETED** | Commit: TBD | See: [STEP_18_COMPLETION.md](STEP_18_COMPLETION.md)
+✅ **COMPLETED** | Commit: TBD
 
 **Implementation Order**: After navigation (Step 17), first management tool
 
@@ -652,7 +651,7 @@ st.session_state["selected_tool"] = tool_name
   - [x] Import and register `render_qdrant_dashboard` in navigation
   - [x] Feature flag: `APP_DASHBOARD__SHOW_QDRANT_MANAGER=true`
 
-**Design Reference**: DASHBOARD_DESIGN.md § "Qdrant Manager Tab" (Lines 163-189) ✓
+**Design Reference**: Phase 4b Dashboard Design specification ✓
 
 **Implementation Summary**:
 - **QdrantClient:** +200 lines (5 new methods with validation, error handling, logging)
@@ -762,25 +761,88 @@ st.session_state["selected_tool"] = tool_name
 
 ---
 
-#### Step 20: Implement Promptfoo Testing Dashboard (Optional)
+#### Step 20: Implement Promptfoo Testing Dashboard
 
-- [ ] Create `src/ui/tools/promptfoo_dashboard.py`:
-  - [ ] Test scenario creation interface
-  - [ ] Test run history with version management
-  - [ ] Results comparison between versions
-  - [ ] Pass/fail rate visualization
-  - [ ] Deploy selected prompt version
-- [ ] Create test suite: 12 unit tests
-  - [ ] Test creation
-  - [ ] Test run management
-  - [ ] Version comparison
-  - [ ] Error handling
+✅ **COMPLETED** | Implementation Date: 2026-02-02
 
-**Note**: Implementation depends on Promptfoo library availability. Can be mocked for MVP.
+- [x] **Create Data Models** (`src/models/promptfoo.py`):
+  - [x] `TestScenario`: Test case definition with assertions and tags
+  - [x] `TestResult`: Individual test execution result
+  - [x] `TestRun`: Complete test run with metrics
+  - [x] `PromptComparison`: Version comparison analysis
+  - [x] `TestStatus` enum: PENDING, RUNNING, PASSED, FAILED, ERROR
+  - [x] Serialization methods (to_dict) for JSON persistence
 
-**Deliverable**: Promptfoo tab for prompt testing and versioning
+- [x] **Create Promptfoo Service Client** (`src/services/promptfoo_client.py`):
+  - [x] Local JSON-based storage for test scenarios and runs
+  - [x] Scenario management: create, list, get, update, delete
+  - [x] Test execution engine with assertion validation
+  - [x] Assertion types: not_empty, contains, no_toxic, matches_expected, max_length
+  - [x] Test run history with version filtering
+  - [x] Version comparison with improvement/regression analysis
+  - [x] Summary metrics calculation
+  - [x] Data persistence across client instances
 
-**Success Criteria**: ✓ Create test scenarios, ✓ view test results, ✓ compare versions, ✓ 12 tests passing
+- [x] **Create Dashboard UI Component** (`src/ui/tools/promptfoo_dashboard.py`):
+  - [x] Summary metrics display (4 key metrics)
+  - [x] Tab 1: Test Scenario Management
+    - [x] Create new scenarios with form validation
+    - [x] List scenarios with search filtering
+    - [x] Edit and delete scenario capabilities
+    - [x] Display assertions and tags
+  - [x] Tab 2: Run Tests
+    - [x] Version selection (v1.0, v2.0, v3.0, latest, custom)
+    - [x] Run mode: all scenarios or selected
+    - [x] Test execution with progress indication
+    - [x] Results display with metrics
+  - [x] Tab 3: Test Results History
+    - [x] Recent runs list (newest first)
+    - [x] Pass/fail rate visualization
+    - [x] Individual result details
+    - [x] Status indicators (✅, ❌, ⚠️)
+  - [x] Tab 4: Version Comparison
+    - [x] Select two versions to compare
+    - [x] Side-by-side metrics comparison
+    - [x] Improvements and regressions list
+    - [x] Recommendation engine
+  - [x] Caching with 30s TTL for performance
+  - [x] Error handling with user-friendly messages
+
+- [x] **Integration with Navigation** (`src/ui/main.py`):
+  - [x] Register Promptfoo tool in SidebarNavigation
+  - [x] Feature flag support: `APP_DASHBOARD__SHOW_PROMPTFOO`
+  - [x] Export render function in `src/ui/tools/__init__.py`
+
+- [x] **Configuration** (`.env.example`, `src/config.py`):
+  - [x] Feature flag: `DashboardFeatures.show_promptfoo`
+  - [x] Documentation in .env.example
+
+- [x] **Create Test Suite**:
+  - [x] `tests/models/test_promptfoo.py` (14 tests)
+    - [x] TestScenario creation and serialization
+    - [x] TestResult with all status types
+    - [x] TestRun metrics calculation
+    - [x] PromptComparison analysis logic
+  - [x] `tests/services/test_promptfoo_client.py` (37 tests)
+    - [x] Client initialization and file creation
+    - [x] Scenario CRUD operations (8 tests)
+    - [x] Test execution with assertions (9 tests)
+    - [x] Run history management (5 tests)
+    - [x] Version comparison (4 tests)
+    - [x] Data persistence (3 tests)
+  - [x] Mock HTTP responses and file I/O
+  - [x] **Total: 51 unit tests implemented** (exceeds 12 minimum)
+
+**Implementation Files Created**:
+- `src/models/promptfoo.py` (264 lines) - Complete data models
+- `src/services/promptfoo_client.py` (564 lines) - Service client with JSON storage
+- `src/ui/tools/promptfoo_dashboard.py` (683 lines) - Full dashboard UI
+- `tests/models/test_promptfoo.py` (14 tests)
+- `tests/services/test_promptfoo_client.py` (37 tests)
+
+**Deliverable**: Promptfoo Testing dashboard with scenario management, test execution, and version comparison ✓
+
+**Success Criteria**: ✓ Create test scenarios, ✓ run tests with assertions, ✓ view test results, ✓ compare versions with recommendations, ✓ 51 tests passing (425% of minimum requirement)
 
 ---
 
@@ -921,7 +983,7 @@ st.session_state["selected_tool"] = tool_name
   - [ ] Configuration via .env working
   - [ ] Logs clear and actionable
 
-**Design Reference**: DASHBOARD_DESIGN.md § "Data Flow & Caching" (Lines 402-442)
+**Design Reference**: Phase 4b Dashboard Design specification
 
 **Deliverable**: Complete Phase 4b with validated, production-ready dashboard
 
@@ -1238,7 +1300,7 @@ st.session_state["selected_tool"] = tool_name
 
 **Review Date**: 2026-01-28  
 **Context**: Local single-user development playground  
-**Full Reports**: [CODE_REVIEW_ADDENDUM.md](CODE_REVIEW_ADDENDUM.md), [CRITICAL_CODE_REVIEW.md](CRITICAL_CODE_REVIEW.md)
+**Full Reports**: Archived (review findings incorporated into this document)
 
 **Overall Assessment**: **Grade B+** - Well-designed for local experimentation with targeted improvements needed
 
@@ -1484,10 +1546,10 @@ Phase 4b: Tool Dashboards & Management Interface ⭐ NEW
 ├─ Step 17: Sidebar Navigation Refactor .................. ✅ COMPLETED (13 tests)
 ├─ Step 18: Qdrant Manager Dashboard ..................... ✅ COMPLETED (23 tests)
 ├─ Step 19: Langfuse Observability Dashboard ............ ✅ COMPLETED (24 tests)
-├─ Step 20: Promptfoo Testing Dashboard ................. ⏭️ Skipped (Optional)
+├─ Step 20: Promptfoo Testing Dashboard ................. ✅ COMPLETED (51 tests)
 ├─ Step 21: System Health Dashboard ..................... ✅ COMPLETED (15 tests)
 ├─ Step 22: Integration & Validation ..................... ✅ COMPLETED (23 tests)
-└─ Phase 4b Total: 98+ tests completed, 5/6 steps complete (83%) ⭐ PHASE NEARLY COMPLETE
+└─ Phase 4b Total: 149+ tests completed, 6/6 steps complete (100%) ⭐ PHASE COMPLETE
 
 Phase 5: Testing, Documentation & UX Polish ⭐ COMPLETED
 ├─ Step 16: Pytest Setup ................................. ✅ COMPLETED (conftest.py enhanced)
@@ -1498,6 +1560,11 @@ Phase 5: Testing, Documentation & UX Polish ⭐ COMPLETED
 ├─ Step 19.6: Example Content ............................ ✅ COMPLETED (sample docs + example queries)
 ├─ Step 19.7: Documentation Polish (Code Review) ......... ✅ COMPLETED (README + Docker security warnings)
 └─ Step 19.8: Testing Improvements (Code Review) ......... ✅ COMPLETED (0 skipped, 404 passing)
+
+Phase 6: Intelligent Retrieval, Web Search & Performance
+├─ Step 23: Intelligent Retrieval Optimization ............... 🔄 TODO
+├─ Step 24: Web Search Tool Integration ...................... 🔄 TODO
+└─ Step 25: Performance & DevOps Improvements ................ 🔄 TODO
 ```
 
 ### Update Log
@@ -1524,11 +1591,12 @@ Phase 5: Testing, Documentation & UX Polish ⭐ COMPLETED
 | 2026-01-29 | 4b    | 19     | ✅ Completed | Langfuse Observability Dashboard (24 tests)                  |
 | 2026-01-29 | 4b    | 21     | ✅ Completed | System Health Dashboard (15 tests)                           |
 | 2026-01-29 | 4b    | 22     | ✅ Completed | Integration Testing & Validation (23 tests)                  |
-| 2026-01-29 | 4b    | -      | ✅ PHASE 4b  | Dashboard tools complete - 98+ tests, 399 total passing      |
+| 2026-01-29 | 4b    | -      | ✅ PHASE 4b  | Dashboard tools complete - 149+ tests, 455 total passing     |
 | 2026-01-29 | 5     | 19.6   | ✅ Completed | Sample documents + example queries in Chat UI                |
 | 2026-01-29 | 5     | 19.7   | ✅ Completed | README security warnings + Docker Compose comments           |
 | 2026-01-29 | 5     | 19.8   | ✅ Completed | Fixed 5 skipped security tests, 404 total passing            |
 | 2026-01-30 | 5     | 19.5   | ✅ Completed | UX improvements: progress indicators, error visibility       |
+| 2026-02-02 | 4b    | 20     | ✅ Completed | Promptfoo Testing Dashboard (51 tests)                       |
 
 ---
 
@@ -1589,12 +1657,13 @@ Phase 5: Testing, Documentation & UX Polish ⭐ COMPLETED
   - [ ] Agent handles empty list gracefully: "No relevant documents found"
   - [ ] **Cost**: 0ms (applies to existing retrieval results)
 
-- [ ] **Configuration** (`src/config.py`):
-  - [ ] Add `retrieval` section to config:
-    ```python
-    class RetrievalConfig(BaseSettings):
-        enable_intent_classification: bool = True
-        intent_classification_temperature: float = 0.1
+- [ ] **Stage 4: Hybrid Search Score Normalization (RRF)** (`src/core/retrieval.py`):
+  - [ ] Implement Reciprocal Rank Fusion instead of naive score addition
+  - [ ] Normalize Qdrant cosine scores (0.0-1.0) and Meilisearch scores (arbitrary scale) to common range
+  - [ ] Use min-max scaling or RRF formula: `score = 1 / (k + rank)` where k=60
+  - [ ] A/B test different ranking approaches via configuration
+  - [ ] Log ranking method and score distributions for analysis
+  - [ ] **Benefit**: Eliminates bias from incompatible score ranges between search backends
         min_similarity_threshold: float = 0.7
         kb_check_cache_ttl: int = 60  # seconds
     ```
@@ -1855,6 +1924,48 @@ Agent: "I don't have that in the KB. Let me check python.org..."
 
 ---
 
+#### Step 25: Performance & DevOps Improvements
+
+**Status**: 🔄 TODO
+
+**Objective**: Address performance bottlenecks and developer experience improvements identified during code reviews.
+
+**Implementation**:
+
+- [ ] **Batch Embedding Generation** (`src/core/ingest.py`):
+  - [ ] Refactor `_process_chunks()` to batch embeddings (32-64 chunks per request)
+  - [ ] Current: Sequential embedding (1 chunk at a time = 25-100s for 500 chunks)
+  - [ ] Target: Batch processing (32 chunks/batch = 2-3s for 500 chunks)
+  - [ ] Add configurable batch size via `APP_INGEST__EMBEDDING_BATCH_SIZE=32`
+  - [ ] Implement progress callback for UI feedback during batch processing
+  - [ ] Add retry logic per batch with exponential backoff
+  - [ ] **Create Test Suite**: 8 unit tests (batch splitting, error handling, progress)
+
+- [ ] **Automatic Ollama Model Pull on Docker Startup**:
+  - [ ] Create `docker/ollama-startup.sh` entrypoint script
+  - [ ] Script starts Ollama, waits for readiness, pulls configured models
+  - [ ] Update `docker-compose.yml` to use custom entrypoint
+  - [ ] Models to pull: `${OLLAMA_MODEL}` and `${OLLAMA_EMBED_MODEL}` from env
+  - [ ] Add healthcheck that verifies models are available (not just process running)
+  - [ ] Fallback: Existing `src/startup.py` pull logic as secondary check
+  - [ ] **Create Test Suite**: 4 unit tests (startup script logic)
+
+- [ ] **Create Test Suite** (`tests/core/test_ingest_batch.py`):
+  - [ ] Test batch splitting with various chunk counts (3 tests)
+  - [ ] Test batch error handling and retry (3 tests)
+  - [ ] Test progress callback invocation (2 tests)
+  - [ ] **Minimum: 8 unit tests**
+
+**Deliverable**: Faster document ingestion and zero-config model setup
+
+**Success Criteria**:
+- ✓ 500-chunk document ingested in <10s (was 25-100s)
+- ✓ Ollama models available immediately after `docker-compose up`
+- ✓ No manual `ollama pull` needed for first-time setup
+- ✓ 12+ tests passing
+
+---
+
 ### PHASE 6 Validation Checkpoint
 
 **Phase 6 Complete When**:
@@ -1863,11 +1974,12 @@ Agent: "I don't have that in the KB. Let me check python.org..."
 - [ ] KB queries with empty KB skip embedding generation
 - [ ] Intent classification correctly routes 90%+ of queries
 - [ ] Similarity threshold filters low-relevance results
+- [ ] Hybrid search scores properly normalized (RRF)
 - [ ] Agent can fetch web pages when prompted
 - [ ] Web content is cleaned and readable
 - [ ] Rate limiting prevents abuse
 - [ ] All security validations working (URL, size, timeout)
-- [ ] 50+ new tests passing (21 retrieval + 29 web search)
+- [ ] 62+ new tests passing (21 retrieval + 29 web search + 12 performance)
 - [ ] Performance improvement visible in Langfuse traces
 
 **Performance Target**:
@@ -1879,15 +1991,14 @@ Agent: "I don't have that in the KB. Let me check python.org..."
 
 ## Next Steps
 
-1. **Phase 6**: Implement intelligent retrieval + web search
-2. **Documentation**: Create ARCHITECTURE.md and CONTRIBUTING.md  
+1. **Phase 6**: Implement intelligent retrieval (Step 23), web search (Step 24), and performance improvements (Step 25)
+2. **Documentation**: Create ARCHITECTURE.md and CONTRIBUTING.md (Step 19)
 3. **Production**: Deploy with all security and monitoring features enabled
 
 ---
 
-**Document Version**: 1.7  
-**Last Updated**: 2026-02-02  
-**Maintained By**: Senior AI Architect  
-**Status**: Phase 5 Complete - Phase 6 planned (intelligent retrieval + web search)  
-**Code Review**: Completed 2026-01-28 (see CODE_REVIEW_ADDENDUM.md)
-**Test Suite**: 404 tests passing, 0 skipped → Target: 454+ after Phase 6
+**Document Version**: 1.8  
+**Last Updated**: 2026-02-07
+**Status**: Phase 4b Complete (100% - 6/6 steps), Phase 5 Complete, Phase 6 planned (intelligent retrieval + web search + performance)  
+**Code Review**: Completed 2026-01-28 (findings incorporated into this document)
+**Test Suite**: 455 tests passing, 0 skipped → Target: 517+ after Phase 6
