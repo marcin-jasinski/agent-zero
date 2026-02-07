@@ -88,7 +88,7 @@ def render_system_health_sidebar() -> None:
         # These are the ports exposed by docker-compose to the host machine
         service_urls = {
             "Ollama": "http://localhost:11434",
-            "Qdrant": "http://localhost:6333",
+            "Qdrant": "http://localhost:6333/dashboard",
             "Meilisearch": "http://localhost:7700",
             "Langfuse": "http://localhost:3000",
         }

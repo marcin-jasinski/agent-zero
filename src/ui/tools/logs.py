@@ -88,8 +88,10 @@ def render_logs() -> None:
     # Log display area
     log_container = st.container(border=True)
 
-    # Get logs
-    log_file = Path("/app/logs/app.log")  # Standard location in Docker
+    # Get logs - use actual log file name based on environment
+    from src.config import get_config
+    config = get_config()
+    log_file = Path(f"/app/logs/agent-zero-{config.env}.log")
 
     if log_file.exists():
         log_content = get_app_logs(log_file, tail_lines, log_level)
@@ -131,9 +133,12 @@ def render_logs() -> None:
             st.warning(f"Could not calculate log statistics: {e}")
 
     else:
+        from src.config import get_config
+        config = get_config()
+        expected_log = f"/app/logs/agent-zero-{config.env}.log"
         log_container.info(
-            "No logs available yet. Start the application to see logs here.\n\n"
-            "Expected log file: `/app/logs/app.log`"
+            f"No logs available yet. Start the application to see logs here.\n\n"
+            f"Expected log file: `{expected_log}`"
         )
 
     # Export logs
@@ -177,7 +182,10 @@ def render_logs() -> None:
         st.rerun()
 
     st.divider()
+    from src.config import get_config
+    config = get_config()
+    log_path = f"/app/logs/agent-zero-{config.env}.log"
     st.caption(
-        "Tip: Logs are written to `/app/logs/app.log` inside the container. "
-        "Use `docker-compose logs app` to view logs in your terminal."
+        f"Tip: Logs are written to `{log_path}` inside the container. "
+        "Use `docker-compose logs app-agent` to view logs in your terminal."
     )
