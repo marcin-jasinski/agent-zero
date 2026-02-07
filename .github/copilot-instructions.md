@@ -173,23 +173,3 @@ For any new service or module:
 ### Coverage
 
 - Aim for high coverage on business logic (`services/`, `utils/`), not just boilerplate.
-
-## 8. Version Control Guidelines (Semantic Git Flow)
-
-- **Branching Strategy:** Git Flow with Semantic Naming.
-  - **`master`:** Stable, production-ready code (tagged releases).
-  - **`develop`:** Main integration branch.
-  - **Working Branches:** MUST create new branches from `develop` using the following prefixes:
-    - `feature/` - New features (e.g., `feature/add-rag`).
-    - `fix/` - Bug fixes (e.g., `fix/ollama-connection`).
-    - `docs/` - Documentation changes only.
-    - `style/` - Code style/formatting (no logic change).
-    - `refactor/` - Code restructuring (no behavior change).
-    - `test/` - Adding or fixing tests.
-    - `chore/` - Maintenance, dependencies, config updates.
-    - `hotfix/` - Critical fixes branching from `master`.
-- **Commit Messages:** MUST follow "Conventional Commits" specification matching the branch type.
-  - Format: `<type>(<scope>): <description>`
-  - Example: `feature(ui): add file upload widget` matching branch `feature/file-upload`.
-
-When asked to create a new branch or commit, ALWAYS strictly follow these naming conventions.
