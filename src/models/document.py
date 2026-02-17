@@ -79,6 +79,9 @@ class IngestionResult:
         chunks_count: Number of chunks created
         error: Error message if failed
         duration_seconds: Time taken for ingestion
+        document_hash: SHA256 hash of document content
+        skipped_duplicate: Whether document was skipped as duplicate
+        existing_document_id: ID of existing document if duplicate
     """
 
     success: bool
@@ -86,3 +89,6 @@ class IngestionResult:
     chunks_count: int = 0
     error: Optional[str] = None
     duration_seconds: float = 0.0
+    document_hash: Optional[str] = None
+    skipped_duplicate: bool = False
+    existing_document_id: Optional[str] = None

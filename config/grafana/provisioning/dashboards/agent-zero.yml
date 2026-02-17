@@ -1,0 +1,16 @@
+# Grafana Dashboard Provisioning
+# This file automatically loads dashboards from the dashboards directory
+
+apiVersion: 1
+
+providers:
+  - name: 'Agent Zero Dashboards'
+    orgId: 1
+    folder: 'Agent Zero'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: true

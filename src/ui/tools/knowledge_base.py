@@ -235,18 +235,35 @@ def render_knowledge_base() -> None:
                             time.sleep(0.3)
                             
                             if result.success:
-                                st.session_state.documents.append({
-                                    "filename": uploaded_file.name,
-                                    "size": uploaded_file.size,
-                                    "status": "indexed",
-                                    "chunks": result.chunks_count,
-                                    "document_id": result.document_id,
-                                })
-                                st.session_state.kb_last_error = None
                                 progress_container.empty()
-                                st.success(f"Document '{uploaded_file.name}' indexed successfully! ({result.chunks_count} chunks in {result.duration_seconds:.1f}s)")
-                                st.balloons()
-                                st.rerun()
+                                
+                                # Check if document was skipped as duplicate
+                                if result.skipped_duplicate:
+                                    st.warning(
+                                        f"📄 Document '{uploaded_file.name}' already exists in knowledge base "
+                                        f"(Document ID: {result.existing_document_id}, "
+                                        f"{result.chunks_count} chunks). Skipped duplicate ingestion."
+                                    )
+                                    st.info(
+                                        "The document hash matches an existing document. "
+                                        "If you want to re-ingest, please delete the old version first or contact support."
+                                    )
+                                else:
+                                    st.session_state.documents.append({
+                                        "filename": uploaded_file.name,
+                                        "size": uploaded_file.size,
+                                        "status": "indexed",
+                                        "chunks": result.chunks_count,
+                                        "document_id": result.document_id,
+                                        "document_hash": result.document_hash,
+                                    })
+                                    st.session_state.kb_last_error = None
+                                    st.success(
+                                        f"✅ Document '{uploaded_file.name}' indexed successfully! "
+                                        f"({result.chunks_count} chunks in {result.duration_seconds:.1f}s)"
+                                    )
+                                    st.balloons()
+                                    st.rerun()
                             else:
                                 progress_container.empty()
                                 st.error(f"Failed to index document: {result.error}")

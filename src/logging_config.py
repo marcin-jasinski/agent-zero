@@ -8,11 +8,15 @@ import json
 import logging
 import logging.config
 import sys
+import warnings
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from src.config import get_config
+
+# Capture Python warnings in logging system
+logging.captureWarnings(True)
 
 
 class JSONFormatter(logging.Formatter):
@@ -148,6 +152,11 @@ def setup_logging() -> None:
         "loggers": {
             "src": {
                 "level": config.log_level,
+                "handlers": ["console", "file", "error_file"],
+                "propagate": False,
+            },
+            "py.warnings": {
+                "level": "WARNING",
                 "handlers": ["console", "file", "error_file"],
                 "propagate": False,
             },

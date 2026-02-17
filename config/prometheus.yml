@@ -1,0 +1,79 @@
+# Prometheus Configuration for Agent Zero
+# This configuration scrapes metrics from the Agent Zero application
+# and Docker container metrics via cAdvisor.
+
+global:
+  scrape_interval: 15s  # Scrape targets every 15 seconds
+  evaluation_interval: 15s  # Evaluate rules every 15 seconds
+  external_labels:
+    cluster: 'agent-zero-local'
+    environment: 'development'
+
+# Alertmanager configuration (optional, uncomment to enable)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#             - alertmanager:9093
+
+# Rule files for alerting
+# rule_files:
+#   - 'rules/*.yml'
+
+# Scrape configurations
+scrape_configs:
+  # Agent Zero Application Metrics
+  - job_name: 'agent-zero-app'
+    static_configs:
+      - targets: ['app-agent:9091']
+        labels:
+          service: 'agent-zero'
+          component: 'application'
+    # Scrape interval override for application metrics
+    scrape_interval: 10s
+    scrape_timeout: 5s
+    metrics_path: '/metrics'
+    
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+          
+  # Ollama service metrics (if exposed)
+  # Note: Ollama may not expose Prometheus metrics by default
+  # This is a placeholder for future implementation
+  # - job_name: 'ollama'
+  #   static_configs:
+  #     - targets: ['ollama:11434']
+  #       labels:
+  #         service: 'ollama'
+  #         component: 'llm'
+
+  # Qdrant metrics (if exposed)
+  # Note: Check Qdrant documentation for metrics endpoint
+  # - job_name: 'qdrant'
+  #   static_configs:
+  #     - targets: ['qdrant:6333']
+  #       labels:
+  #         service: 'qdrant'
+  #         component: 'vector-db'
+
+  # Docker container metrics via cAdvisor (optional)
+  # Uncomment and start cAdvisor service to enable
+  # - job_name: 'cadvisor'
+  #   static_configs:
+  #     - targets: ['cadvisor:8080']
+  #       labels:
+  #         service: 'cadvisor'
+  #         component: 'monitoring'
+
+  # Node Exporter for host metrics (optional)
+  # Uncomment and start node-exporter service to enable
+  # - job_name: 'node-exporter'
+  #   static_configs:
+  #     - targets: ['node-exporter:9100']
+  #       labels:
+  #         service: 'node-exporter'
+  #         component: 'host-metrics'

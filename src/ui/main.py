@@ -49,6 +49,22 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# Initialize Prometheus metrics server (one-time startup)
+# This runs at module level, protected by session state
+if "metrics_server_started" not in st.session_state:
+    try:
+        from src.observability import start_metrics_server, METRICS_AVAILABLE
+        
+        if METRICS_AVAILABLE:
+            start_metrics_server(port=9091)
+            logger.info("Prometheus metrics server started on port 9091")
+            st.session_state["metrics_server_started"] = True
+        else:
+            st.session_state["metrics_server_started"] = False
+    except Exception as e:
+        logger.warning(f"Failed to start metrics server: {e}")
+        st.session_state["metrics_server_started"] = False
+
 # Add custom CSS
 st.markdown(
     """

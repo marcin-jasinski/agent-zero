@@ -21,8 +21,21 @@ from src.models.document import DocumentChunk, IngestionResult
 from src.services.ollama_client import OllamaClient
 from src.services.qdrant_client import QdrantVectorClient
 from src.services.meilisearch_client import MeilisearchClient
+from src.observability import track_document_ingestion
 
 logger = logging.getLogger(__name__)
+
+
+def calculate_document_hash(content: bytes) -> str:
+    """Calculate SHA256 hash of document content for deduplication.
+    
+    Args:
+        content: Raw document bytes
+        
+    Returns:
+        Hexadecimal SHA256 hash string
+    """
+    return hashlib.sha256(content).hexdigest()
 
 
 class DocumentIngestor:
@@ -63,6 +76,46 @@ class DocumentIngestor:
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
         self._executor: Optional[ThreadPoolExecutor] = ThreadPoolExecutor(max_workers=2)
+
+    def check_document_exists(self, document_hash: str) -> tuple[bool, Optional[str], int]:
+        """Check if a document with this hash already exists.
+        
+        Args:
+            document_hash: SHA256 hash of document content
+            
+        Returns:
+            Tuple of (exists: bool, document_id: Optional[str], chunk_count: int)
+        """
+        try:
+            from src.config import get_config
+            config = get_config()
+            
+            # Query Meilisearch for documents with this hash
+            # (Meilisearch is faster for metadata queries than Qdrant)
+            results = self.meilisearch_client.search(
+                index_uid=config.meilisearch.index_name,
+                query="",  # Empty query to get all, filtered by hash
+                limit=1,
+            )
+            
+            # Check if any result has our hash in metadata
+            for result in results:
+                if result.get("document_hash") == document_hash:
+                    doc_id = result.get("document_id")
+                    # Count total chunks with this document_id
+                    all_docs = self.meilisearch_client.search(
+                        index_uid=config.meilisearch.index_name,
+                        query="",
+                        limit=1000,
+                    )
+                    chunk_count = sum(1 for d in all_docs if d.get("document_id") == doc_id)
+                    return True, doc_id, chunk_count
+            
+            return False, None, 0
+            
+        except Exception as e:
+            logger.error(f"Error checking for existing document: {e}", exc_info=True)
+            return False, None, 0
 
     def ingest_pdf(
         self, file_path: str, document_title: Optional[str] = None
@@ -127,6 +180,14 @@ class DocumentIngestor:
                     f"Successfully ingested {len(chunks)} chunks from {file_path} in {duration:.2f}s"
                 )
 
+            # Track ingestion metrics
+            status = 'failed' if partial_failure else 'success'
+            track_document_ingestion(
+                status=status,
+                chunk_count=successful,
+                duration_seconds=duration
+            )
+
             return IngestionResult(
                 success=(successful > 0),
                 document_id=document_id,
@@ -138,6 +199,14 @@ class DocumentIngestor:
         except Exception as e:
             duration = time.time() - start_time
             logger.error(f"Failed to ingest {file_path}: {str(e)}", exc_info=True)
+            
+            # Track failed ingestion metrics
+            track_document_ingestion(
+                status='failed',
+                chunk_count=0,
+                duration_seconds=duration
+            )
+            
             return IngestionResult(
                 success=False,
                 document_id=document_id,
@@ -152,6 +221,7 @@ class DocumentIngestor:
         document_title: Optional[str] = None,
         chunk_size: Optional[int] = None,
         chunk_overlap: Optional[int] = None,
+        skip_duplicates: bool = True,
     ) -> IngestionResult:
         """Ingest PDF from bytes (e.g., file upload).
 
@@ -161,6 +231,7 @@ class DocumentIngestor:
             document_title: Optional custom document title
             chunk_size: Override default chunk size
             chunk_overlap: Override default chunk overlap
+            skip_duplicates: If True, skip documents with matching hash
 
         Returns:
             IngestionResult with success status, document ID, and chunk count
@@ -173,6 +244,29 @@ class DocumentIngestor:
 
             if not pdf_bytes:
                 raise ValueError("PDF bytes cannot be empty")
+
+            # Calculate document hash for deduplication
+            document_hash = calculate_document_hash(pdf_bytes)
+            logger.debug(f"Document hash: {document_hash}")
+
+            # Check for existing document
+            if skip_duplicates:
+                exists, existing_doc_id, existing_chunk_count = self.check_document_exists(document_hash)
+                if exists:
+                    duration = time.time() - start_time
+                    logger.info(
+                        f"Document {filename} already exists (hash: {document_hash[:16]}..., "
+                        f"doc_id: {existing_doc_id}, {existing_chunk_count} chunks). Skipping ingestion."
+                    )
+                    return IngestionResult(
+                        success=True,
+                        document_id=existing_doc_id,
+                        chunks_count=existing_chunk_count,
+                        duration_seconds=duration,
+                        document_hash=document_hash,
+                        skipped_duplicate=True,
+                        existing_document_id=existing_doc_id,
+                    )
 
             # Extract text from bytes
             text = self._extract_text_from_pdf_bytes(pdf_bytes)
@@ -195,8 +289,12 @@ class DocumentIngestor:
                 if not chunks:
                     raise ValueError("No chunks created from document")
 
+                # Add document hash to all chunk metadata
+                for chunk in chunks:
+                    chunk.metadata["document_hash"] = document_hash
+
                 # Generate embeddings and store
-                successful, qdrant_fails, meilisearch_fails = self._process_chunks(chunks, document_id)
+                successful, qdrant_fails, meilisearch_fails = self._process_chunks(chunks, document_id, document_hash)
             finally:
                 # Restore original settings
                 self.chunk_size = original_chunk_size
@@ -220,17 +318,34 @@ class DocumentIngestor:
                     f"Successfully ingested {len(chunks)} chunks from {filename} in {duration:.2f}s"
                 )
 
+            # Track ingestion metrics
+            status = 'success' if successful > 0 and not partial_failure else 'failed'
+            track_document_ingestion(
+                status=status,
+                chunk_count=successful,
+                duration_seconds=duration
+            )
+
             return IngestionResult(
                 success=(successful > 0),
                 document_id=document_id,
                 chunks_count=successful,
                 error=f"Partial failures - Qdrant: {qdrant_fails}, Meilisearch: {meilisearch_fails}" if partial_failure else None,
                 duration_seconds=duration,
+                document_hash=document_hash,
             )
 
         except Exception as e:
             duration = time.time() - start_time
             logger.error(f"Failed to ingest PDF bytes {filename}: {str(e)}", exc_info=True)
+            
+            # Track failed ingestion metrics
+            track_document_ingestion(
+                status='failed',
+                chunk_count=0,
+                duration_seconds=duration
+            )
+            
             return IngestionResult(
                 success=False,
                 document_id=document_id,
@@ -491,12 +606,13 @@ class DocumentIngestor:
         # Rough estimate: pages ≈ position / 3000 chars per page
         return max(1, (pos // 3000) + 1)
 
-    def _process_chunks(self, chunks: List[DocumentChunk], document_id: str) -> Tuple[int, int, int]:
+    def _process_chunks(self, chunks: List[DocumentChunk], document_id: str, document_hash: Optional[str] = None) -> Tuple[int, int, int]:
         """Generate embeddings and store chunks in both databases.
 
         Args:
             chunks: List of document chunks to process
             document_id: Document identifier for tracking
+            document_hash: Optional SHA256 hash of document for deduplication
 
         Returns:
             Tuple of (successful_count, qdrant_failures, meilisearch_failures)
@@ -530,6 +646,7 @@ class DocumentIngestor:
                                     "source": chunk.source,
                                     "chunk_index": chunk.chunk_index,
                                     "document_id": document_id,
+                                    "document_hash": document_hash,
                                     "metadata": chunk.metadata,
                                 },
                             }
@@ -554,6 +671,7 @@ class DocumentIngestor:
                                 "source": chunk.source,
                                 "chunk_index": chunk.chunk_index,
                                 "document_id": document_id,
+                                "document_hash": document_hash,
                                 "title": chunk.metadata.get("title", ""),
                             }
                         ]
