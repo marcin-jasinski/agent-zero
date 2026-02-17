@@ -194,7 +194,7 @@ def render_logs() -> None:
                 st.warning("No logs file found")
 
     with col2:
-        if st.button("🗑️ Clear Logs"):
+        if st.button("Clear Logs"):
             # NOTE: In production, this would require admin authentication
             try:
                 if log_file.exists():

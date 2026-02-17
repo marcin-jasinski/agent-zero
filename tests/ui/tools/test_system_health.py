@@ -38,13 +38,13 @@ class TestStatusHelpers:
         """Test status icon for healthy service."""
         from src.ui.tools.system_health import _get_status_icon
         
-        assert _get_status_icon(True) == "🟢"
+        assert _get_status_icon(True) == "[OK]"
     
     def test_get_status_icon_unhealthy(self):
         """Test status icon for unhealthy service."""
         from src.ui.tools.system_health import _get_status_icon
         
-        assert _get_status_icon(False) == "🔴"
+        assert _get_status_icon(False) == "[FAIL]"
     
     def test_get_status_color_healthy(self):
         """Test status color for healthy service."""

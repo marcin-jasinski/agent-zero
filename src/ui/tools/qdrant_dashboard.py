@@ -128,7 +128,7 @@ def render_collections_overview() -> None:
             
             with col2:
                 if st.button(
-                    "🗑️ Delete",
+                    "Delete",
                     key=f"delete_{collection['name']}",
                     use_container_width=True,
                     type="secondary",
@@ -258,7 +258,7 @@ def render_search_interface() -> None:
         search_button = st.button("Search", use_container_width=True, type="primary")
     
     with col2:
-        if st.button("🗑️ Clear", use_container_width=True):
+        if st.button("Clear", use_container_width=True):
             st.session_state.qdrant_search_results = []
             st.rerun()
     

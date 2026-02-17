@@ -38,19 +38,19 @@ class TestSidebarNavigation:
         
         # Register core tools
         nav.register_tool(ToolDefinition(
-            key="chat", icon="💬", label="Chat",
+            key="chat", icon=">", label="Chat",
             description="Chat", render_func=lambda: None, category="core"
         ))
         nav.register_tool(ToolDefinition(
-            key="kb", icon="📚", label="Knowledge Base",
+            key="kb", icon=">", label="Knowledge Base",
             description="KB", render_func=lambda: None, category="core"
         ))
         nav.register_tool(ToolDefinition(
-            key="settings", icon="⚙️", label="Settings",
+            key="settings", icon=">", label="Settings",
             description="Settings", render_func=lambda: None, category="core"
         ))
         nav.register_tool(ToolDefinition(
-            key="logs", icon="📋", label="Logs",
+            key="logs", icon=">", label="Logs",
             description="Logs", render_func=lambda: None, category="core"
         ))
         
@@ -74,15 +74,15 @@ class TestSidebarNavigation:
         
         # Register management tools
         nav.register_tool(ToolDefinition(
-            key="qdrant", icon="🔍", label="Qdrant",
+            key="qdrant", icon=">", label="Qdrant",
             description="Qdrant", render_func=lambda: None, category="management"
         ))
         nav.register_tool(ToolDefinition(
-            key="langfuse", icon="📊", label="Langfuse",
+            key="langfuse", icon=">", label="Langfuse",
             description="Langfuse", render_func=lambda: None, category="management"
         ))
         nav.register_tool(ToolDefinition(
-            key="health", icon="🏥", label="Health",
+            key="health", icon=">", label="Health",
             description="Health", render_func=lambda: None, category="management"
         ))
         
@@ -150,19 +150,19 @@ class TestFeatureFlagToggling:
         # Register tools based on feature flags
         if mock_config.dashboard.show_chat:
             nav.register_tool(ToolDefinition(
-                key="chat", icon="💬", label="Chat",
+                key="chat", icon=">", label="Chat",
                 description="Chat", render_func=lambda: None, category="core"
             ))
         
         if mock_config.dashboard.show_settings:
             nav.register_tool(ToolDefinition(
-                key="settings", icon="⚙️", label="Settings",
+                key="settings", icon=">", label="Settings",
                 description="Settings", render_func=lambda: None, category="core"
             ))
         
         if mock_config.dashboard.show_langfuse_dashboard:
             nav.register_tool(ToolDefinition(
-                key="langfuse", icon="📊", label="Langfuse",
+                key="langfuse", icon=">", label="Langfuse",
                 description="Langfuse", render_func=lambda: None, category="management"
             ))
         

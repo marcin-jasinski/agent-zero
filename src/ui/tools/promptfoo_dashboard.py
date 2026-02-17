@@ -77,10 +77,10 @@ def render_promptfoo_dashboard() -> None:
     
     # Tabs for different sections
     tab1, tab2, tab3, tab4 = st.tabs([
-        "📝 Test Scenarios",
-        "▶️ Run Tests",
-        "📊 Test Results",
-        "⚖️ Version Comparison"
+        "Test Scenarios",
+        "Run Tests",
+        "Test Results",
+        "Version Comparison"
     ])
     
     with tab1:
@@ -137,7 +137,7 @@ def _render_summary_metrics() -> None:
                 st.metric(label="Latest Run", value="N/A")
         
         # Refresh button
-        if st.button("🔄 Refresh Metrics", key="refresh_summary"):
+        if st.button("Refresh Metrics", key="refresh_summary"):
             get_cached_summary.clear()
             st.rerun()
     
@@ -151,7 +151,7 @@ def _render_scenarios_tab() -> None:
     st.subheader("Test Scenario Management")
     
     # Create new scenario section
-    with st.expander("➕ Create New Test Scenario", expanded=False):
+    with st.expander("Create New Test Scenario", expanded=False):
         _render_create_scenario_form()
     
     st.divider()
@@ -175,7 +175,7 @@ def _render_scenarios_tab() -> None:
                 key="scenario_search"
             )
         with col2:
-            if st.button("🔄 Refresh List", key="refresh_scenarios"):
+            if st.button("Refresh List", key="refresh_scenarios"):
                 get_cached_scenarios.clear()
                 st.rerun()
         
@@ -272,7 +272,7 @@ def _render_create_scenario_form() -> None:
                 
                 # Clear cache and show success
                 get_cached_scenarios.clear()
-                st.success(f"✅ Created scenario: {scenario.name}")
+                st.success(f"Created scenario: {scenario.name}")
                 st.rerun()
             
             except Exception as e:
@@ -395,7 +395,7 @@ def _execute_test_run(prompt_version: str, scenario_ids: Optional[List[str]] = N
             get_cached_summary.clear()
             
             # Display results
-            st.success(f"✅ Test run completed!")
+            st.success(f"Test run completed!")
             
             col1, col2, col3, col4 = st.columns(4)
             with col1:
@@ -445,16 +445,16 @@ def _render_test_run_card(run: TestRun) -> None:
     Args:
         run: TestRun to display
     """
-    # Determine status emoji
+    # Determine status indicator
     if run.pass_rate == 100.0:
-        status_emoji = "✅"
+        status_text = "[PASS]"
     elif run.pass_rate >= 80.0:
-        status_emoji = "🟡"
+        status_text = "[WARN]"
     else:
-        status_emoji = "🔴"
+        status_text = "[FAIL]"
     
     with st.expander(
-        f"{status_emoji} {run.prompt_version} - {run.pass_rate:.1f}% passed - {run.started_at.strftime('%Y-%m-%d %H:%M')}",
+        f"{status_text} {run.prompt_version} - {run.pass_rate:.1f}% passed - {run.started_at.strftime('%Y-%m-%d %H:%M')}",
         expanded=False
     ):
         col1, col2, col3, col4, col5 = st.columns(5)
@@ -462,11 +462,11 @@ def _render_test_run_card(run: TestRun) -> None:
         with col1:
             st.metric("Total", run.total_tests)
         with col2:
-            st.metric("✅ Passed", run.passed_tests)
+            st.metric("Passed", run.passed_tests)
         with col3:
-            st.metric("❌ Failed", run.failed_tests)
+            st.metric("Failed", run.failed_tests)
         with col4:
-            st.metric("⚠️ Errors", run.error_tests)
+            st.metric("Errors", run.error_tests)
         with col5:
             st.metric("Avg Latency", f"{run.average_latency_ms:.0f}ms")
         
@@ -475,10 +475,10 @@ def _render_test_run_card(run: TestRun) -> None:
             st.markdown("**Individual Test Results:**")
             for result in run.results:
                 status_icon = {
-                    TestStatus.PASSED: "✅",
-                    TestStatus.FAILED: "❌",
-                    TestStatus.ERROR: "⚠️",
-                }.get(result.status, "❓")
+                    TestStatus.PASSED: "[PASS]",
+                    TestStatus.FAILED: "[FAIL]",
+                    TestStatus.ERROR: "[ERR]",
+                }.get(result.status, "[?]")
                 
                 st.markdown(
                     f"{status_icon} Scenario `{result.scenario_id[:8]}` - "
@@ -564,12 +564,12 @@ def _display_version_comparison(version_a: str, version_b: str) -> None:
         
         # Improvements and regressions
         if comparison.improvements:
-            st.markdown("### ✅ Improvements")
+            st.markdown("### Improvements")
             for improvement in comparison.improvements:
                 st.success(improvement)
         
         if comparison.regressions:
-            st.markdown("### ⚠️ Regressions")
+            st.markdown("### Regressions")
             for regression in comparison.regressions:
                 st.warning(regression)
         

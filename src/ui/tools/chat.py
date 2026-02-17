@@ -211,7 +211,7 @@ def render_chat_interface() -> None:
         else:
             # Still processing - show status and schedule refresh
             elapsed = time.time() - st.session_state.processing_start_time
-            st.info(f"⚙️ Agent is processing in background... ({elapsed:.1f}s elapsed). You can navigate to other tabs freely.")
+            st.info(f"Agent is processing in background... ({elapsed:.1f}s elapsed). You can navigate to other tabs freely.")
             time.sleep(2)  # Poll every 2 seconds
             st.rerun()
     

@@ -5,6 +5,7 @@ and keyword relevance (Meilisearch) for improved document retrieval.
 """
 
 import logging
+import time
 from typing import List, Dict, Any, Optional, Tuple
 
 from src.models.retrieval import RetrievalResult, HybridSearchConfig
@@ -153,8 +154,7 @@ class RetrievalEngine:
 
         Returns:
             List of RetrievalResult objects sorted by relevance score
-        """
-        try:
+        """        search_start = time.time()        try:
             from src.config import get_config
             config = get_config()
             
