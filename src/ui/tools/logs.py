@@ -18,15 +18,30 @@ def initialize_logs_session() -> None:
         st.session_state.log_tail_lines = 50
     if "log_filter_level" not in st.session_state:
         st.session_state.log_filter_level = "ALL"
+    if "log_service_filter" not in st.session_state:
+        st.session_state.log_service_filter = "ALL"
 
 
-def get_app_logs(log_file: Path, tail_lines: int = 50, level_filter: str = "ALL") -> str:
+# Service-to-logger pattern mapping
+SERVICE_LOGGER_PATTERNS = {
+    "ALL": [],
+    "Ollama": ["ollama_client", "ollama", "OllamaClient"],
+    "Qdrant": ["qdrant_client", "qdrant", "QdrantVectorClient"],
+    "Meilisearch": ["meilisearch_client", "meilisearch", "MeilisearchClient"],
+    "Langfuse": ["langfuse_client", "langfuse", "observability"],
+    "Agent Core": ["src.core.agent", "src.core.retrieval", "src.core.ingest", "src.core.memory", "AgentOrchestrator", "RetrievalEngine", "DocumentIngestor"],
+    "UI": ["src.ui", "streamlit", "render_", "navigation"],
+}
+
+
+def get_app_logs(log_file: Path, tail_lines: int = 50, level_filter: str = "ALL", service_filter: str = "ALL") -> str:
     """Read application logs from file.
 
     Args:
         log_file: Path to the log file
         tail_lines: Number of lines to read from end of file
         level_filter: Log level to filter (ALL, INFO, WARNING, ERROR, DEBUG)
+        service_filter: Service to filter (ALL, Ollama, Qdrant, etc.)
 
     Returns:
         Formatted log content
@@ -35,11 +50,22 @@ def get_app_logs(log_file: Path, tail_lines: int = 50, level_filter: str = "ALL"
         return "[No logs available yet]"
 
     try:
-        with open(log_file, "r") as f:
+        with open(log_file, "r", encoding="utf-8") as f:
             lines = f.readlines()
 
+        # Apply log level filter
         if level_filter != "ALL":
             lines = [line for line in lines if level_filter in line.upper()]
+
+        # Apply service filter
+        if service_filter != "ALL":
+            patterns = SERVICE_LOGGER_PATTERNS.get(service_filter, [])
+            if patterns:
+                filtered_lines = []
+                for line in lines:
+                    if any(pattern in line for pattern in patterns):
+                        filtered_lines.append(line)
+                lines = filtered_lines
 
         selected_lines = lines[-tail_lines:] if len(lines) > tail_lines else lines
 
@@ -50,17 +76,14 @@ def get_app_logs(log_file: Path, tail_lines: int = 50, level_filter: str = "ALL"
 
 
 def render_logs() -> None:
-    """Render the logs component.
+    """Render the logs viewer interface."""
+    st.title("📋 Application Logs")
+    st.markdown(
+        "Real-time application logs with filtering and export capabilities."
+    )
 
-    Displays application logs with filtering and real-time streaming capabilities.
-    """
-    st.header("System Logs")
-
-    # Initialize session state
-    initialize_logs_session()
-
-    # Log controls
-    col1, col2, col3 = st.columns(3)
+    # Filters row
+    col1, col2, col3, col4 = st.columns(4)
 
     with col1:
         log_level = st.selectbox(
@@ -71,6 +94,14 @@ def render_logs() -> None:
         )
 
     with col2:
+        service_filter = st.selectbox(
+            "Service:",
+            ["ALL", "Ollama", "Qdrant", "Meilisearch", "Langfuse", "Agent Core", "UI"],
+            index=0,
+            key="log_service_filter",
+        )
+
+    with col3:
         tail_lines = st.number_input(
             "Lines to display:",
             min_value=10,
@@ -80,7 +111,7 @@ def render_logs() -> None:
             key="log_tail_lines",
         )
 
-    with col3:
+    with col4:
         auto_refresh = st.checkbox("Auto-refresh (2s)", value=False)
 
     st.divider()
@@ -94,7 +125,7 @@ def render_logs() -> None:
     log_file = Path(f"/app/logs/agent-zero-{config.env}.log")
 
     if log_file.exists():
-        log_content = get_app_logs(log_file, tail_lines, log_level)
+        log_content = get_app_logs(log_file, tail_lines, log_level, service_filter)
 
         # Display logs in monospace
         log_container.code(
@@ -110,7 +141,7 @@ def render_logs() -> None:
 
         # Count log levels
         try:
-            with open(log_file, "r") as f:
+            with open(log_file, "r", encoding="utf-8") as f:
                 content = f.read()
 
             with col1:
@@ -150,7 +181,7 @@ def render_logs() -> None:
     with col1:
         if st.button("Download Current Logs"):
             if log_file.exists():
-                with open(log_file, "r") as f:
+                with open(log_file, "r", encoding="utf-8") as f:
                     log_data = f.read()
 
                 st.download_button(

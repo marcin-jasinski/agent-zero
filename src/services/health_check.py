@@ -6,13 +6,16 @@ Provides health check functionality for all external services.
 import logging
 from dataclasses import dataclass
 from typing import Dict
+import requests
 
 from src.services.meilisearch_client import MeilisearchClient
 from src.services.ollama_client import OllamaClient
 from src.services.qdrant_client import QdrantVectorClient
 from src.observability import get_langfuse_observability
+from src.config import get_config
 
 logger = logging.getLogger(__name__)
+config = get_config()
 
 
 @dataclass
@@ -184,6 +187,64 @@ class HealthChecker:
                 details={"enabled": True},
             )
 
+    def check_prometheus(self) -> ServiceStatus:
+        """Check Prometheus metrics service health."""
+        try:
+            prometheus_url = "http://prometheus:9090"
+            response = requests.get(f"{prometheus_url}/-/healthy", timeout=5)
+            
+            if response.status_code == 200:
+                return ServiceStatus(
+                    name="Prometheus",
+                    is_healthy=True,
+                    message="Metrics service is operational",
+                    details={"url": prometheus_url},
+                )
+            else:
+                return ServiceStatus(
+                    name="Prometheus",
+                    is_healthy=False,
+                    message=f"Service returned status code {response.status_code}",
+                )
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Prometheus health check failed: {e}")
+            return ServiceStatus(
+                name="Prometheus",
+                is_healthy=False,
+                message=f"Connection error: {str(e)}",
+            )
+
+    def check_grafana(self) -> ServiceStatus:
+        """Check Grafana visualization service health."""
+        try:
+            grafana_url = "http://grafana:3000"
+            response = requests.get(f"{grafana_url}/api/health", timeout=5)
+            
+            if response.status_code == 200:
+                health_data = response.json()
+                return ServiceStatus(
+                    name="Grafana",
+                    is_healthy=True,
+                    message="Visualization service is operational",
+                    details={
+                        "url": grafana_url,
+                        "database": health_data.get("database", "unknown"),
+                    },
+                )
+            else:
+                return ServiceStatus(
+                    name="Grafana",
+                    is_healthy=False,
+                    message=f"Service returned status code {response.status_code}",
+                )
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Grafana health check failed: {e}")
+            return ServiceStatus(
+                name="Grafana",
+                is_healthy=False,
+                message=f"Connection error: {str(e)}",
+            )
+
     def check_all(self) -> Dict[str, ServiceStatus]:
         """Check health of all services.
 
@@ -197,6 +258,8 @@ class HealthChecker:
             "qdrant": self.check_qdrant(),
             "meilisearch": self.check_meilisearch(),
             "langfuse": self.check_langfuse(),
+            "prometheus": self.check_prometheus(),
+            "grafana": self.check_grafana(),
         }
 
         # Log overall health
@@ -211,7 +274,7 @@ class HealthChecker:
         """Check health of a specific service by name.
         
         Args:
-            service_name: Name of the service to check (ollama, qdrant, meilisearch, langfuse)
+            service_name: Name of the service to check (ollama, qdrant, meilisearch, langfuse, prometheus, grafana)
             
         Returns:
             ServiceStatus for the requested service, or None if service name is invalid
@@ -221,6 +284,8 @@ class HealthChecker:
             "qdrant": self.check_qdrant,
             "meilisearch": self.check_meilisearch,
             "langfuse": self.check_langfuse,
+            "prometheus": self.check_prometheus,
+            "grafana": self.check_grafana,
         }
         
         check_func = service_checks.get(service_name.lower())

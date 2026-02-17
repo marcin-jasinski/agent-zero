@@ -4,15 +4,20 @@ Implements the main chat tab with message history, input handling,
 and agent response generation.
 
 Phase 5 Step 19.5: Enhanced with progress indicators and error visibility.
+Phase 6: Background processing support for non-blocking operations.
 """
 
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor, Future
 from typing import Optional
 
 import streamlit as st
 
 logger = logging.getLogger(__name__)
+
+# Global executor for background processing (shared across sessions)
+_executor = ThreadPoolExecutor(max_workers=4)
 
 
 def initialize_chat_session() -> None:
@@ -21,12 +26,23 @@ def initialize_chat_session() -> None:
         st.session_state.messages = []
     if "conversation_id" not in st.session_state:
         st.session_state.conversation_id = None
+    if "agent" not in st.session_state:
+        st.session_state.agent = None
     if "agent_initialized" not in st.session_state:
         st.session_state.agent_initialized = False
     if "last_error" not in st.session_state:
         st.session_state.last_error = None
     if "user_input" not in st.session_state:
         st.session_state.user_input = ""
+    # Background processing state
+    if "processing" not in st.session_state:
+        st.session_state.processing = False
+    if "processing_future" not in st.session_state:
+        st.session_state.processing_future = None
+    if "processing_message" not in st.session_state:
+        st.session_state.processing_message = ""
+    if "processing_start_time" not in st.session_state:
+        st.session_state.processing_start_time = None
 
 
 def _initialize_agent() -> tuple[bool, Optional[str]]:
@@ -84,6 +100,10 @@ def _process_message(user_input: str) -> tuple[str, Optional[str]]:
         Tuple of (response: str, error_message: Optional[str])
     """
     try:
+        # Check if agent is initialized
+        if not hasattr(st.session_state, 'agent') or st.session_state.agent is None:
+            return "", "Agent not initialized. Please wait for the agent to start."
+        
         start_time = time.time()
         
         response = st.session_state.agent.process_message(
@@ -108,6 +128,51 @@ def _process_message(user_input: str) -> tuple[str, Optional[str]]:
         return "", f"Error processing message: {str(e)}"
 
 
+def _background_process_wrapper(user_input: str) -> tuple[str, Optional[str]]:
+    """Wrapper for background processing that catches all exceptions.
+    
+    Args:
+        user_input: The user's message
+        
+    Returns:
+        Tuple of (response: str, error_message: Optional[str])
+    """
+    try:
+        return _process_message(user_input)
+    except Exception as e:
+        logger.error(f"Uncaught exception in background processing: {e}", exc_info=True)
+        return "", f"Unexpected error: {str(e)}"
+
+
+def _check_processing_status() -> Optional[tuple[str, Optional[str]]]:
+    """Check if background processing is complete.
+    
+    Returns:
+        Tuple of (response, error) if complete, None if still processing
+    """
+    if not st.session_state.processing:
+        return None
+    
+    future: Future = st.session_state.processing_future
+    if future is None:
+        return None
+    
+    # Check if processing is done
+    if future.done():
+        try:
+            result = future.result(timeout=0.1)
+            st.session_state.processing = False
+            st.session_state.processing_future = None
+            return result
+        except Exception as e:
+            logger.error(f"Error getting future result: {e}", exc_info=True)
+            st.session_state.processing = False
+            st.session_state.processing_future = None
+            return "", f"Processing error: {str(e)}"
+    
+    return None
+
+
 def render_chat_interface() -> None:
     """Render the chat interface component.
 
@@ -118,6 +183,37 @@ def render_chat_interface() -> None:
 
     # Initialize session state
     initialize_chat_session()
+    
+    # Check for completed background processing
+    if st.session_state.processing:
+        result = _check_processing_status()
+        if result is not None:
+            # Processing complete
+            response, error = result
+            
+            if error:
+                st.session_state.messages.append({
+                    "role": "error",
+                    "content": f"Warning: {error}"
+                })
+                st.session_state.last_error = error
+            else:
+                st.session_state.messages.append({
+                    "role": "assistant",
+                    "content": response,
+                })
+                st.session_state.last_error = None
+            
+            # Clear processing state
+            st.session_state.processing = False
+            st.session_state.processing_future = None
+            st.rerun()
+        else:
+            # Still processing - show status and schedule refresh
+            elapsed = time.time() - st.session_state.processing_start_time
+            st.info(f"⚙️ Agent is processing in background... ({elapsed:.1f}s elapsed). You can navigate to other tabs freely.")
+            time.sleep(2)  # Poll every 2 seconds
+            st.rerun()
     
     # Display any previous errors
     if st.session_state.last_error:
@@ -202,26 +298,11 @@ def render_chat_interface() -> None:
                                 st.rerun()
                                 return
 
-                    # Process message with agent
-                    progress_placeholder = st.empty()
-                    with progress_placeholder.container():
-                        with st.spinner("Agent is thinking... (querying knowledge base and generating response)"):
-                            response, error = _process_message(message_to_send)
-                    
-                    progress_placeholder.empty()
-                    
-                    if error:
-                        st.session_state.messages.append({
-                            "role": "error",
-                            "content": f"Warning: {error}"
-                        })
-                        st.session_state.last_error = error
-                    else:
-                        st.session_state.messages.append({
-                            "role": "assistant",
-                            "content": response,
-                        })
-                        st.session_state.last_error = None
+                    # Submit processing to background thread
+                    st.session_state.processing = True
+                    st.session_state.processing_future = _executor.submit(_background_process_wrapper, message_to_send)
+                    st.session_state.processing_message = message_to_send
+                    st.session_state.processing_start_time = time.time()
 
                     st.rerun()
                 else:

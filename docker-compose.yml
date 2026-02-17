@@ -23,6 +23,7 @@ services:
     container_name: agent-zero-app
     ports:
       - "8501:8501" # Streamlit UI (A.P.I.) - LOCALHOST ONLY, do not expose publicly
+      - "9091:9091" # Prometheus metrics endpoint
     environment:
       - APP_ENV=${APP_ENV:-development}
       - APP_DEBUG=${APP_DEBUG:-true}
@@ -59,6 +60,10 @@ services:
       meilisearch:
         condition: service_healthy
       langfuse:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
+      grafana:
         condition: service_healthy
     healthcheck:
       test:
@@ -240,6 +245,80 @@ services:
   # NOTE: PostgreSQL is the backing store for Langfuse v2
   # ============================================================================
 
+  # ============================================================================
+  # PROMETHEUS: Time-Series Database for Metrics
+  # ============================================================================
+  prometheus:
+    image: prom/prometheus:v2.48.1
+    container_name: agent-zero-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - agent-zero-network
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: "1"
+    labels:
+      - "com.agent-zero.service=prometheus"
+      - "com.agent-zero.description=Time-series database for metrics"
+
+  # ============================================================================
+  # GRAFANA: Metrics Visualization and Dashboards
+  # ============================================================================
+  grafana:
+    image: grafana/grafana:10.2.3
+    container_name: agent-zero-grafana
+    ports:
+      - "3001:3000"  # Port 3000 is used by Langfuse, so we use 3001
+    environment:
+      # Authentication (development defaults - CHANGE IN PRODUCTION!)
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      # Datasources
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+      # UI Settings
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3001
+      # Logging
+      - GF_LOG_LEVEL=info
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - agent-zero-network
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: "1"
+    labels:
+      - "com.agent-zero.service=grafana"
+      - "com.agent-zero.description=Metrics visualization and dashboards"
+
 # ============================================================================
 # Networks
 # ============================================================================
@@ -285,3 +364,17 @@ volumes:
     labels:
       - "com.agent-zero.volume=postgres-data"
       - "com.agent-zero.description=PostgreSQL database storage for Langfuse"
+
+  # Prometheus time-series database
+  prometheus-data:
+    driver: local
+    labels:
+      - "com.agent-zero.volume=prometheus-data"
+      - "com.agent-zero.description=Prometheus TSDB storage"
+
+  # Grafana dashboards and settings
+  grafana-data:
+    driver: local
+    labels:
+      - "com.agent-zero.volume=grafana-data"
+      - "com.agent-zero.description=Grafana data and dashboards"

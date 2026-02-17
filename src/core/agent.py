@@ -15,7 +15,7 @@ from src.models.agent import AgentConfig, AgentMessage, MessageRole, Conversatio
 from src.models.retrieval import RetrievalResult
 from src.services.ollama_client import OllamaClient
 from src.security.guard import LLMGuard, ThreatLevel
-from src.observability import get_langfuse_observability
+from src.observability import get_langfuse_observability, track_llm_generation
 from src.config import get_config
 
 logger = logging.getLogger(__name__)
@@ -425,6 +425,14 @@ class AgentOrchestrator:
                         "max_tokens": self.config.max_tokens,
                     },
                 )
+            
+            # Track LLM generation metrics in Prometheus
+            track_llm_generation(
+                model=self.config.model_name,
+                input_tokens=len(prompt.split()),  # Approximate token count
+                output_tokens=len(response.split()),  # Approximate token count
+                duration_seconds=time.time() - start_time
+            )
 
             if stream_callback and isinstance(response, str):
                 # If streaming is implemented, invoke callback

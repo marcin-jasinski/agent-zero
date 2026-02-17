@@ -1,0 +1,138 @@
+# ==============================================================================
+# AGENT ZERO - Docker Compose Extension: Observability Stack
+# ==============================================================================
+# This file extends docker-compose.yml to add Prometheus + Grafana for metrics.
+# 
+# Usage:
+#   docker-compose -f docker-compose.yml -f docker-compose.observability.yml up -d
+#
+# Or create a .env file with:
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.observability.yml
+#
+# Then simply run:
+#   docker-compose up -d
+# ==============================================================================
+
+services:
+  # ============================================================================
+  # PROMETHEUS: Time-Series Database for Metrics
+  # ============================================================================
+  prometheus:
+    image: prom/prometheus:v2.48.1
+    container_name: agent-zero-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - agent-zero-network
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: "1"
+    labels:
+      - "com.agent-zero.service=prometheus"
+      - "com.agent-zero.description=Time-series database for metrics"
+
+  # ============================================================================
+  # GRAFANA: Metrics Visualization and Dashboards
+  # ============================================================================
+  grafana:
+    image: grafana/grafana:10.2.3
+    container_name: agent-zero-grafana
+    ports:
+      - "3001:3000"  # Port 3000 is used by Langfuse, so we use 3001
+    environment:
+      # Authentication (development defaults - CHANGE IN PRODUCTION!)
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      
+      # Datasources
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+      
+      # UI Settings
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3001
+      
+      # Logging
+      - GF_LOG_LEVEL=info
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - agent-zero-network
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: "1"
+    labels:
+      - "com.agent-zero.service=grafana"
+      - "com.agent-zero.description=Metrics visualization and dashboards"
+
+  # ============================================================================
+  # CADVISOR (Optional): Container Metrics Exporter
+  # ============================================================================
+  # Uncomment to enable container-level metrics (CPU, memory per container)
+  #
+  # cadvisor:
+  #   image: gcr.io/cadvisor/cadvisor:v0.47.2
+  #   container_name: agent-zero-cadvisor
+  #   ports:
+  #     - "8080:8080"
+  #   volumes:
+  #     - /:/rootfs:ro
+  #     - /var/run:/var/run:ro
+  #     - /sys:/sys:ro
+  #     - /var/lib/docker/:/var/lib/docker:ro
+  #     - /dev/disk/:/dev/disk:ro
+  #   privileged: true
+  #   devices:
+  #     - /dev/kmsg
+  #   networks:
+  #     - agent-zero-network
+  #   restart: unless-stopped
+  #   mem_limit: 256m
+  #   cpus: "0.5"
+  #   labels:
+  #     - "com.agent-zero.service=cadvisor"
+  #     - "com.agent-zero.description=Container metrics exporter"
+
+# ============================================================================
+# Volumes
+# ============================================================================
+volumes:
+  # Prometheus time-series database
+  prometheus-data:
+    driver: local
+    labels:
+      - "com.agent-zero.volume=prometheus-data"
+      - "com.agent-zero.description=Prometheus TSDB storage"
+
+  # Grafana dashboards and settings
+  grafana-data:
+    driver: local
+    labels:
+      - "com.agent-zero.volume=grafana-data"
+      - "com.agent-zero.description=Grafana data and dashboards"

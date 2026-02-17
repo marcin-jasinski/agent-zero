@@ -11,6 +11,7 @@ from src.models.retrieval import RetrievalResult, HybridSearchConfig
 from src.services.ollama_client import OllamaClient
 from src.services.qdrant_client import QdrantVectorClient
 from src.services.meilisearch_client import MeilisearchClient
+from src.observability import track_retrieval, track_embedding_duration
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +98,11 @@ class RetrievalEngine:
             # Generate embedding for query
             embed_start = time.time()
             query_embedding = self.ollama_client.embed(query)
-            logger.info(f"[TIMING] Embedding generation took {time.time() - embed_start:.2f}s")
+            embed_duration = time.time() - embed_start
+            logger.info(f"[TIMING] Embedding generation took {embed_duration:.2f}s")
+            
+            # Track embedding metrics
+            track_embedding_duration(embed_duration)
 
             # Search Qdrant
             search_start = time.time()
@@ -125,6 +130,14 @@ class RetrievalEngine:
                 )
 
             logger.debug(f"Semantic search found {len(results)} results for query '{query}'")
+            
+            # Track semantic search metrics
+            track_retrieval(
+                retrieval_type='semantic',
+                document_count=len(results),
+                duration_seconds=time.time() - embed_start
+            )
+            
             return sorted(results)
 
         except Exception as e:
@@ -171,6 +184,14 @@ class RetrievalEngine:
                     )
 
             logger.debug(f"Keyword search found {len(results)} results for query '{query}'")
+            
+            # Track keyword search metrics
+            track_retrieval(
+                retrieval_type='keyword',
+                document_count=len(results),
+                duration_seconds=time.time() - search_start
+            )
+            
             return sorted(results)
 
         except Exception as e:
@@ -190,6 +211,8 @@ class RetrievalEngine:
         Returns:
             List of RetrievalResult objects sorted by combined relevance score
         """
+        import time
+        hybrid_start = time.time()
         logger.info(f"Using HYBRID search for query: '{query[:100]}...'")
         try:
             # Run both searches in parallel
@@ -230,6 +253,14 @@ class RetrievalEngine:
             logger.debug(
                 f"Hybrid search found {len(final_results)} results for query '{query}'"
             )
+            
+            # Track hybrid search metrics
+            track_retrieval(
+                retrieval_type='hybrid',
+                document_count=len(final_results),
+                duration_seconds=time.time() - hybrid_start
+            )
+            
             return final_results
 
         except Exception as e:
