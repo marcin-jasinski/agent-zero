@@ -2,6 +2,9 @@
 
 The Promptfoo Testing Dashboard provides prompt testing and versioning capabilities for Agent Zero.
 
+> ⚠️ Note: The legacy tab-based UI referenced in this guide was removed during Phase 6b Chainlit migration.
+> Use the `PromptfooClient` service API and local data files for prompt testing workflows.
+
 ## Features
 
 ### 📝 Test Scenario Management
@@ -35,7 +38,7 @@ The Promptfoo Testing Dashboard provides prompt testing and versioning capabilit
 
 ## Quick Start
 
-### 1. Enable the Dashboard
+### 1. Enable Promptfoo Support
 
 Add to your `.env` file:
 ```bash
@@ -44,9 +47,7 @@ APP_DASHBOARD__SHOW_PROMPTFOO=true
 
 ### 2. Create Your First Test Scenario
 
-1. Navigate to the "Promptfoo Testing" tab
-2. Click "Create New Test Scenario"
-3. Fill in the form:
+Create a scenario through `PromptfooClient` or by editing `data/promptfoo/scenarios.json`:
    ```
    Name: RAG Query Test
    Description: Test if agent can retrieve from knowledge base
@@ -58,24 +59,18 @@ APP_DASHBOARD__SHOW_PROMPTFOO=true
 
 ### 3. Run Tests
 
-1. Go to "Run Tests" tab
-2. Select prompt version (e.g., "v1.0")
-3. Choose "All Scenarios" or select specific tests
-4. Click "Run Tests"
+Run tests programmatically with `PromptfooClient.run_tests(...)`.
 
 ### 4. View Results
 
-Check the "Test Results" tab to see:
+Inspect `data/promptfoo/test_runs.json` and service output logs to see:
 - Pass/fail rates
 - Latency metrics
 - Individual assertion results
 
 ### 5. Compare Versions
 
-1. Create tests for multiple versions
-2. Go to "Version Comparison" tab
-3. Select two versions (e.g., v1.0 vs v2.0)
-4. View improvements, regressions, and recommendation
+Use `PromptfooClient.compare_versions(version_a, version_b)` to inspect improvements and regressions.
 
 ## Data Storage
 
@@ -203,8 +198,8 @@ See [src/services/promptfoo_client.py](../src/services/promptfoo_client.py) for 
 
 ```
 ┌─────────────────────────────────────────┐
-│   Promptfoo Testing Dashboard UI       │
-│   (src/ui/tools/promptfoo_dashboard.py)│
+│   Promptfoo Test Data + Service API    │
+│   (data/promptfoo + promptfoo_client)  │
 └───────────────┬─────────────────────────┘
                 │
                 ▼

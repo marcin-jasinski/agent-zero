@@ -137,6 +137,17 @@ class TestAgentOrchestrator:
         assert "Simple response" in response
         agent.retrieval_engine.retrieve_relevant_docs.assert_not_called()
 
+    @pytest.mark.asyncio
+    async def test_process_message_async_uses_sync_path(self, agent) -> None:
+        """Test async message wrapper delegates to sync processing."""
+        conv_id = agent.start_conversation()
+        agent.ollama_client.generate = Mock(return_value="Async response")
+        agent.retrieval_engine.retrieve_relevant_docs = Mock(return_value=[])
+
+        response = await agent.process_message_async(conv_id, "Hello async")
+
+        assert "Async response" in response
+
     def test_retrieve_documents_tool(self, agent) -> None:
         """Test retrieve_documents tool."""
         agent.retrieval_engine.retrieve_relevant_docs = Mock(

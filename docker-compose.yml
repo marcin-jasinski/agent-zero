@@ -14,7 +14,7 @@
 
 services:
   # ============================================================================
-  # APP-AGENT: Core Python Application with Streamlit UI (A.P.I.)
+  # APP-AGENT: Core Python Application with Chainlit UI (A.P.I.)
   # ============================================================================
   app-agent:
     build:
@@ -22,13 +22,15 @@ services:
       dockerfile: docker/Dockerfile.app-agent
     container_name: agent-zero-app
     ports:
-      - "8501:8501" # Streamlit UI (A.P.I.) - LOCALHOST ONLY, do not expose publicly
+      - "8501:8501" # Chainlit Chat UI (A.P.I.) - LOCALHOST ONLY, do not expose publicly
+      - "8502:8502" # Chainlit Admin Dashboard - separate process on port 8502
       - "9091:9091" # Prometheus metrics endpoint
     environment:
       - APP_ENV=${APP_ENV:-development}
       - APP_DEBUG=${APP_DEBUG:-true}
       - APP_HOST=0.0.0.0
       - APP_PORT=8501
+      - APP_ADMIN_PORT=8502
       - PYTHONUNBUFFERED=1
       - PYTHONDONTWRITEBYTECODE=1
       - PYTHONPATH=/app
@@ -70,7 +72,7 @@ services:
         - CMD
         - curl
         - -f
-        - http://localhost:8501/_stcore/health
+        - http://localhost:8501/health
       interval: 30s
       timeout: 10s
       retries: 3
@@ -82,7 +84,7 @@ services:
     cpus: "2"
     labels:
       - "com.agent-zero.service=app-agent"
-      - "com.agent-zero.description=Main application with Streamlit UI"
+      - "com.agent-zero.description=Main application with Chainlit Chat UI (8501) and Admin Dashboard (8502)"
 
   # ============================================================================
   # OLLAMA: Local LLM Inference & Embeddings Engine

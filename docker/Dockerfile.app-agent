@@ -47,23 +47,31 @@ RUN useradd -m -u 1000 agentuser && \
     mkdir -p /app/data /app/logs && \
     chown -R agentuser:agentuser /app
 
-# Copy application code
+# Copy application code and startup script
 COPY --chown=agentuser:agentuser src /app/src
 COPY --chown=agentuser:agentuser pyproject.toml /app/
+COPY --chown=agentuser:agentuser docker/start_services.sh /app/start_services.sh
+
+# Make startup script executable (must happen as root, before USER switch)
+RUN chmod +x /app/start_services.sh
 
 # Switch to non-root user
 USER agentuser
 
-# Health check for Streamlit
+# Health check for Chainlit Chat UI
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8501/_stcore/health || exit 1
+    CMD curl -f http://localhost:8501/health || exit 1
 
 # Default environment
 ENV APP_ENV=development \
     APP_DEBUG=true \
     APP_HOST=0.0.0.0 \
-    APP_PORT=8501
+    APP_PORT=8501 \
+    APP_ADMIN_PORT=8502
 
-# Entry point
+# Expose both Chainlit ports
 EXPOSE 8501
-CMD ["streamlit", "run", "src/ui/main.py", "--server.port=8501", "--server.address=0.0.0.0"]
+EXPOSE 8502
+
+# Entry point: start Chat UI (8501) + Admin Dashboard (8502)
+CMD ["/app/start_services.sh"]

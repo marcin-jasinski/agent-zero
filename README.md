@@ -64,7 +64,7 @@ That's it! 🎉
 
 **Access:**
 
-- 📊 **Streamlit UI (A.P.I.):** http://localhost:8501
+- 📊 **Chainlit UI (A.P.I.):** http://localhost:8501
 - 🔌 **Ollama API:** http://localhost:11434
 
 ---
@@ -129,7 +129,7 @@ Agent Zero is built on a modern, scalable stack:
 - **Embeddings:** nomic-embed-text-v2-moe (768-dim)
 - **Vector DB:** Qdrant (semantic search)
 - **Search Engine:** Meilisearch (keyword search)
-- **UI:** Streamlit (A.P.I. Dashboard)
+- **UI:** Chainlit (A.P.I. Dashboard)
 - **Observability:** Langfuse + ClickHouse
 
 ---
@@ -186,7 +186,7 @@ docker logs -f $(docker-compose ps -q)
 
 | Service          | Port  | Purpose                    |
 | ---------------- | ----- | -------------------------- |
-| **Streamlit UI** | 8501  | Interactive dashboard      |
+| **Chainlit UI**  | 8501  | Interactive dashboard      |
 | **Ollama**       | 11434 | LLM inference & embeddings |
 | **Qdrant**       | 6333  | Vector database            |
 | **Meilisearch**  | 7700  | Full-text search           |

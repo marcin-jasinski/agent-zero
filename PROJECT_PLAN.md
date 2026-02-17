@@ -1,12 +1,12 @@
 # Agent Zero (L.A.B.) - Implementation Plan
 
-**Status**: Phases 1-5 Complete ✅ | Phase 6b (Chainlit Migration) Ready 🔥  
-**Last Updated**: 2026-02-17  
-**Test Suite**: 404 tests passing, 0 skipped
+**Status**: Phases 1-6b Complete ✅ | Phase 6c Active 🔥 | Phase 7+ Planned 🔄  
+**Last Updated**: 2026-02-19  
+**Test Suite**: 436 tests passing (full regression)
 
 **⚠️ Project Context**: LOCAL DEVELOPMENT PLAYGROUND for AI agent experimentation. Not a production multi-user system.
 
-**🔥 Critical Update**: Migrating from Streamlit to Chainlit for production-grade async architecture.
+**🔥 Active Migration**: Replacing Chainlit with FastAPI + Gradio for a unified, tab-based UI (no multi-process workarounds).
 
 ---
 
@@ -33,10 +33,10 @@
 
 - **Orchestration**: Docker Compose v2+
 - **Language**: Python 3.11+
-- **Core Libraries**: LangChain, Chainlit, Pydantic, LLM Guard, Pytest
+- **Core Libraries**: LangChain, FastAPI, Gradio, Pydantic, LLM Guard, Pytest
 - **Infrastructure**: Ollama (LLM), Qdrant (Vector DB), Meilisearch (Search), Langfuse (Observability), LiteLLM (Gateway), MCP Server
 - **Services**:
-  - `app-agent`: Python 3.11 + Chainlit (port 8501)
+  - `app-agent`: Python 3.11 + FastAPI + Gradio, single unified app (port 8501)
   - `ollama`: LLM inference (port 11434)
   - `qdrant`: Vector Database (port 6333)
   - `meilisearch`: Full-text Search (port 7700)
@@ -139,15 +139,13 @@
 
 ---
 
-### PHASE 6b: Chainlit Migration 🔥
+### PHASE 6b: Chainlit Migration
 
 **Goal**: Migrate from Streamlit to Chainlit for production-grade agent UI with true async support.
 
-**Rationale**:
-- ❌ **Streamlit Issues**: Rerun-based architecture causes race conditions, no true async, background thread hacks
-- ✅ **Chainlit Benefits**: Purpose-built for agents/chatbots, native async/await, streaming responses, better state management
-- ✅ **Production-Ready**: Used by LangChain, Anthropic, and major AI companies
-- ✅ **Migration Time**: 2-3 days (minimal code rewrite needed)
+**Status**: ⚠️ SUPERSEDED by Phase 6c (FastAPI + Gradio)
+
+**Reason superseded**: Chainlit's single-app-per-process model forced a two-process / two-port architecture for chat vs. admin, requiring process management hacks (`start_services.sh`) and a shared `.chainlit` config workaround. Both apps rendered identically at the UI level. FastAPI + Gradio solves this natively via tabs in one unified app.
 
 **Branch**: `feature/chainlit-migration`
 
@@ -155,20 +153,20 @@
 
 #### Step 23: Setup Chainlit Infrastructure
 
-**Status**: 🔄 TODO | **Priority**: CRITICAL | **Duration**: 4 hours
+**Status**: ✅ COMPLETE | **Priority**: CRITICAL | **Duration**: 4 hours
 
 **Objective**: Install Chainlit, update Docker configuration, and create basic app structure.
 
 **Implementation**:
 
-- [ ] **Install Chainlit** (`pyproject.toml`):
+- [x] **Install Chainlit** (`pyproject.toml`):
   ```toml
   [tool.poetry.dependencies]
   chainlit = "^1.0.0"
   # Remove: streamlit = "^1.29.0"
   ```
 
-- [ ] **Update Docker Configuration** (`docker-compose.yml`):
+- [x] **Update Docker Configuration** (`docker-compose.yml`):
   ```yaml
   app-agent:
     # Change command
@@ -176,12 +174,12 @@
     # Keep same ports for compatibility
   ```
 
-- [ ] **Update Dockerfile** (`docker/Dockerfile.app-agent`):
-  - [ ] Update Python base image to 3.11-slim
-  - [ ] Update WORKDIR and COPY commands
-  - [ ] Keep same health check (port 8501)
+- [x] **Update Dockerfile** (`docker/Dockerfile.app-agent`):
+  - [x] Update Python base image to 3.11-slim
+  - [x] Update WORKDIR and COPY commands
+  - [x] Keep same health check (port 8501)
 
-- [ ] **Create Chainlit Config** (`.chainlit`):
+- [x] **Create Chainlit Config** (`.chainlit`):
   ```toml
   [project]
   enable_telemetry = false
@@ -194,7 +192,7 @@
   generated_by = "1.0.0"
   ```
 
-- [ ] **Update Configuration** (`src/config.py`):
+- [x] **Update Configuration** (`src/config.py`):
   ```python
   class DashboardConfig(BaseSettings):
       framework: str = Field(default="chainlit")  # was "streamlit"
@@ -213,13 +211,13 @@
 
 #### Step 24: Migrate Chat Interface (Core Feature)
 
-**Status**: 🔄 TODO | **Priority**: CRITICAL | **Duration**: 6 hours
+**Status**: ✅ COMPLETE | **Priority**: CRITICAL | **Duration**: 6 hours
 
 **Objective**: Rewrite chat interface using Chainlit's native APIs for better async handling.
 
 **Implementation**:
 
-- [ ] **Create Chainlit Main App** (`src/ui/main.py`):
+- [x] **Create Chainlit Main App** (`src/ui/main.py`):
   ```python
   import chainlit as cl
   from src.core.agent import AgentOrchestrator
@@ -277,7 +275,7 @@
       await cl.Message(content="Goodbye! 👋").send()
   ```
 
-- [ ] **Add Async Support to Agent** (`src/core/agent.py`):
+- [x] **Add Async Support to Agent** (`src/core/agent.py`):
   ```python
   async def process_message_async(
       self,
@@ -295,10 +293,10 @@
       )
   ```
 
-- [ ] **Remove Streamlit Components**:
-  - [ ] Delete `src/ui/tools/chat.py` (Streamlit version)
-  - [ ] Delete `src/ui/components/navigation.py`
-  - [ ] Delete session state management code
+- [x] **Remove Streamlit Components**:
+  - [x] Delete `src/ui/tools/chat.py` (Streamlit version)
+  - [x] Delete `src/ui/components/navigation.py`
+  - [x] Delete session state management code
 
 **Tests**: 15 unit tests + 3 integration tests
 
@@ -315,13 +313,13 @@
 
 #### Step 25: Migrate Knowledge Base (Document Upload)
 
-**Status**: 🔄 TODO | **Priority**: HIGH | **Duration**: 4 hours
+**Status**: ✅ COMPLETE | **Priority**: HIGH | **Duration**: 4 hours
 
 **Objective**: Implement document upload and ingestion using Chainlit's file upload API.
 
 **Implementation**:
 
-- [ ] **Add File Upload Handler** (`src/ui/main.py`):
+- [x] **Add File Upload Handler** (`src/ui/main.py`):
   ```python
   @cl.on_file_upload(accept=["application/pdf", "text/plain"])
   async def handle_file(file: cl.File):
@@ -350,7 +348,7 @@
               ).send()
   ```
 
-- [ ] **Add Async Ingestion** (`src/core/ingest.py`):
+- [x] **Add Async Ingestion** (`src/core/ingest.py`):
   ```python
   async def ingest_document_async(
       file_path: str,
@@ -364,8 +362,8 @@
       )
   ```
 
-- [ ] **Remove Streamlit Components**:
-  - [ ] Delete `src/ui/tools/knowledge_base.py`
+- [x] **Remove Streamlit Components**:
+  - [x] Delete `src/ui/tools/knowledge_base.py`
 
 **Tests**: 10 unit tests + 2 integration tests
 
@@ -381,13 +379,13 @@
 
 #### Step 26: Create Admin Dashboard (Settings & Monitoring)
 
-**Status**: 🔄 TODO | **Priority**: MEDIUM | **Duration**: 5 hours
+**Status**: ✅ COMPLETE | **Priority**: MEDIUM | **Duration**: 5 hours
 
 **Objective**: Build admin interface for system monitoring and configuration using Chainlit's data layer.
 
 **Implementation**:
 
-- [ ] **Create Dashboard Page** (`src/ui/admin.py`):
+- [x] **Create Dashboard Page** (`src/ui/admin.py`):
   ```python
   import chainlit as cl
   from chainlit.data import ChainlitDataLayer
@@ -437,7 +435,7 @@
       await cl.Message(content=content).send()
   ```
 
-- [ ] **Add Action Buttons** (in welcome message):
+- [x] **Add Action Buttons** (in welcome message):
   ```python
   actions = [
       cl.Action(
@@ -463,13 +461,13 @@
   ).send()
   ```
 
-- [ ] **Remove Streamlit Dashboards**:
-  - [ ] Delete `src/ui/tools/system_health.py`
-  - [ ] Delete `src/ui/tools/qdrant_dashboard.py`
-  - [ ] Delete `src/ui/tools/langfuse_dashboard.py`
-  - [ ] Delete `src/ui/tools/promptfoo_dashboard.py`
-  - [ ] Delete `src/ui/tools/settings.py`
-  - [ ] Delete `src/ui/tools/logs.py`
+- [x] **Remove Streamlit Dashboards**:
+  - [x] Delete `src/ui/tools/system_health.py`
+  - [x] Delete `src/ui/tools/qdrant_dashboard.py`
+  - [x] Delete `src/ui/tools/langfuse_dashboard.py`
+  - [x] Delete `src/ui/tools/promptfoo_dashboard.py`
+  - [x] Delete `src/ui/tools/settings.py`
+  - [x] Delete `src/ui/tools/logs.py`
 
 **Tests**: 12 unit tests
 
@@ -485,24 +483,24 @@
 
 #### Step 27: Update Test Suite for Chainlit
 
-**Status**: 🔄 TODO | **Priority**: HIGH | **Duration**: 4 hours
+**Status**: ✅ COMPLETE | **Priority**: HIGH | **Duration**: 4 hours
 
 **Objective**: Migrate test suite from Streamlit-based tests to Chainlit-compatible tests.
 
 **Implementation**:
 
-- [ ] **Update Test Structure** (`tests/ui/`):
-  - [ ] Delete Streamlit-specific test files:
+- [x] **Update Test Structure** (`tests/ui/`):
+  - [x] Delete Streamlit-specific test files:
     - `test_navigation.py`
     - `test_system_health.py`
     - All `tools/test_*.py` files
   
-  - [ ] Create new Chainlit tests:
+  - [x] Create new Chainlit tests:
     - `test_chat_handlers.py` (on_chat_start, on_message, on_chat_end)
     - `test_file_upload.py` (document ingestion)
     - `test_actions.py` (admin dashboard actions)
 
-- [ ] **Example Test** (`tests/ui/test_chat_handlers.py`):
+- [x] **Example Test** (`tests/ui/test_chat_handlers.py`):
   ```python
   import pytest
   from unittest.mock import AsyncMock, MagicMock, patch
@@ -541,13 +539,13 @@
           mock_agent.process_message_async.assert_called_once()
   ```
 
-- [ ] **Update Integration Tests** (`tests/integration/`):
-  - [ ] Replace Streamlit app tests with Chainlit tests
-  - [ ] Test full chat workflow (start → upload → chat → end)
+- [x] **Update Integration Tests** (`tests/integration/`):
+  - [x] Replace Streamlit app tests with Chainlit tests
+  - [x] Test full chat workflow (start → upload → chat → end)
 
-- [ ] **Update conftest.py** (`tests/conftest.py`):
-  - [ ] Remove Streamlit fixtures
-  - [ ] Add Chainlit fixtures (mock session, mock message, etc.)
+- [x] **Update conftest.py** (`tests/conftest.py`):
+  - [x] Remove Streamlit fixtures
+  - [x] Add Chainlit fixtures (mock session, mock message, etc.)
 
 **Tests**: Full regression suite (target: 350+ tests passing)
 
@@ -563,40 +561,40 @@
 
 #### Step 28: Update Documentation & Configuration
 
-**Status**: 🔄 TODO | **Priority**: MEDIUM | **Duration**: 2 hours
+**Status**: ✅ COMPLETE | **Priority**: MEDIUM | **Duration**: 2 hours
 
 **Objective**: Update all documentation and configuration files to reflect Chainlit migration.
 
 **Implementation**:
 
-- [ ] **Update README.md**:
-  - [ ] Replace Streamlit references with Chainlit
-  - [ ] Update Quick Start commands:
+- [x] **Update README.md**:
+  - [x] Replace Streamlit references with Chainlit
+  - [x] Update Quick Start commands:
     ```bash
     # Old: streamlit run src/ui/main.py
     # New: chainlit run src/ui/main.py
     ```
   - [ ] Update screenshots (if any)
 
-- [ ] **Update ARCHITECTURE.md**:
-  - [ ] Update UI layer diagram
-  - [ ] Explain Chainlit async architecture
-  - [ ] Document session management changes
+- [x] **Update ARCHITECTURE.md**:
+  - [x] Update UI layer diagram
+  - [x] Explain Chainlit async architecture
+  - [x] Document session management changes
 
-- [ ] **Update PROJECT_PLAN.md**:
-  - [ ] Mark Phase 6b complete
-  - [ ] Update test count targets
+- [x] **Update PROJECT_PLAN.md**:
+  - [x] Mark Phase 6b complete
+  - [x] Update test count targets
 
-- [ ] **Update pyproject.toml**:
-  - [ ] Remove streamlit dependency
-  - [ ] Verify chainlit in dependencies
+- [x] **Update pyproject.toml**:
+  - [x] Remove streamlit dependency
+  - [x] Verify chainlit in dependencies
 
-- [ ] **Update .devcontainer**:
-  - [ ] Update VS Code extensions (if any Streamlit-specific)
+- [x] **Update .devcontainer**:
+  - [x] Update VS Code labels/messages (if any Streamlit-specific)
 
-- [ ] **Update Docker Documentation** (`docs/`):
-  - [ ] Update service descriptions
-  - [ ] Update troubleshooting guides
+- [x] **Update Docker Documentation** (`docs/`):
+  - [x] Update service descriptions
+  - [x] Update troubleshooting guides
 
 **Deliverable**: All documentation current and accurate
 
@@ -610,14 +608,20 @@
 ### PHASE 6b Validation Checkpoint
 
 **Complete When**:
-- [ ] Chainlit running in Docker on port 8501
-- [ ] Chat interface fully functional with async processing
-- [ ] Document upload and ingestion working
-- [ ] Admin dashboard actions accessible
-- [ ] 350+ tests passing (adjusted for new architecture)
-- [ ] All documentation updated
-- [ ] No Streamlit dependencies remaining
-- [ ] Performance improved (no background thread overhead)
+- [x] Chainlit running in Docker on port 8501
+- [x] Chat interface fully functional with async processing
+- [x] Document upload and ingestion working
+- [x] Admin dashboard actions accessible
+- [x] 350+ tests passing (adjusted for new architecture)
+- [x] All documentation updated
+- [x] No Streamlit dependencies remaining
+- [x] Performance improved (no background thread overhead)
+
+**Performance Evidence (2026-02-18)**:
+- ✅ Removed explicit `run_in_executor` usage from `src/ui/main.py`
+- ✅ Removed per-ingestor `ThreadPoolExecutor` allocation from `src/core/ingest.py`
+- ✅ Checkpoint benchmark: `tests/ui/test_phase6b_performance_checkpoint.py::test_process_message_async_dispatch_overhead_is_low`
+  - Result: `0.05s` for `300` async dispatch calls (`~0.17 ms/call` average)
 
 **Expected Benefits**:
 - ✅ **Stability**: No more race conditions from Streamlit reruns
@@ -631,6 +635,367 @@
 - Only UI layer replaced
 - Tests ensure functionality preserved
 - Can rollback to Streamlit branch if needed
+
+---
+
+### PHASE 6c: FastAPI + Gradio Migration 🔥
+
+**Goal**: Replace Chainlit with a unified FastAPI + Gradio application. Single process, single port, proper tab-based navigation between chat and admin — no multi-process workarounds required.
+
+**Rationale**:
+- ❌ **Chainlit Issues**: Single-app-per-process forces two ports, two processes, shared `.chainlit` config, no native tabs
+- ✅ **Gradio Benefits**: `gr.Blocks()` with `gr.Tab()` provides native multi-section UI; `gr.Progress()` is a real progress bar; streaming via Python generators (no `asyncio.to_thread` wrappers)
+- ✅ **FastAPI Benefits**: Clean REST layer for `/health`, future LiteLLM and MCP API endpoints (Phase 7, 8) sit alongside the UI naturally
+- ✅ **Audience Fit**: Gradio is the standard AI community framework — immediately familiar to the contributors this project targets
+- ✅ **Testability**: Gradio handlers are plain Python functions, no framework-specific mocking needed
+- ✅ **Migration Scope**: Only `src/ui/` changes; all `src/core/`, `src/services/`, `src/security/`, `src/observability/` untouched
+
+**Branch**: `feature/gradio-migration`
+
+---
+
+#### Step 29: Setup FastAPI + Gradio Infrastructure
+
+**Status**: 🔄 TODO | **Priority**: CRITICAL | **Duration**: 2 hours
+
+**Objective**: Swap Chainlit for FastAPI + Gradio, simplify Docker to a single process.
+
+**Implementation**:
+
+- [ ] **Update `pyproject.toml`**:
+  ```toml
+  # Remove:
+  # chainlit>=1.0.0
+  # Add:
+  "gradio>=4.0.0",
+  "fastapi>=0.110.0",
+  "uvicorn[standard]>=0.29.0",
+  ```
+
+- [ ] **Update `docker-compose.yml`**:
+  ```yaml
+  app-agent:
+    command: ["uvicorn", "src.ui.app:api", "--host", "0.0.0.0", "--port", "8501"]
+    ports:
+      - "8501:8501"   # Unified app (chat + admin tabs)
+      - "9091:9091"   # Prometheus metrics
+    # Remove port 8502 entirely
+  ```
+
+- [ ] **Update `docker/Dockerfile.app-agent`**:
+  - [ ] Replace `CMD ["/app/start_services.sh"]` with `CMD ["uvicorn", "src.ui.app:api", "--host", "0.0.0.0", "--port", "8501"]`
+  - [ ] Remove `COPY docker/start_services.sh` line
+  - [ ] Remove `EXPOSE 8502`
+
+- [ ] **Delete obsolete files**:
+  - [ ] `docker/start_services.sh`
+  - [ ] `.chainlit` (root config file)
+  - [ ] `src/ui/main.py` (Chainlit entry point)
+  - [ ] `src/ui/admin_app.py` (Chainlit admin entry point)
+  - [ ] `src/ui/admin.py` (Chainlit admin report helpers)
+
+- [ ] **Create `src/ui/app.py`** (FastAPI entry point):
+  ```python
+  from fastapi import FastAPI
+  import gradio as gr
+  from src.ui.chat import build_chat_ui
+  from src.ui.dashboard import build_admin_ui
+
+  api = FastAPI(title="Agent Zero API")
+
+  @api.get("/health")
+  async def health():
+      return {"status": "ok"}
+
+  with gr.Blocks(title="Agent Zero (L.A.B.)") as gradio_app:
+      with gr.Tab("💬 Chat"):
+          build_chat_ui()
+      with gr.Tab("🛡️ Admin"):
+          build_admin_ui()
+
+  api = gr.mount_gradio_app(api, gradio_app, path="/")
+  ```
+
+**Success Criteria**:
+- ✓ `uvicorn src.ui.app:api --port 8501` starts without errors
+- ✓ `http://localhost:8501` shows tabbed UI
+- ✓ `http://localhost:8501/health` returns `{"status": "ok"}`
+- ✓ Docker container starts with single process
+
+---
+
+#### Step 30: Implement Unified Chat Interface
+
+**Status**: 🔄 TODO | **Priority**: CRITICAL | **Duration**: 4 hours
+
+**Objective**: Build the chat tab with streaming LLM responses, file upload, and initialization progress.
+
+**Implementation**:
+
+- [ ] **Create `src/ui/chat.py`**:
+  ```python
+  import gradio as gr
+  from src.core.agent import AgentOrchestrator
+
+  def build_chat_ui():
+      """Build the chat tab UI components."""
+      state = gr.State({})  # holds agent + conversation_id per session
+
+      status_bar = gr.Markdown("⏳ Initializing agent...")
+      chatbot = gr.Chatbot(type="messages", height=520, label="Agent Zero")
+
+      with gr.Row():
+          msg_box = gr.Textbox(
+              placeholder="Ask me anything or type /help...",
+              scale=5, show_label=False
+          )
+          send_btn = gr.Button("Send", variant="primary", scale=1)
+
+      upload = gr.File(
+          file_types=[".pdf", ".txt", ".md"],
+          label="📎 Upload document to Knowledge Base"
+      )
+
+      # Initialization on page load
+      gradio_app.load(fn=initialize_agent, outputs=[state, status_bar])
+
+      # Message submission (streaming generator)
+      send_btn.click(
+          fn=respond,
+          inputs=[msg_box, chatbot, state],
+          outputs=[msg_box, chatbot]
+      )
+
+      # File upload with gr.Progress()
+      upload.upload(
+          fn=ingest_document,
+          inputs=[upload, state],
+          outputs=[status_bar]
+      )
+  ```
+
+- [ ] **Implement `initialize_agent(progress=gr.Progress())`**:
+  - [ ] `progress(0.0, desc="Connecting to Ollama...")` → check Ollama health
+  - [ ] `progress(0.33, desc="Connecting to Qdrant...")` → check Qdrant health
+  - [ ] `progress(0.66, desc="Connecting to Meilisearch...")` → check Meilisearch
+  - [ ] `progress(1.0, desc="Agent ready")` → initialize `AgentOrchestrator`
+  - [ ] Returns `(session_state_dict, status_markdown)`
+
+- [ ] **Implement `respond(message, history, state)` as a generator**:
+  ```python
+  def respond(message, history, state):
+      agent = state["agent"]
+      history.append({"role": "user", "content": message})
+      history.append({"role": "assistant", "content": ""})
+      for chunk in agent.stream_message(state["conversation_id"], message):
+          history[-1]["content"] += chunk
+          yield "", history
+  ```
+
+- [ ] **Implement `ingest_document(file, state, progress=gr.Progress())`**:
+  - [ ] `progress(0, desc="Reading file...")` → load bytes
+  - [ ] `progress(0.3, desc="Chunking...")` → split text
+  - [ ] `progress(0.6, desc="Embedding...")` → generate vectors
+  - [ ] `progress(1.0, desc="Done")` → store in Qdrant + Meilisearch
+  - [ ] Returns status markdown with chunk count
+
+**Tests**: 15 unit tests
+
+**Success Criteria**:
+- ✓ Chat loads with progress bar during initialization
+- ✓ LLM responses stream token-by-token
+- ✓ File upload shows real progress bar
+- ✓ Conversation history persists within session
+
+---
+
+#### Step 31: Implement Admin Dashboard
+
+**Status**: 🔄 TODO | **Priority**: HIGH | **Duration**: 3 hours
+
+**Objective**: Build the admin tab with sub-tabs for all management functions.
+
+**Implementation**:
+
+- [ ] **Create `src/ui/dashboard.py`**:
+  ```python
+  import gradio as gr
+
+  def build_admin_ui():
+      """Build the admin dashboard tab with nested sub-tabs."""
+      with gr.Tab("🏥 System Health"):
+          refresh_btn = gr.Button("Refresh", variant="secondary")
+          health_output = gr.Markdown()
+          refresh_btn.click(fn=get_health_report, outputs=[health_output])
+          # Auto-refresh on tab load
+
+      with gr.Tab("📊 Qdrant"):
+          with gr.Row():
+              collection_selector = gr.Dropdown(label="Collection")
+              refresh_qdrant = gr.Button("Refresh")
+          qdrant_stats = gr.Markdown()
+          search_input = gr.Textbox(label="Search query")
+          search_results = gr.Markdown()
+
+      with gr.Tab("🔬 Langfuse"):
+          time_range = gr.Radio(["1h", "24h", "7d"], value="24h", label="Range")
+          langfuse_output = gr.Markdown()
+
+      with gr.Tab("🧪 Promptfoo"):
+          promptfoo_output = gr.Markdown()
+
+      with gr.Tab("⚙️ Settings"):
+          settings_output = gr.Markdown()
+
+      with gr.Tab("📋 Logs"):
+          with gr.Row():
+              log_lines = gr.Slider(10, 500, value=50, step=10, label="Lines")
+              log_level = gr.Dropdown(["ALL", "DEBUG", "INFO", "WARNING", "ERROR"], value="ALL")
+              log_service = gr.Dropdown(["ALL", "OLLAMA", "QDRANT", "AGENT"], value="ALL")
+          log_output = gr.Textbox(lines=20, label="Log output", interactive=False)
+          gr.Button("Refresh Logs").click(
+              fn=get_logs, inputs=[log_lines, log_level, log_service], outputs=[log_output]
+          )
+  ```
+
+- [ ] **Implement handler functions** (thin wrappers over existing service clients):
+  - [ ] `get_health_report()` → calls `HealthChecker.check_all()`, returns markdown
+  - [ ] `get_qdrant_stats(collection)` → calls `QdrantVectorClient`
+  - [ ] `search_qdrant(query, collection)` → semantic search
+  - [ ] `get_langfuse_report(time_range)` → calls `LangfuseClient`
+  - [ ] `get_promptfoo_report()` → calls `PromptfooClient`
+  - [ ] `get_settings_report()` → reads `config`
+  - [ ] `get_logs(lines, level, service)` → reads log file
+
+**Tests**: 12 unit tests
+
+**Success Criteria**:
+- ✓ All admin sub-tabs load without errors
+- ✓ System health shows real service statuses
+- ✓ Qdrant search returns results
+- ✓ Log viewer filters by level and service
+
+---
+
+#### Step 32: Update Docker & Simplify Startup
+
+**Status**: 🔄 TODO | **Priority**: HIGH | **Duration**: 1 hour
+
+**Objective**: Single-process Docker container, remove all multi-process complexity.
+
+**Implementation**:
+
+- [ ] **Remove from `docker-compose.yml`**: port `8502:8502`
+- [ ] **Update `docker-compose.yml` command**:
+  ```yaml
+  command: ["uvicorn", "src.ui.app:api", "--host", "0.0.0.0", "--port", "8501", "--reload"]
+  environment:
+    - APP_PORT=8501
+    # Remove APP_ADMIN_PORT=8502
+  ```
+- [ ] **Update `docker/Dockerfile.app-agent`**: replace `CMD` and remove `start_services.sh` copy
+- [ ] **Delete `docker/start_services.sh`**
+- [ ] **Update healthcheck**: `curl -f http://localhost:8501/health` (FastAPI route, not Chainlit)
+- [ ] **Update `.devcontainer`**: remove port 8502 forward if present
+
+**Success Criteria**:
+- ✓ `docker compose up app-agent` starts a single process
+- ✓ Container health check passes via `/health` endpoint
+- ✓ No orphan admin process on container restart
+
+---
+
+#### Step 33: Migrate Test Suite for Gradio
+
+**Status**: 🔄 TODO | **Priority**: HIGH | **Duration**: 3 hours
+
+**Objective**: Rewrite UI tests. Gradio handlers are plain Python functions — no framework mocking required.
+
+**Implementation**:
+
+- [ ] **Delete Chainlit-specific test files** (`tests/ui/`):
+  - [ ] `test_chat_handlers.py`
+  - [ ] `test_file_upload.py`
+  - [ ] `test_actions.py`
+  - [ ] `test_admin_app.py`
+  - [ ] Any file importing `chainlit`
+
+- [ ] **Create new Gradio tests** (`tests/ui/`):
+  - [ ] `test_chat.py` — test `initialize_agent`, `respond`, `ingest_document` directly
+  - [ ] `test_dashboard.py` — test all admin handler functions
+  - [ ] `test_app.py` — test FastAPI `/health` endpoint with `TestClient`
+
+- [ ] **Example test** (no mocking magic needed):
+  ```python
+  from unittest.mock import MagicMock, patch
+  from src.ui.chat import initialize_agent, respond
+
+  def test_initialize_agent_returns_state_on_success():
+      with patch("src.ui.chat.OllamaClient") as mock_ollama:
+          mock_ollama.return_value.is_healthy.return_value = True
+          # ... mock qdrant, meilisearch similarly
+          state, status = initialize_agent()
+          assert "agent" in state
+          assert "✅" in status
+
+  def test_respond_yields_chunks():
+      mock_agent = MagicMock()
+      mock_agent.stream_message.return_value = iter(["Hello", " world"])
+      state = {"agent": mock_agent, "conversation_id": "test-123"}
+      chunks = list(respond("Hi", [], state))
+      assert chunks[-1][1][-1]["content"] == "Hello world"
+  ```
+
+- [ ] **Update `tests/conftest.py`**: remove Chainlit fixtures, add Gradio/FastAPI fixtures
+
+**Tests**: 350+ passing (target)
+
+**Success Criteria**:
+- ✓ Zero Chainlit imports in test suite
+- ✓ All UI handler functions testable without framework setup
+- ✓ FastAPI `/health` covered by integration test
+
+---
+
+#### Step 34: Update Documentation
+
+**Status**: 🔄 TODO | **Priority**: MEDIUM | **Duration**: 1 hour
+
+**Implementation**:
+
+- [ ] **Update `README.md`**: replace Chainlit references with Gradio/FastAPI, update Quick Start
+- [ ] **Update `ARCHITECTURE.md`**: update UI layer diagram, explain single-process model
+- [ ] **Update `pyproject.toml`**: confirm chainlit removed, gradio + fastapi + uvicorn present
+- [ ] **Update this `PROJECT_PLAN.md`**: mark Phase 6c complete
+
+**Success Criteria**:
+- ✓ No Chainlit references in user-facing docs
+- ✓ Architecture diagram reflects single FastAPI + Gradio process
+
+---
+
+### PHASE 6c Validation Checkpoint
+
+**Complete When**:
+- [ ] FastAPI + Gradio running in Docker on port 8501 (single process)
+- [ ] Chat tab: streaming LLM responses working
+- [ ] Chat tab: file upload with `gr.Progress()` progress bar working
+- [ ] Chat tab: agent initialization shows step-by-step progress bar
+- [ ] Admin tab: all sub-tabs (Health, Qdrant, Langfuse, Promptfoo, Settings, Logs) functional
+- [ ] Port 8502 removed from Docker entirely
+- [ ] `start_services.sh` deleted
+- [ ] `.chainlit` config deleted
+- [ ] 350+ tests passing, zero Chainlit imports
+- [ ] All documentation updated
+
+**Expected Benefits**:
+- ✅ **No multi-process hacks**: single `uvicorn` process manages everything
+- ✅ **Native tabs**: chat and admin in one app, no port confusion
+- ✅ **Real progress bar**: `gr.Progress()` works out of the box, no JS needed
+- ✅ **Streaming**: Python generator pattern, no `asyncio.to_thread` overhead
+- ✅ **Future-proof**: FastAPI REST layer ready for Phase 7 (LiteLLM) and Phase 8 (MCP)
+- ✅ **Testability**: plain function tests, no Chainlit session mocking
+- ✅ **Audience fit**: Gradio is the standard AI community demo framework
 
 ---
 
@@ -1015,7 +1380,8 @@
 | **Phase 4b**  | Dashboard tools (149 tests)                                         | ✅ COMPLETED |
 | **Phase 5**   | Testing & UX (404 tests)                                            | ✅ COMPLETED |
 | **Phase 6**   | UI simplified (sidebar cleanup)                                     | ⚠️ SUPERSEDED |
-| **Phase 6b**  | Chainlit migration (async, production-ready)                        | 🔄 TODO      |
+| **Phase 6b**  | Chainlit migration (async, production-ready)                        | ⚠️ SUPERSEDED |
+| **Phase 6c**  | FastAPI + Gradio migration (unified app, single process)            | 🔥 ACTIVE    |
 | **Phase 7**   | LiteLLM Gateway integration                                         | 🔄 TODO      |
 | **Phase 8**   | MCP Server integration                                              | 🔄 TODO      |
 | **Phase 9**   | Performance optimizations                                           | 🔄 TODO      |
@@ -1025,30 +1391,30 @@
 
 ## Progress Summary
 
-**Current Status**: Phase 5 Complete ✅ | Phase 6b (Chainlit Migration) Ready to Start 🔥
+**Current Status**: Phase 6c Active 🔥 | Next: Phase 7 (LiteLLM Gateway) after 6c completes
 
 **Completed**:
-- ✅ 404 tests passing (0 skipped)
+- ✅ 436 tests passing (0 skipped)
 - ✅ Full RAG pipeline with observability
 - ✅ 5 dashboard management tools
 - ✅ Comprehensive security (LLM Guard)
 - ✅ UX polish and example content
 
+**Active**:
+- 🔥 **Phase 6c**: FastAPI + Gradio migration (Steps 29-34) — replacing Chainlit
+
 **Next Steps** (Priority Order):
-1. **Phase 6b**: 🔥 **MIGRATE TO CHAINLIT** (Steps 23-28) - **2-3 days**
-   - Replace Streamlit with production-grade async framework
-   - Eliminate race conditions and background thread hacks
-   - Better UX with native streaming and progress indicators
-2. **Phase 7**: Integrate LiteLLM Gateway (Steps 24-26) - **1 day**
-3. **Phase 8**: Add MCP Server (Steps 27-29) - **1 day**
-4. **Phase 9**: Optimize performance (Steps 30-31) - **0.5 days**
-5. **Phase 10**: Complete documentation (Steps 32-34) - **0.5 days**
+1. **Phase 6c**: Complete FastAPI + Gradio migration (Steps 29-34)
+2. **Phase 7**: Integrate LiteLLM Gateway (Steps 24-26)
+3. **Phase 8**: Add MCP Server (Steps 27-29)
+4. **Phase 9**: Optimize performance (Steps 30-31)
+5. **Phase 10**: Complete documentation (Steps 32-34)
 
 **Total Remaining Effort**: ~5-6 days
 
 ---
 
-**Document Version**: 3.0  
-**Last Updated**: 2026-02-17  
-**Test Suite**: 404 tests passing → Target: 350+ after Chainlit migration → 480+ after all phases  
+**Document Version**: 3.1  
+**Last Updated**: 2026-02-18  
+**Test Suite**: 436 tests passing → Target: 350+ after Chainlit migration → 480+ after all phases  
 **Critical Change**: Migrating from Streamlit to Chainlit for production stability

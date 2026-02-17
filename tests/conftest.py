@@ -13,8 +13,9 @@ Usage:
 
 import sys
 import pytest
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock, MagicMock
 from datetime import datetime
+from types import SimpleNamespace
 
 
 # Install llm-guard mocks BEFORE any test imports
@@ -326,16 +327,96 @@ def sample_embeddings():
 
 
 # ============================================================================
-# Streamlit Mocking
+# Chainlit Mocking
 # ============================================================================
 
+
 @pytest.fixture
-def mock_streamlit():
-    """Create a mock Streamlit module."""
-    mock_st = MagicMock()
-    mock_st.session_state = {}
-    mock_st.cache_data = lambda ttl=None: lambda f: f  # Pass-through decorator
-    return mock_st
+def mock_chainlit(monkeypatch):
+    """Create a reusable Chainlit mock module for UI tests.
+
+    Returns:
+        dict: Test handles including module, session data, and created messages.
+    """
+    session_data: dict[str, object] = {}
+    created_messages: list[object] = []
+
+    def session_set(key: str, value: object) -> None:
+        session_data[key] = value
+
+    def session_get(key: str, default: object = None) -> object:
+        return session_data.get(key, default)
+
+    class MockMessage:
+        """Minimal awaitable Chainlit message mock."""
+
+        def __init__(self, content: str = "", actions=None, elements=None, author: str | None = None):
+            self.content = content
+            self.actions = actions or []
+            self.elements = elements or []
+            self.author = author
+            created_messages.append(self)
+
+        async def send(self):
+            return self
+
+        async def update(self):
+            return self
+
+    class MockStep:
+        """Minimal async context manager for Chainlit Step."""
+
+        def __init__(self, name: str = "", **kwargs):
+            self.name = name
+            self.type = kwargs.get("type", "tool")
+            self.output = ""
+            self.is_error = False
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc_value, traceback):
+            return False
+
+        async def update(self):
+            return None
+
+    class MockFile:
+        """Minimal file object used by upload handling tests."""
+
+        def __init__(self, name: str, content: bytes, size: int | None = None):
+            self.name = name
+            self.content = content
+            self.size = len(content) if size is None else size
+
+    def passthrough_decorator(func):
+        return func
+
+    def action_callback(_action_name: str):
+        return passthrough_decorator
+
+    def create_action(**kwargs):
+        return SimpleNamespace(**kwargs)
+
+    cl_module = SimpleNamespace(
+        Message=MockMessage,
+        Step=MockStep,
+        File=MockFile,
+        Action=create_action,
+        user_session=SimpleNamespace(set=session_set, get=session_get),
+        on_chat_start=passthrough_decorator,
+        on_message=passthrough_decorator,
+        on_chat_end=passthrough_decorator,
+        action_callback=action_callback,
+    )
+
+    monkeypatch.setitem(sys.modules, "chainlit", cl_module)
+
+    return {
+        "module": cl_module,
+        "session": session_data,
+        "messages": created_messages,
+    }
 
 
 # ============================================================================

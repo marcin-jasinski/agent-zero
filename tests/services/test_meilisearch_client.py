@@ -254,6 +254,18 @@ class TestMeilisearchClientGetIndexStats:
         assert stats["documents_count"] == 100
         assert stats["is_indexing"] is False
 
+    def test_get_index_stats_success_object_response(self, meilisearch_client):
+        """Test stats retrieval when SDK returns object with snake_case attrs."""
+        mock_index = Mock()
+        mock_stats = Mock(number_of_documents=50, is_indexing=True)
+        mock_index.get_stats.return_value = mock_stats
+        meilisearch_client.client.index.return_value = mock_index
+
+        stats = meilisearch_client.get_index_stats("test_index")
+
+        assert stats["documents_count"] == 50
+        assert stats["is_indexing"] is True
+
     def test_get_index_stats_not_found(self, meilisearch_client):
         """Test stats for non-existent index."""
         meilisearch_client.client.index.side_effect = Exception("Index not found")
@@ -290,6 +302,16 @@ class TestMeilisearchClientListIndexes:
         assert len(indexes) == 2
         assert "index1" in indexes
         assert "index2" in indexes
+
+    def test_list_indexes_success_object_results(self, meilisearch_client):
+        """Test successful index listing when SDK returns objects."""
+        idx1 = Mock(uid="index1")
+        idx2 = Mock(uid="index2")
+        meilisearch_client.client.get_indexes.return_value = {"results": [idx1, idx2]}
+
+        indexes = meilisearch_client.list_indexes()
+
+        assert indexes == ["index1", "index2"]
 
     def test_list_indexes_empty(self, meilisearch_client):
         """Test listing when no indexes exist."""

@@ -180,7 +180,7 @@ class TestQdrantClientSearch:
         """Test successful search."""
         mock_result1 = Mock(id=1, score=0.95, payload={"text": "doc1"})
         mock_result2 = Mock(id=2, score=0.85, payload={"text": "doc2"})
-        qdrant_client.client.search.return_value = [mock_result1, mock_result2]
+        qdrant_client.client.query_points.return_value = Mock(points=[mock_result1, mock_result2])
 
         results = qdrant_client.search(
             "test_collection",
@@ -195,7 +195,7 @@ class TestQdrantClientSearch:
 
     def test_search_empty_results(self, qdrant_client):
         """Test search with no results."""
-        qdrant_client.client.search.return_value = []
+        qdrant_client.client.query_points.return_value = Mock(points=[])
 
         results = qdrant_client.search(
             "test_collection",
@@ -208,7 +208,7 @@ class TestQdrantClientSearch:
     def test_search_with_score_threshold(self, qdrant_client):
         """Test search with score threshold."""
         mock_result = Mock(id=1, score=0.8, payload={})
-        qdrant_client.client.search.return_value = [mock_result]
+        qdrant_client.client.query_points.return_value = Mock(points=[mock_result])
 
         qdrant_client.search(
             "test_collection",
@@ -217,12 +217,12 @@ class TestQdrantClientSearch:
         )
 
         # Verify threshold was passed
-        call_args = qdrant_client.client.search.call_args
+        call_args = qdrant_client.client.query_points.call_args
         assert call_args[1]["score_threshold"] == 0.7
 
     def test_search_custom_limit(self, qdrant_client):
         """Test search with custom limit."""
-        qdrant_client.client.search.return_value = []
+        qdrant_client.client.query_points.return_value = Mock(points=[])
 
         qdrant_client.search(
             "test_collection",
@@ -230,12 +230,12 @@ class TestQdrantClientSearch:
             limit=100,
         )
 
-        call_args = qdrant_client.client.search.call_args
+        call_args = qdrant_client.client.query_points.call_args
         assert call_args[1]["limit"] == 100
 
     def test_search_failure(self, qdrant_client):
         """Test search failure."""
-        qdrant_client.client.search.side_effect = Exception("Search failed")
+        qdrant_client.client.query_points.side_effect = Exception("Search failed")
 
         results = qdrant_client.search(
             "test_collection",
@@ -246,7 +246,7 @@ class TestQdrantClientSearch:
 
     def test_search_collection_not_found(self, qdrant_client):
         """Test search in non-existent collection."""
-        qdrant_client.client.search.side_effect = Exception("Collection not found")
+        qdrant_client.client.query_points.side_effect = Exception("Collection not found")
 
         results = qdrant_client.search(
             "nonexistent",

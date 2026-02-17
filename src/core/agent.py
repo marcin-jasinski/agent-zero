@@ -4,6 +4,7 @@ This module implements the main agent that orchestrates retrieval,
 tool calling, and LLM invocation for multi-turn conversations.
 """
 
+import asyncio
 import json
 import logging
 from typing import Dict, List, Any, Optional, Callable
@@ -267,6 +268,29 @@ class AgentOrchestrator:
         except Exception as e:
             logger.error(f"Error processing message: {e}", exc_info=True)
             raise
+
+    async def process_message_async(
+        self,
+        conversation_id: str,
+        message: str,
+        use_retrieval: bool = True,
+    ) -> str:
+        """Asynchronously process a user message via a worker thread.
+
+        Args:
+            conversation_id: ID of the conversation.
+            message: User input text.
+            use_retrieval: Whether retrieval should be used.
+
+        Returns:
+            Agent response text with source attribution.
+        """
+        return await asyncio.to_thread(
+            self.process_message,
+            conversation_id,
+            message,
+            use_retrieval,
+        )
 
     def _retrieve_documents(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
         """Tool: Retrieve documents matching query.
