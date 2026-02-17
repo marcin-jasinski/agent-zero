@@ -43,6 +43,8 @@ def initialize_chat_session() -> None:
         st.session_state.processing_message = ""
     if "processing_start_time" not in st.session_state:
         st.session_state.processing_start_time = None
+    if "processing_last_warning_time" not in st.session_state:
+        st.session_state.processing_last_warning_time = None
 
 
 def _initialize_agent() -> tuple[bool, Optional[str]]:
@@ -77,6 +79,7 @@ def _initialize_agent() -> tuple[bool, Optional[str]]:
         st.session_state.conversation_id = st.session_state.agent.start_conversation()
         st.session_state.agent_initialized = True
         
+        logger.info(f"Agent initialized successfully: conversation_id={st.session_state.conversation_id}")
         return True, None
         
     except ImportError as e:
@@ -90,24 +93,26 @@ def _initialize_agent() -> tuple[bool, Optional[str]]:
         return False, f"Failed to initialize agent: {str(e)}"
 
 
-def _process_message(user_input: str) -> tuple[str, Optional[str]]:
+def _process_message(user_input: str, agent, conversation_id: str) -> tuple[str, Optional[str]]:
     """Process a message with the agent.
     
     Args:
         user_input: The user's message
+        agent: The AgentOrchestrator instance
+        conversation_id: The conversation ID
         
     Returns:
         Tuple of (response: str, error_message: Optional[str])
     """
     try:
         # Check if agent is initialized
-        if not hasattr(st.session_state, 'agent') or st.session_state.agent is None:
+        if agent is None:
             return "", "Agent not initialized. Please wait for the agent to start."
         
         start_time = time.time()
         
-        response = st.session_state.agent.process_message(
-            st.session_state.conversation_id,
+        response = agent.process_message(
+            conversation_id,
             user_input,
             use_retrieval=True
         )
@@ -128,17 +133,19 @@ def _process_message(user_input: str) -> tuple[str, Optional[str]]:
         return "", f"Error processing message: {str(e)}"
 
 
-def _background_process_wrapper(user_input: str) -> tuple[str, Optional[str]]:
+def _background_process_wrapper(user_input: str, agent, conversation_id: str) -> tuple[str, Optional[str]]:
     """Wrapper for background processing that catches all exceptions.
     
     Args:
         user_input: The user's message
+        agent: The AgentOrchestrator instance
+        conversation_id: The conversation ID
         
     Returns:
         Tuple of (response: str, error_message: Optional[str])
     """
     try:
-        return _process_message(user_input)
+        return _process_message(user_input, agent, conversation_id)
     except Exception as e:
         logger.error(f"Uncaught exception in background processing: {e}", exc_info=True)
         return "", f"Unexpected error: {str(e)}"
@@ -184,58 +191,131 @@ def render_chat_interface() -> None:
     # Initialize session state
     initialize_chat_session()
     
+    # Log current state for debugging
+    logger.debug(
+        f"Chat render - agent exists: {st.session_state.get('agent') is not None}, "
+        f"agent_initialized: {st.session_state.get('agent_initialized', False)}, "
+        f"init_attempted: {st.session_state.get('init_attempted', False)}, "
+        f"last_error: {st.session_state.get('last_error') is not None}"
+    )
+    
     # Auto-initialize agent on first load
-    if not st.session_state.agent_initialized and st.session_state.agent is None:
-        if st.session_state.last_error is None:  # Only try once unless user explicitly retries
+    if st.session_state.agent is None:
+        # Only try once per session unless user explicitly retries
+        if not st.session_state.get("init_attempted", False):
+            logger.info("Starting agent auto-initialization")
+            st.session_state.init_attempted = True
             with st.spinner("Initializing Agent Zero... (connecting to services)"):
                 success, error = _initialize_agent()
-                if not success:
+                if success:
+                    # Clear any stale errors from previous attempts
+                    st.session_state.last_error = None
+                    logger.info("Agent auto-initialization succeeded")
+                else:
                     st.session_state.last_error = error
-                st.rerun()  # Always rerun to update UI with new session state
+                    logger.warning(f"Agent auto-initialization failed: {error}")
+                st.rerun()
+        else:
+            logger.debug(f"Agent initialization already attempted, agent is None: {st.session_state.agent is None}")
     
     # Check for completed background processing
+    # Add safety check: ensure processing state is consistent
     if st.session_state.processing:
-        result = _check_processing_status()
-        if result is not None:
-            # Processing complete
-            response, error = result
-            
-            if error:
-                st.session_state.messages.append({
-                    "role": "error",
-                    "content": f"Warning: {error}"
-                })
-                st.session_state.last_error = error
-            else:
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    "content": response,
-                })
-                st.session_state.last_error = None
-            
-            # Clear processing state
+        # Guard: if processing flag is True but no future exists, reset state
+        if st.session_state.processing_future is None:
+            logger.warning("Processing flag set but no future found - resetting state")
             st.session_state.processing = False
-            st.session_state.processing_future = None
-            st.rerun()
+            st.session_state.processing_last_warning_time = None
         else:
-            # Still processing - show status and schedule refresh
-            elapsed = time.time() - st.session_state.processing_start_time
-            st.info(f"Agent is processing in background... ({elapsed:.1f}s elapsed). You can navigate to other tabs freely.")
-            time.sleep(2)  # Poll every 2 seconds
-            st.rerun()
+            result = _check_processing_status()
+            if result is not None:
+                # Processing complete
+                response, error = result
+                
+                if error:
+                    st.session_state.messages.append({
+                        "role": "error",
+                        "content": f"Warning: {error}"
+                    })
+                    st.session_state.last_error = error
+                else:
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "content": response,
+                    })
+                    st.session_state.last_error = None
+                
+                # Clear processing state
+                st.session_state.processing = False
+                st.session_state.processing_future = None
+                st.session_state.processing_last_warning_time = None
+                st.rerun()
+            else:
+                # Still processing - check if we should show a warning
+                elapsed = time.time() - st.session_state.processing_start_time
+                
+                # Determine if we should show a warning (every 60 seconds)
+                should_show_warning = False
+                if st.session_state.processing_last_warning_time is None:
+                    # First warning: show after 60 seconds
+                    if elapsed >= 60.0:
+                        should_show_warning = True
+                else:
+                    # Subsequent warnings: show every 60 seconds after last warning
+                    time_since_last_warning = time.time() - st.session_state.processing_last_warning_time
+                    if time_since_last_warning >= 60.0:
+                        should_show_warning = True
+                
+                if should_show_warning:
+                    # Show warning at the top with option to continue or cancel
+                    st.warning(
+                        f"⚠️ The agent is taking longer than expected.\n\n"
+                        f"**Elapsed time:** {elapsed:.1f} seconds\n\n"
+                        f"This might be a complex request. Would you like to continue waiting?"
+                    )
+                    col_continue, col_cancel = st.columns(2)
+                    with col_continue:
+                        if st.button("Continue Waiting", type="primary", use_container_width=True, key=f"continue_{int(elapsed)}"):
+                            # User wants to continue - mark this warning as shown
+                            st.session_state.processing_last_warning_time = time.time()
+                            logger.info(f"User chose to continue waiting (elapsed: {elapsed:.1f}s)")
+                            st.rerun()
+                    with col_cancel:
+                        if st.button("Cancel Request", use_container_width=True, key=f"cancel_{int(elapsed)}"):
+                            # User wants to cancel
+                            logger.info(f"User canceled processing after {elapsed:.1f}s")
+                            st.session_state.messages.append({
+                                "role": "error",
+                                "content": f"Request canceled by user after {elapsed:.1f}s."
+                            })
+                            # Try to cancel the future (may not work if already running)
+                            if st.session_state.processing_future:
+                                st.session_state.processing_future.cancel()
+                            # Clear processing state
+                            st.session_state.processing = False
+                            st.session_state.processing_future = None
+                            st.session_state.processing_last_warning_time = None
+                            st.rerun()
+                    st.divider()
+                # Continue rendering - show chat with processing indicator
     
-    # Display any previous errors
-    if st.session_state.last_error:
+    # Display errors only if agent is not initialized
+    if st.session_state.last_error and st.session_state.agent is None:
+        logger.warning(f"Displaying initialization error: {st.session_state.last_error}")
         st.error(f"Warning: {st.session_state.last_error}")
         col1, col2 = st.columns([1, 4])
         with col1:
             if st.button("Retry Connection", use_container_width=True):
                 st.session_state.last_error = None
                 st.session_state.agent_initialized = False
+                st.session_state.init_attempted = False
+                logger.info("User clicked retry button, resetting init_attempted flag")
                 if "agent" in st.session_state:
                     del st.session_state.agent
                 st.rerun()
         st.divider()
+    else:
+        logger.debug(f"Not displaying error - last_error: {st.session_state.last_error}, agent exists: {st.session_state.agent is not None}")
 
     # Create two columns: messages and sidebar
     col_main, col_sidebar = st.columns([4, 1])
@@ -264,6 +344,14 @@ def render_chat_interface() -> None:
                     elif role == "error":
                         with st.chat_message("assistant"):
                             st.error(content)
+                
+                # Show processing indicator if agent is working
+                if st.session_state.processing:
+                    with st.chat_message("assistant"):
+                        elapsed = time.time() - st.session_state.processing_start_time
+                        with st.spinner(f"Thinking... ({elapsed:.1f}s)"):
+                            time.sleep(1)  # Poll every second
+                        st.rerun()
             else:
                 st.info("No messages yet. Start a conversation!")
 
@@ -271,19 +359,24 @@ def render_chat_interface() -> None:
 
         # Input area
         st.subheader("Send Message")
+        
+        # Disable input during processing to prevent state corruption
+        is_processing = st.session_state.processing
+        
         user_input = st.text_area(
             "Your message:",
             value=st.session_state.user_input,
-            placeholder="Ask the agent a question or request...",
+            placeholder="Ask the agent a question or request..." if not is_processing else "Agent is processing...",
             height=100,
             label_visibility="collapsed",
             key="chat_input",
+            disabled=is_processing,
         )
 
         col_send, col_clear = st.columns([3, 1])
 
         with col_send:
-            if st.button("Send", use_container_width=True):
+            if st.button("Send", use_container_width=True, disabled=is_processing):
                 if user_input.strip():
                     # Store the message before clearing input
                     message_to_send = user_input.strip()
@@ -303,18 +396,24 @@ def render_chat_interface() -> None:
                         st.rerun()
                         return
 
-                    # Submit processing to background thread
+                    # Submit processing to background thread (pass agent and conversation_id explicitly)
                     st.session_state.processing = True
-                    st.session_state.processing_future = _executor.submit(_background_process_wrapper, message_to_send)
+                    st.session_state.processing_future = _executor.submit(
+                        _background_process_wrapper,
+                        message_to_send,
+                        st.session_state.agent,  # Pass agent directly
+                        st.session_state.conversation_id  # Pass conversation_id directly
+                    )
                     st.session_state.processing_message = message_to_send
                     st.session_state.processing_start_time = time.time()
+                    st.session_state.processing_last_warning_time = None  # Reset warning timer
 
                     st.rerun()
                 else:
                     st.warning("Please enter a message.")
 
         with col_clear:
-            if st.button("Clear", use_container_width=True):
+            if st.button("Clear", use_container_width=True, disabled=is_processing):
                 st.session_state.messages = []
                 st.session_state.last_error = None
                 st.rerun()

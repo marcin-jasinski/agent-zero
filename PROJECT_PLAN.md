@@ -1,10 +1,12 @@
 # Agent Zero (L.A.B.) - Implementation Plan
 
-**Status**: Phases 1-5 Complete ✅ | Phases 6-8 In Progress  
+**Status**: Phases 1-5 Complete ✅ | Phase 6b (Chainlit Migration) Ready 🔥  
 **Last Updated**: 2026-02-17  
 **Test Suite**: 404 tests passing, 0 skipped
 
 **⚠️ Project Context**: LOCAL DEVELOPMENT PLAYGROUND for AI agent experimentation. Not a production multi-user system.
+
+**🔥 Critical Update**: Migrating from Streamlit to Chainlit for production-grade async architecture.
 
 ---
 
@@ -31,17 +33,17 @@
 
 - **Orchestration**: Docker Compose v2+
 - **Language**: Python 3.11+
-- **Core Libraries**: LangChain, Streamlit, Pydantic, LLM Guard, Pytest
+- **Core Libraries**: LangChain, Chainlit, Pydantic, LLM Guard, Pytest
 - **Infrastructure**: Ollama (LLM), Qdrant (Vector DB), Meilisearch (Search), Langfuse (Observability), LiteLLM (Gateway), MCP Server
 - **Services**:
-  - `app-agent`: Python 3.11 + Streamlit (port 8501)
+  - `app-agent`: Python 3.11 + Chainlit (port 8501)
   - `ollama`: LLM inference (port 11434)
   - `qdrant`: Vector Database (port 6333)
   - `meilisearch`: Full-text Search (port 7700)
   - `postgres`: Langfuse backing DB (port 5432)
   - `langfuse`: Observability UI (port 3000)
-  - `litellm`: LLM Gateway (port 4000) - *Planned*
-  - `mcp-server`: Model Context Protocol (port 3001) - *Planned*
+  - `litellm`: LLM Gateway (port 4000) - *Planned Phase 7*
+  - `mcp-server`: Model Context Protocol (port 3001) - *Planned Phase 8*
 
 ---
 
@@ -133,46 +135,502 @@
 
 **Goal**: Clean up sidebar navigation by removing redundant service status display.
 
+**Status**: ⚠️ SUPERSEDED by Phase 6b (Chainlit Migration)
+
 ---
 
-#### Step 23: Simplify Sidebar Navigation (Remove Redundant Service Status)
+### PHASE 6b: Chainlit Migration 🔥
 
-**Status**: 🔄 TODO | **Priority**: HIGH
+**Goal**: Migrate from Streamlit to Chainlit for production-grade agent UI with true async support.
 
-**Objective**: Remove redundant "Service Status" section from sidebar since System Health tab provides the same information.
+**Rationale**:
+- ❌ **Streamlit Issues**: Rerun-based architecture causes race conditions, no true async, background thread hacks
+- ✅ **Chainlit Benefits**: Purpose-built for agents/chatbots, native async/await, streaming responses, better state management
+- ✅ **Production-Ready**: Used by LangChain, Anthropic, and major AI companies
+- ✅ **Migration Time**: 2-3 days (minimal code rewrite needed)
 
-**Current Problem**:
-- Sidebar shows: Core Tools, Management Tools, **Service Status section**, then System Health tab
-- Service Status section duplicates information from System Health tab
-- Takes up valuable sidebar space
-- Confusing for users (two places to check service health)
+**Branch**: `feature/chainlit-migration`
+
+---
+
+#### Step 23: Setup Chainlit Infrastructure
+
+**Status**: 🔄 TODO | **Priority**: CRITICAL | **Duration**: 4 hours
+
+**Objective**: Install Chainlit, update Docker configuration, and create basic app structure.
 
 **Implementation**:
 
-- [ ] **Remove Service Status Section** (`src/ui/components/navigation.py`):
-  - [ ] Delete `_render_service_status()` method or move its content to System Health tab only
-  - [ ] Remove service status rendering from sidebar navigation
-  - [ ] Keep only: Core Tools separator → Management Tools separator → Tool list
+- [ ] **Install Chainlit** (`pyproject.toml`):
+  ```toml
+  [tool.poetry.dependencies]
+  chainlit = "^1.0.0"
+  # Remove: streamlit = "^1.29.0"
+  ```
 
-- [ ] **Update System Health Tab** (`src/ui/tools/system_health.py`):
-  - [ ] Ensure it remains the single source of truth for service status
-  - [ ] Keep all existing functionality (service metrics, auto-refresh, etc.)
-  - [ ] Verify it's easily accessible from sidebar
+- [ ] **Update Docker Configuration** (`docker-compose.yml`):
+  ```yaml
+  app-agent:
+    # Change command
+    command: ["poetry", "run", "chainlit", "run", "src/ui/main.py", "--host", "0.0.0.0", "--port", "8501"]
+    # Keep same ports for compatibility
+  ```
 
-- [ ] **Update Tests** (`tests/ui/test_navigation.py`):
-  - [ ] Remove tests for service status in sidebar
-  - [ ] Verify System Health tab still renders correctly
-  - [ ] Update integration tests if needed
-  - [ ] **Target**: Maintain 13 tests passing
+- [ ] **Update Dockerfile** (`docker/Dockerfile.app-agent`):
+  - [ ] Update Python base image to 3.11-slim
+  - [ ] Update WORKDIR and COPY commands
+  - [ ] Keep same health check (port 8501)
 
-**Deliverable**: Cleaner, simpler sidebar with no redundant information
+- [ ] **Create Chainlit Config** (`.chainlit`):
+  ```toml
+  [project]
+  enable_telemetry = false
+  
+  [UI]
+  name = "Agent Zero (L.A.B.)"
+  default_collapse_content = false
+  
+  [meta]
+  generated_by = "1.0.0"
+  ```
+
+- [ ] **Update Configuration** (`src/config.py`):
+  ```python
+  class DashboardConfig(BaseSettings):
+      framework: str = Field(default="chainlit")  # was "streamlit"
+      # Remove Streamlit-specific configs
+  ```
+
+**Deliverable**: Chainlit installed, Docker configured, basic app structure created
 
 **Success Criteria**:
-- ✓ Sidebar shows only tool categories (Core, Management)
-- ✓ Service status visible only in System Health tab
-- ✓ No visual regression in UI
-- ✓ All existing tests pass
-- ✓ User can still easily check service health via System Health tab
+- ✓ `chainlit run src/ui/main.py` starts without errors
+- ✓ Docker container starts successfully
+- ✓ Port 8501 accessible
+- ✓ Health check passes
+
+---
+
+#### Step 24: Migrate Chat Interface (Core Feature)
+
+**Status**: 🔄 TODO | **Priority**: CRITICAL | **Duration**: 6 hours
+
+**Objective**: Rewrite chat interface using Chainlit's native APIs for better async handling.
+
+**Implementation**:
+
+- [ ] **Create Chainlit Main App** (`src/ui/main.py`):
+  ```python
+  import chainlit as cl
+  from src.core.agent import AgentOrchestrator
+  from src.core.retrieval import RetrievalEngine
+  
+  @cl.on_chat_start
+  async def start():
+      """Initialize agent when chat session starts."""
+      # Service health checks
+      await check_services()
+      
+      # Initialize agent
+      agent = AgentOrchestrator(
+          model_name=config.llm.model_name,
+          enable_guardrails=config.security.enable_llm_guard,
+          enable_observability=config.observability.enable_langfuse
+      )
+      
+      # Create conversation
+      conversation_id = agent.memory.create_conversation()
+      
+      # Store in session
+      cl.user_session.set("agent", agent)
+      cl.user_session.set("conversation_id", conversation_id)
+      
+      # Welcome message
+      await cl.Message(
+          content="👋 Welcome to Agent Zero! Ask me anything or upload documents to build your knowledge base.",
+          author="Agent Zero"
+      ).send()
+  
+  @cl.on_message
+  async def main(message: cl.Message):
+      """Process user messages with streaming response."""
+      agent = cl.user_session.get("agent")
+      conversation_id = cl.user_session.get("conversation_id")
+      
+      # Show thinking indicator
+      async with cl.Step(name="Thinking", type="llm") as step:
+          # Process message (with retrieval)
+          response = await agent.process_message_async(
+              conversation_id=conversation_id,
+              message=message.content,
+              use_retrieval=True
+          )
+          
+          step.output = response
+      
+      # Send response
+      await cl.Message(content=response).send()
+  
+  @cl.on_chat_end
+  async def end():
+      """Cleanup when chat ends."""
+      await cl.Message(content="Goodbye! 👋").send()
+  ```
+
+- [ ] **Add Async Support to Agent** (`src/core/agent.py`):
+  ```python
+  async def process_message_async(
+      self,
+      conversation_id: str,
+      message: str,
+      use_retrieval: bool = True
+  ) -> str:
+      """Async version of process_message for Chainlit."""
+      # Same logic but with async/await
+      return await asyncio.to_thread(
+          self.process_message,
+          conversation_id,
+          message,
+          use_retrieval
+      )
+  ```
+
+- [ ] **Remove Streamlit Components**:
+  - [ ] Delete `src/ui/tools/chat.py` (Streamlit version)
+  - [ ] Delete `src/ui/components/navigation.py`
+  - [ ] Delete session state management code
+
+**Tests**: 15 unit tests + 3 integration tests
+
+**Deliverable**: Fully functional chat interface with async message processing
+
+**Success Criteria**:
+- ✓ Chat loads without errors
+- ✓ User can send messages and receive responses
+- ✓ No background thread workarounds needed
+- ✓ Streaming responses work smoothly
+- ✓ Conversation history persists
+
+---
+
+#### Step 25: Migrate Knowledge Base (Document Upload)
+
+**Status**: 🔄 TODO | **Priority**: HIGH | **Duration**: 4 hours
+
+**Objective**: Implement document upload and ingestion using Chainlit's file upload API.
+
+**Implementation**:
+
+- [ ] **Add File Upload Handler** (`src/ui/main.py`):
+  ```python
+  @cl.on_file_upload(accept=["application/pdf", "text/plain"])
+  async def handle_file(file: cl.File):
+      """Handle document uploads for knowledge base."""
+      agent = cl.user_session.get("agent")
+      
+      # Show progress
+      async with cl.Step(name=f"Processing {file.name}", type="tool") as step:
+          try:
+              # Ingest document
+              result = await ingest_document_async(
+                  file_path=file.path,
+                  file_name=file.name
+              )
+              
+              step.output = f"✅ Ingested {result['chunks']} chunks"
+              
+              await cl.Message(
+                  content=f"Document '{file.name}' processed successfully! "
+                          f"{result['chunks']} chunks indexed."
+              ).send()
+          except Exception as e:
+              step.output = f"❌ Error: {str(e)}"
+              await cl.Message(
+                  content=f"Failed to process '{file.name}': {str(e)}"
+              ).send()
+  ```
+
+- [ ] **Add Async Ingestion** (`src/core/ingest.py`):
+  ```python
+  async def ingest_document_async(
+      file_path: str,
+      file_name: str
+  ) -> dict:
+      """Async wrapper for document ingestion."""
+      return await asyncio.to_thread(
+          ingest_document,
+          file_path,
+          file_name
+      )
+  ```
+
+- [ ] **Remove Streamlit Components**:
+  - [ ] Delete `src/ui/tools/knowledge_base.py`
+
+**Tests**: 10 unit tests + 2 integration tests
+
+**Deliverable**: Document upload with progress indicators
+
+**Success Criteria**:
+- ✓ Users can upload PDF and text files
+- ✓ Progress indicators show ingestion status
+- ✓ Error messages display clearly
+- ✓ Documents searchable after upload
+
+---
+
+#### Step 26: Create Admin Dashboard (Settings & Monitoring)
+
+**Status**: 🔄 TODO | **Priority**: MEDIUM | **Duration**: 5 hours
+
+**Objective**: Build admin interface for system monitoring and configuration using Chainlit's data layer.
+
+**Implementation**:
+
+- [ ] **Create Dashboard Page** (`src/ui/admin.py`):
+  ```python
+  import chainlit as cl
+  from chainlit.data import ChainlitDataLayer
+  
+  @cl.oauth_callback
+  async def oauth_callback(
+      provider_id: str,
+      token: str,
+      raw_user_data: dict,
+      default_user: cl.User
+  ) -> Optional[cl.User]:
+      """Admin authentication (optional)."""
+      # Simple password check for local use
+      return default_user
+  
+  @cl.action_callback("view_system_health")
+  async def on_action(action: cl.Action):
+      """Show system health when action clicked."""
+      health_status = await check_all_services()
+      
+      elements = []
+      for service, status in health_status.items():
+          icon = "✅" if status.is_healthy else "❌"
+          elements.append(
+              cl.Text(
+                  name=service,
+                  content=f"{icon} {service}: {status.message}",
+                  display="inline"
+              )
+          )
+      
+      await cl.Message(
+          content="System Health Status:",
+          elements=elements
+      ).send()
+  
+  @cl.action_callback("view_qdrant_collections")
+  async def on_qdrant_action(action: cl.Action):
+      """Show Qdrant collections."""
+      qdrant = QdrantClient()
+      collections = qdrant.list_collections()
+      
+      content = "## Qdrant Collections\n\n"
+      for coll in collections:
+          content += f"- **{coll.name}**: {coll.vectors_count} vectors\n"
+      
+      await cl.Message(content=content).send()
+  ```
+
+- [ ] **Add Action Buttons** (in welcome message):
+  ```python
+  actions = [
+      cl.Action(
+          name="view_system_health",
+          value="health",
+          label="📊 System Health"
+      ),
+      cl.Action(
+          name="view_qdrant_collections",
+          value="qdrant",
+          label="🗄️ Qdrant Status"
+      ),
+      cl.Action(
+          name="view_settings",
+          value="settings",
+          label="⚙️ Settings"
+      )
+  ]
+  
+  await cl.Message(
+      content="Welcome!",
+      actions=actions
+  ).send()
+  ```
+
+- [ ] **Remove Streamlit Dashboards**:
+  - [ ] Delete `src/ui/tools/system_health.py`
+  - [ ] Delete `src/ui/tools/qdrant_dashboard.py`
+  - [ ] Delete `src/ui/tools/langfuse_dashboard.py`
+  - [ ] Delete `src/ui/tools/promptfoo_dashboard.py`
+  - [ ] Delete `src/ui/tools/settings.py`
+  - [ ] Delete `src/ui/tools/logs.py`
+
+**Tests**: 12 unit tests
+
+**Deliverable**: Admin actions accessible via buttons in chat interface
+
+**Success Criteria**:
+- ✓ Action buttons appear in chat
+- ✓ System health displays correctly
+- ✓ Qdrant collections visible
+- ✓ Settings accessible
+
+---
+
+#### Step 27: Update Test Suite for Chainlit
+
+**Status**: 🔄 TODO | **Priority**: HIGH | **Duration**: 4 hours
+
+**Objective**: Migrate test suite from Streamlit-based tests to Chainlit-compatible tests.
+
+**Implementation**:
+
+- [ ] **Update Test Structure** (`tests/ui/`):
+  - [ ] Delete Streamlit-specific test files:
+    - `test_navigation.py`
+    - `test_system_health.py`
+    - All `tools/test_*.py` files
+  
+  - [ ] Create new Chainlit tests:
+    - `test_chat_handlers.py` (on_chat_start, on_message, on_chat_end)
+    - `test_file_upload.py` (document ingestion)
+    - `test_actions.py` (admin dashboard actions)
+
+- [ ] **Example Test** (`tests/ui/test_chat_handlers.py`):
+  ```python
+  import pytest
+  from unittest.mock import AsyncMock, MagicMock, patch
+  import chainlit as cl
+  from src.ui.main import start, main
+  
+  @pytest.mark.asyncio
+  async def test_chat_start_initializes_agent():
+      """Test that agent is initialized on chat start."""
+      with patch("src.ui.main.AgentOrchestrator") as mock_agent:
+          mock_agent.return_value = MagicMock()
+          
+          # Mock user session
+          cl.user_session.set = MagicMock()
+          
+          await start()
+          
+          # Verify agent initialized
+          assert cl.user_session.set.called
+          assert mock_agent.called
+  
+  @pytest.mark.asyncio
+  async def test_message_processing():
+      """Test message processing with agent."""
+      with patch("src.ui.main.cl.user_session.get") as mock_get:
+          mock_agent = MagicMock()
+          mock_agent.process_message_async = AsyncMock(return_value="Test response")
+          mock_get.side_effect = lambda key: {
+              "agent": mock_agent,
+              "conversation_id": "test-123"
+          }.get(key)
+          
+          message = MagicMock(content="Test message")
+          await main(message)
+          
+          mock_agent.process_message_async.assert_called_once()
+  ```
+
+- [ ] **Update Integration Tests** (`tests/integration/`):
+  - [ ] Replace Streamlit app tests with Chainlit tests
+  - [ ] Test full chat workflow (start → upload → chat → end)
+
+- [ ] **Update conftest.py** (`tests/conftest.py`):
+  - [ ] Remove Streamlit fixtures
+  - [ ] Add Chainlit fixtures (mock session, mock message, etc.)
+
+**Tests**: Full regression suite (target: 350+ tests passing)
+
+**Deliverable**: Comprehensive test coverage for Chainlit UI
+
+**Success Criteria**:
+- ✓ All UI tests passing with Chainlit
+- ✓ Integration tests cover chat workflow
+- ✓ Test coverage ≥80%
+- ✓ No Streamlit dependencies in test suite
+
+---
+
+#### Step 28: Update Documentation & Configuration
+
+**Status**: 🔄 TODO | **Priority**: MEDIUM | **Duration**: 2 hours
+
+**Objective**: Update all documentation and configuration files to reflect Chainlit migration.
+
+**Implementation**:
+
+- [ ] **Update README.md**:
+  - [ ] Replace Streamlit references with Chainlit
+  - [ ] Update Quick Start commands:
+    ```bash
+    # Old: streamlit run src/ui/main.py
+    # New: chainlit run src/ui/main.py
+    ```
+  - [ ] Update screenshots (if any)
+
+- [ ] **Update ARCHITECTURE.md**:
+  - [ ] Update UI layer diagram
+  - [ ] Explain Chainlit async architecture
+  - [ ] Document session management changes
+
+- [ ] **Update PROJECT_PLAN.md**:
+  - [ ] Mark Phase 6b complete
+  - [ ] Update test count targets
+
+- [ ] **Update pyproject.toml**:
+  - [ ] Remove streamlit dependency
+  - [ ] Verify chainlit in dependencies
+
+- [ ] **Update .devcontainer**:
+  - [ ] Update VS Code extensions (if any Streamlit-specific)
+
+- [ ] **Update Docker Documentation** (`docs/`):
+  - [ ] Update service descriptions
+  - [ ] Update troubleshooting guides
+
+**Deliverable**: All documentation current and accurate
+
+**Success Criteria**:
+- ✓ No mentions of Streamlit in user-facing docs
+- ✓ Quick Start guide works for new users
+- ✓ Architecture docs reflect new structure
+
+---
+
+### PHASE 6b Validation Checkpoint
+
+**Complete When**:
+- [ ] Chainlit running in Docker on port 8501
+- [ ] Chat interface fully functional with async processing
+- [ ] Document upload and ingestion working
+- [ ] Admin dashboard actions accessible
+- [ ] 350+ tests passing (adjusted for new architecture)
+- [ ] All documentation updated
+- [ ] No Streamlit dependencies remaining
+- [ ] Performance improved (no background thread overhead)
+
+**Expected Benefits**:
+- ✅ **Stability**: No more race conditions from Streamlit reruns
+- ✅ **Performance**: True async, no ThreadPoolExecutor hacks
+- ✅ **UX**: Native streaming responses, better progress indicators
+- ✅ **Maintainability**: Purpose-built framework, less defensive code
+- ✅ **Production-Ready**: Industry-standard agent UI
+
+**Migration Risk Assessment**: **LOW**
+- Core logic (agent, retrieval, services) unchanged
+- Only UI layer replaced
+- Tests ensure functionality preserved
+- Can rollback to Streamlit branch if needed
 
 ---
 
@@ -548,25 +1006,26 @@
 
 ### Summary Table
 
-| Phase        | Checkpoint                                                           | Status         |
-| ------------ | -------------------------------------------------------------------- | -------------- |
-| **Phase 1**  | Docker environment ready                                             | ✅ COMPLETED   |
-| **Phase 2**  | UI loads, services connected                                         | ✅ COMPLETED   |
-| **Phase 3**  | RAG pipeline end-to-end                                              | ✅ COMPLETED   |
-| **Phase 4**  | Security & observability                                             | ✅ COMPLETED   |
-| **Phase 4b** | Dashboard tools (149 tests)                                          | ✅ COMPLETED   |
-| **Phase 5**  | Testing & UX (404 tests)                                             | ✅ COMPLETED   |
-| **Phase 6**  | UI simplified (sidebar cleanup)                                      | 🔄 TODO        |
-| **Phase 7**  | LiteLLM Gateway integration                                          | 🔄 TODO        |
-| **Phase 8**  | MCP Server integration                                               | 🔄 TODO        |
-| **Phase 9**  | Performance optimizations                                            | 🔄 TODO        |
-| **Phase 10** | Comprehensive documentation                                          | 🔄 TODO        |
+| Phase         | Checkpoint                                                          | Status       |
+| ------------- | ------------------------------------------------------------------- | ------------ |
+| **Phase 1**   | Docker environment ready                                            | ✅ COMPLETED |
+| **Phase 2**   | UI loads, services connected                                        | ✅ COMPLETED |
+| **Phase 3**   | RAG pipeline end-to-end                                             | ✅ COMPLETED |
+| **Phase 4**   | Security & observability                                            | ✅ COMPLETED |
+| **Phase 4b**  | Dashboard tools (149 tests)                                         | ✅ COMPLETED |
+| **Phase 5**   | Testing & UX (404 tests)                                            | ✅ COMPLETED |
+| **Phase 6**   | UI simplified (sidebar cleanup)                                     | ⚠️ SUPERSEDED |
+| **Phase 6b**  | Chainlit migration (async, production-ready)                        | 🔄 TODO      |
+| **Phase 7**   | LiteLLM Gateway integration                                         | 🔄 TODO      |
+| **Phase 8**   | MCP Server integration                                              | 🔄 TODO      |
+| **Phase 9**   | Performance optimizations                                           | 🔄 TODO      |
+| **Phase 10**  | Comprehensive documentation                                         | 🔄 TODO      |
 
 ---
 
 ## Progress Summary
 
-**Current Status**: Phase 5 Complete ✅
+**Current Status**: Phase 5 Complete ✅ | Phase 6b (Chainlit Migration) Ready to Start 🔥
 
 **Completed**:
 - ✅ 404 tests passing (0 skipped)
@@ -575,16 +1034,21 @@
 - ✅ Comprehensive security (LLM Guard)
 - ✅ UX polish and example content
 
-**Next Steps**:
-1. **Phase 6**: Simplify sidebar navigation (Step 23)
-2. **Phase 7**: Integrate LiteLLM Gateway (Steps 24-26)
-3. **Phase 8**: Add MCP Server (Steps 27-29)
-4. **Phase 9**: Optimize performance (Steps 30-31)
-5. **Phase 10**: Complete documentation (Steps 32-34)
+**Next Steps** (Priority Order):
+1. **Phase 6b**: 🔥 **MIGRATE TO CHAINLIT** (Steps 23-28) - **2-3 days**
+   - Replace Streamlit with production-grade async framework
+   - Eliminate race conditions and background thread hacks
+   - Better UX with native streaming and progress indicators
+2. **Phase 7**: Integrate LiteLLM Gateway (Steps 24-26) - **1 day**
+3. **Phase 8**: Add MCP Server (Steps 27-29) - **1 day**
+4. **Phase 9**: Optimize performance (Steps 30-31) - **0.5 days**
+5. **Phase 10**: Complete documentation (Steps 32-34) - **0.5 days**
+
+**Total Remaining Effort**: ~5-6 days
 
 ---
 
-**Document Version**: 2.0  
+**Document Version**: 3.0  
 **Last Updated**: 2026-02-17  
-**Test Suite**: 404 tests passing → Target: 480+ after Phases 6-9  
-**New Features Planned**: UI cleanup, LiteLLM Gateway (multi-provider), MCP Server (modern tools), Smart Retrieval
+**Test Suite**: 404 tests passing → Target: 350+ after Chainlit migration → 480+ after all phases  
+**Critical Change**: Migrating from Streamlit to Chainlit for production stability
