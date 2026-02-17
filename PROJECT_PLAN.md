@@ -129,9 +129,9 @@
 
 ## Active Implementation Phases
 
-### PHASE 6: UI/UX Polish & Architecture Improvements
+### PHASE 6: UI Simplification
 
-**Goal**: Simplify UI, centralize LLM infrastructure, and add modern tool integration.
+**Goal**: Clean up sidebar navigation by removing redundant service status display.
 
 ---
 
@@ -176,7 +176,7 @@
 
 ---
 
-### PHASE 6a: LiteLLM Gateway Integration
+### PHASE 7: LiteLLM Gateway Integration
 
 **Goal**: Centralize LLM infrastructure using LiteLLM proxy for provider flexibility and unified guardrails.
 
@@ -304,7 +304,7 @@
 
 ---
 
-### PHASE 6a Validation Checkpoint
+### PHASE 7 Validation Checkpoint
 
 **Complete When**:
 - [ ] LiteLLM proxy service running and healthy
@@ -316,7 +316,7 @@
 
 ---
 
-### PHASE 6b: MCP Server Integration (Default-Enabled)
+### PHASE 8: MCP Server Integration (Default-Enabled)
 
 **Goal**: Add Model Context Protocol server to demonstrate modern tool architecture alongside traditional Python tools.
 
@@ -396,7 +396,7 @@
 
 ---
 
-### PHASE 6b Validation Checkpoint
+### PHASE 8 Validation Checkpoint
 
 **Complete When**:
 - [ ] MCP server running with 3 tools
@@ -406,7 +406,7 @@
 
 ---
 
-### PHASE 7: Intelligent Retrieval & Performance Optimization
+### PHASE 9: Intelligent Retrieval & Performance Optimization
 
 **Goal**: Optimize agent performance with smart retrieval routing and improve ingestion speed.
 
@@ -445,7 +445,7 @@
 
 ---
 
-### PHASE 7 Validation Checkpoint
+### PHASE 9 Validation Checkpoint
 
 **Complete When**:
 - [ ] General queries complete in 2-3s
@@ -455,7 +455,7 @@
 
 ---
 
-### PHASE 8: Comprehensive Documentation
+### PHASE 10: Comprehensive Documentation
 
 **Goal**: Create professional documentation for public release.
 
@@ -506,7 +506,7 @@
 
 ---
 
-### PHASE 8 Validation Checkpoint
+### PHASE 10 Validation Checkpoint
 
 **Complete When**:
 - [ ] README is comprehensive and public-ready
@@ -556,9 +556,11 @@
 | **Phase 4**  | Security & observability                                             | ✅ COMPLETED   |
 | **Phase 4b** | Dashboard tools (149 tests)                                          | ✅ COMPLETED   |
 | **Phase 5**  | Testing & UX (404 tests)                                             | ✅ COMPLETED   |
-| **Phase 6**  | UI simplified, LiteLLM, MCP                                          | 🔄 TODO        |
-| **Phase 7**  | Performance optimizations                                            | 🔄 TODO        |
-| **Phase 8**  | Comprehensive documentation                                          | 🔄 TODO        |
+| **Phase 6**  | UI simplified (sidebar cleanup)                                      | 🔄 TODO        |
+| **Phase 7**  | LiteLLM Gateway integration                                          | 🔄 TODO        |
+| **Phase 8**  | MCP Server integration                                               | 🔄 TODO        |
+| **Phase 9**  | Performance optimizations                                            | 🔄 TODO        |
+| **Phase 10** | Comprehensive documentation                                          | 🔄 TODO        |
 
 ---
 
@@ -574,13 +576,15 @@
 - ✅ UX polish and example content
 
 **Next Steps**:
-1. **Phase 6**: Simplify UI, integrate LiteLLM, add MCP Server
-2. **Phase 7**: Optimize retrieval performance
-3. **Phase 8**: Complete documentation for public release
+1. **Phase 6**: Simplify sidebar navigation (Step 23)
+2. **Phase 7**: Integrate LiteLLM Gateway (Steps 24-26)
+3. **Phase 8**: Add MCP Server (Steps 27-29)
+4. **Phase 9**: Optimize performance (Steps 30-31)
+5. **Phase 10**: Complete documentation (Steps 32-34)
 
 ---
 
 **Document Version**: 2.0  
 **Last Updated**: 2026-02-17  
-**Test Suite**: 404 tests passing → Target: 480+ after Phases 6-7  
-**New Features Planned**: LiteLLM Gateway (multi-provider), MCP Server (modern tools), Smart Retrieval
+**Test Suite**: 404 tests passing → Target: 480+ after Phases 6-9  
+**New Features Planned**: UI cleanup, LiteLLM Gateway (multi-provider), MCP Server (modern tools), Smart Retrieval
