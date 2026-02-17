@@ -191,9 +191,9 @@ def setup_logging() -> None:
     # Apply logging configuration
     logging.config.dictConfig(logging_config)
 
-    # Log startup message
+    # Log startup message at DEBUG level to avoid log flooding
     logger = logging.getLogger(__name__)
-    logger.info(
+    logger.debug(
         f"Logging configured: env={config.env}, "
         f"level={config.log_level}, format={config.log_format}"
     )

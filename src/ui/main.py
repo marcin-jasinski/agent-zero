@@ -37,8 +37,10 @@ from src.ui.tools import (
     render_system_health_dashboard,
 )
 
-# Configure logging
-setup_logging()
+# Configure logging (only once per session)
+if "logging_configured" not in st.session_state:
+    setup_logging()
+    st.session_state.logging_configured = True
 logger = logging.getLogger(__name__)
 
 # Configure Streamlit page

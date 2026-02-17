@@ -184,6 +184,15 @@ def render_chat_interface() -> None:
     # Initialize session state
     initialize_chat_session()
     
+    # Auto-initialize agent on first load
+    if not st.session_state.agent_initialized and "agent" not in st.session_state:
+        if st.session_state.last_error is None:  # Only try once unless user explicitly retries
+            with st.spinner("Initializing Agent Zero... (connecting to services)"):
+                success, error = _initialize_agent()
+                if not success:
+                    st.session_state.last_error = error
+                    st.rerun()
+    
     # Check for completed background processing
     if st.session_state.processing:
         result = _check_processing_status()
