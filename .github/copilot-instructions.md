@@ -173,3 +173,88 @@ For any new service or module:
 ### Coverage
 
 - Aim for high coverage on business logic (`services/`, `utils/`), not just boilerplate.
+
+## 8. Bugfixing Workflow (Test-Driven Bug Resolution)
+
+When a bug is reported or discovered, follow this systematic approach:
+
+### Mandatory Bugfix Process
+
+1. **Reproduce the Bug**
+   - [ ] Create a minimal test case that demonstrates the bug
+   - [ ] Document the expected vs actual behavior
+   - [ ] Identify the conditions that trigger the bug
+
+2. **Write a Failing Test FIRST**
+   - [ ] Before fixing anything, write a test that reproduces the bug
+   - [ ] The test must fail with the current code
+   - [ ] Test should be specific to the bug (not general)
+   - [ ] Include edge cases related to the bug
+
+3. **Fix the Bug**
+   - [ ] Implement the minimal fix to make the test pass
+   - [ ] Do not introduce unrelated changes
+   - [ ] Verify the test now passes
+   - [ ] Verify all existing tests still pass
+
+4. **Investigate Similar Bugs**
+   - [ ] Search codebase for similar patterns that might have the same issue
+   - [ ] Check related modules/functions for analogous bugs
+   - [ ] Review code that uses similar logic or data structures
+   - [ ] Add tests for potential similar bugs found
+
+5. **Review Existing Tests**
+   - [ ] Check why existing tests didn't catch this bug
+   - [ ] Identify gaps in test coverage
+   - [ ] Add missing test cases to prevent regression
+   - [ ] Update test documentation if needed
+
+6. **Document the Fix**
+   - [ ] Add clear commit message: `fix: <description>` (Conventional Commits)
+   - [ ] Reference issue number if applicable
+   - [ ] Add code comments explaining the fix if non-obvious
+   - [ ] Update docstrings if behavior changed
+
+### Example Bugfix Workflow
+
+```python
+# Step 1: Bug Report
+# "Agent crashes when KB is empty and user asks a question"
+
+# Step 2: Write Failing Test
+def test_agent_handles_empty_kb_gracefully():
+    """Test that agent doesn't crash when KB is empty."""
+    agent = AgentZero(config=test_config)
+    # Mock empty KB
+    with patch.object(agent.retrieval, 'retrieve_relevant_docs', return_value=[]):
+        response = agent.process_message("What is RAG?")
+        assert response is not None
+        assert "error" not in response.lower()
+
+# Step 3: Run test - it fails
+# Run: pytest tests/core/test_agent.py::test_agent_handles_empty_kb_gracefully
+
+# Step 4: Fix the bug in src/core/agent.py
+def process_message(self, message: str) -> str:
+    docs = self.retrieval.retrieve_relevant_docs(message)
+    if not docs:  # <-- Added this check
+        logger.warning("No documents found in KB")
+        context = "No relevant context available."
+    else:
+        context = self._format_context(docs)
+    # ... rest of logic
+
+# Step 5: Test passes now
+
+# Step 6: Investigate similar bugs
+# Check: ingest.py, retrieval.py for empty list handling
+# Add tests for those modules too
+```
+
+### Red Flags (NEVER Do This)
+
+- ❌ Fixing the bug without writing a test first
+- ❌ Skipping investigation of similar bugs
+- ❌ Marking existing tests as "skip" to make them pass
+- ❌ Changing test expectations to match buggy behavior
+- ❌ Committing without verifying all tests pass
