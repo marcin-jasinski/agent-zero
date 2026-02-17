@@ -154,7 +154,9 @@ class RetrievalEngine:
 
         Returns:
             List of RetrievalResult objects sorted by relevance score
-        """        search_start = time.time()        try:
+        """
+        search_start = time.time()
+        try:
             from src.config import get_config
             config = get_config()
             
