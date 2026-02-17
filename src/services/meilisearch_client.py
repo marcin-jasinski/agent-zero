@@ -96,6 +96,10 @@ class MeilisearchClient:
             logger.info(f"Index '{index_uid}' created")
             return True
         except Exception as e:
+            error_msg = str(e).lower()
+            if "already exists" in error_msg or "index_already_exists" in error_msg:
+                logger.info(f"Index '{index_uid}' already exists, skipping creation")
+                return True
             logger.error(f"Failed to create index: {e}")
             return False
 
