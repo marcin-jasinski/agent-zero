@@ -22,7 +22,7 @@ class TestToolDefinition:
         
         tool = ToolDefinition(
             key="test_tool",
-            icon="🔧",
+            icon=">",
             label="Test Tool",
             description="A test tool",
             render_func=mock_render,
@@ -31,7 +31,7 @@ class TestToolDefinition:
         )
         
         assert tool.key == "test_tool"
-        assert tool.icon == "🔧"
+        assert tool.icon == ">"
         assert tool.label == "Test Tool"
         assert tool.description == "A test tool"
         assert tool.render_func == mock_render
@@ -46,7 +46,7 @@ class TestToolDefinition:
         with pytest.raises(ValueError, match="Tool key cannot be empty"):
             ToolDefinition(
                 key="",
-                icon="🔧",
+                icon=">",
                 label="Test",
                 description="Test",
                 render_func=mock_render
@@ -57,7 +57,7 @@ class TestToolDefinition:
         with pytest.raises(ValueError, match="render_func must be callable"):
             ToolDefinition(
                 key="test",
-                icon="🔧",
+                icon=">",
                 label="Test",
                 description="Test",
                 render_func="not_callable"  # type: ignore
@@ -70,7 +70,7 @@ class TestToolDefinition:
         
         tool = ToolDefinition(
             key="test",
-            icon="🔧",
+            icon=">",
             label="Test",
             description="Test",
             render_func=mock_render
@@ -169,7 +169,7 @@ class TestSidebarNavigation:
         
         nav.register_tool(ToolDefinition(
             key="qdrant",
-            icon="🔍",
+            icon=">",
             label="Qdrant",
             description="Qdrant Manager",
             render_func=mock_render,

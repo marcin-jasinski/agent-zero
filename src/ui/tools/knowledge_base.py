@@ -259,7 +259,7 @@ def render_knowledge_base() -> None:
                                     })
                                     st.session_state.kb_last_error = None
                                     st.success(
-                                        f"✅ Document '{uploaded_file.name}' indexed successfully! "
+                                        f"Document '{uploaded_file.name}' indexed successfully! "
                                         f"({result.chunks_count} chunks in {result.duration_seconds:.1f}s)"
                                     )
                                     st.balloons()

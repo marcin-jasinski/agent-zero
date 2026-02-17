@@ -81,78 +81,6 @@ st.markdown(
 )
 
 
-def render_system_health_sidebar() -> None:
-    """Render service health status in sidebar (below navigation).
-    
-    This will eventually be replaced by the full System Health dashboard tool.
-    For now, provides quick status view in sidebar.
-    """
-    config = get_config()
-    
-    with st.sidebar:
-        st.divider()
-        st.subheader("Service Status")
-
-        # Initialize and run health checks
-        if "health_checker" not in st.session_state:
-            st.session_state.health_checker = HealthChecker()
-
-        health_checker = st.session_state.health_checker
-        service_statuses = health_checker.check_all()
-
-        # External URLs for browser access (localhost, not internal Docker hostnames)
-        # These are the ports exposed by docker-compose to the host machine
-        service_urls = {
-            "Ollama": "http://localhost:11434",
-            "Qdrant": "http://localhost:6333/dashboard",
-            "Meilisearch": "http://localhost:7700",
-            "Langfuse": "http://localhost:3000",
-        }
-        
-        for service_name, status in service_statuses.items():
-            status_indicator = "[OK]" if status.is_healthy else "[FAIL]"
-            status_text = "Healthy" if status.is_healthy else "Unhealthy"
-            
-            # Get URL for this service (if available)
-            service_url = service_urls.get(status.name, "")
-            
-            if service_url:
-                # Render as clickable link with status
-                st.markdown(
-                    f"{status_indicator} **{status.name}**: {status_text} "
-                    f"[Open]({service_url})",
-                    help=f"Click 'Open' to access {status.name} dashboard"
-                )
-            else:
-                st.write(f"{status_indicator} {status.name}: {status_text}")
-
-            if status.message:
-                st.caption(status.message)
-
-        st.divider()
-
-        # Quick Actions
-        col1, col2 = st.columns(2)
-
-        with col1:
-            if st.button("Refresh", use_container_width=True, key="refresh_health"):
-                # Clear health checker cache to force new checks
-                st.session_state.health_checker = HealthChecker()
-                st.rerun()
-
-        with col2:
-            if st.button("About", use_container_width=True, key="about_btn"):
-                st.info(
-                    f"**Agent Zero (L.A.B.)**\n\n"
-                    f"Version: {config.app_version}\n\n"
-                    f"Local Agent Builder - Build and test AI agents locally.\n\n"
-                    f"[GitHub](https://github.com/marcin-jasinski/agent-zero)"
-                )
-
-        st.divider()
-        st.caption("Agent Zero: Local-First, Secure-by-Design")
-
-
 def setup_navigation() -> SidebarNavigation:
     """Set up navigation with all available tools based on feature flags.
     
@@ -263,10 +191,9 @@ def render_sidebar_status() -> None:
     """Render the sidebar with system status and service health.
     
     DEPRECATED: This function is kept for backwards compatibility but is
-    no longer used with the new navigation system. Use render_system_health_sidebar()
-    and setup_navigation() instead.
+    no longer used with the new navigation system. Use the System Health
+    dashboard tool instead.
     """
-    """Render the sidebar with system status and service health."""
     with st.sidebar:
         st.header("System Status")
 
@@ -471,13 +398,8 @@ def main() -> None:
     # Setup navigation
     nav = setup_navigation()
     
-    # Render navigation sidebar
+    # Render navigation sidebar and active tool content
     nav.render_sidebar()
-    
-    # Render system health in sidebar (below navigation)
-    render_system_health_sidebar()
-    
-    # Main Content Area - render active tool content directly
     nav.render_active_tool()
 
     # Footer
