@@ -185,13 +185,13 @@ def render_chat_interface() -> None:
     initialize_chat_session()
     
     # Auto-initialize agent on first load
-    if not st.session_state.agent_initialized and "agent" not in st.session_state:
+    if not st.session_state.agent_initialized and st.session_state.agent is None:
         if st.session_state.last_error is None:  # Only try once unless user explicitly retries
             with st.spinner("Initializing Agent Zero... (connecting to services)"):
                 success, error = _initialize_agent()
                 if not success:
                     st.session_state.last_error = error
-                    st.rerun()
+                st.rerun()  # Always rerun to update UI with new session state
     
     # Check for completed background processing
     if st.session_state.processing:
@@ -294,18 +294,14 @@ def render_chat_interface() -> None:
                     # Add user message to history
                     st.session_state.messages.append({"role": "user", "content": message_to_send})
 
-                    # Initialize agent if needed
-                    if not st.session_state.agent_initialized or "agent" not in st.session_state:
-                        with st.spinner("Initializing Agent Zero... (connecting to services)"):
-                            success, error = _initialize_agent()
-                            if not success:
-                                st.session_state.last_error = error
-                                st.session_state.messages.append({
-                                    "role": "error",
-                                    "content": f"Warning: {error}"
-                                })
-                                st.rerun()
-                                return
+                    # Check if agent is ready (should already be initialized by auto-init)
+                    if st.session_state.agent is None:
+                        st.session_state.messages.append({
+                            "role": "error",
+                            "content": "Agent not initialized. Please refresh the page and try again."
+                        })
+                        st.rerun()
+                        return
 
                     # Submit processing to background thread
                     st.session_state.processing = True
