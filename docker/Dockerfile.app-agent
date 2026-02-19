@@ -47,18 +47,14 @@ RUN useradd -m -u 1000 agentuser && \
     mkdir -p /app/data /app/logs && \
     chown -R agentuser:agentuser /app
 
-# Copy application code and startup script
+# Copy application code
 COPY --chown=agentuser:agentuser src /app/src
 COPY --chown=agentuser:agentuser pyproject.toml /app/
-COPY --chown=agentuser:agentuser docker/start_services.sh /app/start_services.sh
-
-# Make startup script executable (must happen as root, before USER switch)
-RUN chmod +x /app/start_services.sh
 
 # Switch to non-root user
 USER agentuser
 
-# Health check for Chainlit Chat UI
+# Health check — FastAPI /health endpoint (served by uvicorn)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:8501/health || exit 1
 
@@ -66,12 +62,10 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 ENV APP_ENV=development \
     APP_DEBUG=true \
     APP_HOST=0.0.0.0 \
-    APP_PORT=8501 \
-    APP_ADMIN_PORT=8502
+    APP_PORT=8501
 
-# Expose both Chainlit ports
+# Single port — Gradio UI + FastAPI REST on 8501
 EXPOSE 8501
-EXPOSE 8502
 
-# Entry point: start Chat UI (8501) + Admin Dashboard (8502)
-CMD ["/app/start_services.sh"]
+# Entry point: single uvicorn process
+CMD ["uvicorn", "src.ui.app:api", "--host", "0.0.0.0", "--port", "8501"]

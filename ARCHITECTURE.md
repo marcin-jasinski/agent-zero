@@ -2,11 +2,11 @@
 
 ## Overview
 
-Agent Zero follows a local-first, single-user architecture centered on a Chainlit-based A.P.I. interface and Python service orchestration.
+Agent Zero follows a local-first, single-user architecture centered on a FastAPI + Gradio A.P.I. interface and Python service orchestration.
 
 ## Runtime Components
 
-- A.P.I. UI: Chainlit app in `src/ui/main.py` (port 8501)
+- A.P.I. UI: FastAPI + Gradio app in `src/ui/app.py` (port 8501 — Chat tab + Admin tab)
 - Agent orchestration: `src/core/agent.py`
 - Retrieval engine: `src/core/retrieval.py`
 - Ingestion pipeline: `src/core/ingest.py`
@@ -25,16 +25,16 @@ Agent Zero follows a local-first, single-user architecture centered on a Chainli
 
 ## Request Flow
 
-1. User sends a message in Chainlit.
-2. `src/ui/main.py` resolves session agent and conversation context.
+1. User sends a message in the Gradio Chat tab.
+2. `src/ui/chat.py:respond()` resolves session state and conversation context.
 3. Agent processes input, applies guardrails, and retrieves supporting chunks.
 4. Ollama generates a response through orchestrator logic.
-5. Response is formatted with source context and returned to Chainlit.
+5. Response is streamed back to the Gradio Chatbot component.
 6. Metrics/traces are emitted to observability backends.
 
 ## Document Ingestion Flow
 
-1. User uploads `pdf`, `txt`, or `md` file in Chainlit.
+1. User uploads `pdf`, `txt`, or `md` file in the Gradio Chat tab.
 2. UI triggers async ingestion path.
 3. Ingestor extracts/chunks content and generates embeddings.
 4. Chunks are indexed in Qdrant and Meilisearch.
@@ -42,16 +42,17 @@ Agent Zero follows a local-first, single-user architecture centered on a Chainli
 
 ## Session Management
 
-Chainlit `user_session` stores per-conversation runtime objects:
+Gradio `gr.State` stores per-browser-tab runtime objects:
 
 - `agent`: `AgentOrchestrator` instance
 - `conversation_id`: active conversation key
-- `ingestor`: lazily initialized `DocumentIngestor`
-- `agent_initialized`: readiness flag
+- `ollama`, `qdrant`, `meilisearch`: service client references
+
+The state is populated by `initialize_agent()` which is wired to the Gradio `blocks.load` event.
 
 ## Deployment Topology
 
-Docker Compose is the canonical runtime topology for local development. The `app-agent` service hosts the Chainlit UI and internal Python orchestration code, while data and model services run as sibling containers on the same internal network.
+Docker Compose is the canonical runtime topology for local development. The `app-agent` service runs `uvicorn src.ui.app:api --port 8501` which serves both the Gradio UI and the FastAPI REST layer, while data and model services run as sibling containers on the same internal network.
 
 ## Security Notes
 
