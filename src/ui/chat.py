@@ -198,7 +198,9 @@ def ingest_document(
     """Ingest an uploaded document into the knowledge base.
 
     Args:
-        file: Gradio file upload object with `.name` (temp path) attribute.
+        file: Gradio 6 returns a plain ``str`` file path when
+              ``gr.File(type='filepath')`` (the default).  Older Gradio versions
+              returned an object with a ``.name`` attribute — both are handled.
         state: Per-session state dict containing service clients.
         progress: Gradio progress tracker injected automatically.
 
@@ -214,7 +216,8 @@ def ingest_document(
     try:
         from src.core.ingest import DocumentIngestor
 
-        file_path = Path(file.name)
+        # Gradio 6: gr.File returns a str path; older versions returned an object.
+        file_path = Path(file) if isinstance(file, str) else Path(file.name)
         filename = file_path.name
         ext = file_path.suffix.lower()
 
@@ -288,14 +291,15 @@ def build_chat_ui() -> tuple[gr.State, gr.Markdown]:
     status_bar = gr.Markdown("⏳ Initializing agent, please wait…")
 
     # Main chat window
+    # NOTE: Gradio 6 removed the `type` param (messages format is now default).
+    # `show_copy_button` was replaced by `buttons`; `bubble_full_width` was removed.
     chatbot = gr.Chatbot(
         value=[],
-        type="messages",
         height=520,
         label="Agent Zero",
         avatar_images=(None, "https://raw.githubusercontent.com/gradio-app/gradio/main/guides/assets/logo.svg"),
-        show_copy_button=True,
-        bubble_full_width=False,
+        buttons=["copy"],
+        layout="bubble",
     )
 
     # Input row

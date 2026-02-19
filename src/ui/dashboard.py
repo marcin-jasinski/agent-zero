@@ -465,7 +465,6 @@ def build_admin_ui() -> None:
             lines=24,
             label="Log output",
             interactive=False,
-            show_copy_button=True,
         )
         logs_btn.click(
             fn=get_logs,
