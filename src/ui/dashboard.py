@@ -380,20 +380,20 @@ def build_admin_ui() -> None:
     context.
     """
     # ---- System Health --------------------------------------------------
-    with gr.Tab("🏥 System Health"):
+    with gr.Tab("🏥 System Health") as tab_health:
         health_btn = gr.Button("🔄 Refresh", variant="secondary")
-        health_out = gr.Markdown("*Click Refresh to check service health.*")
+        health_out = gr.Markdown("*Loading…*")
         health_btn.click(fn=get_health_report, outputs=[health_out])
 
     # ---- Qdrant ---------------------------------------------------------
-    with gr.Tab("📊 Qdrant"):
+    with gr.Tab("📊 Qdrant") as tab_qdrant:
         with gr.Row():
             collection_dd = gr.Dropdown(
                 choices=[], label="Collection", interactive=True, scale=4
             )
             refresh_qdrant_btn = gr.Button("🔄 Refresh", scale=1)
 
-        qdrant_stats = gr.Markdown("*Click Refresh to load collections.*")
+        qdrant_stats = gr.Markdown("*Loading…*")
 
         gr.Markdown("### 🔎 Semantic Search")
         with gr.Row():
@@ -418,12 +418,12 @@ def build_admin_ui() -> None:
         )
 
     # ---- Langfuse -------------------------------------------------------
-    with gr.Tab("🔬 Langfuse"):
+    with gr.Tab("🔬 Langfuse") as tab_langfuse:
         time_range = gr.Radio(
             choices=["1h", "24h", "7d"], value="24h", label="Time range"
         )
         langfuse_btn = gr.Button("🔄 Refresh", variant="secondary")
-        langfuse_out = gr.Markdown("*Click Refresh to load observability data.*")
+        langfuse_out = gr.Markdown("*Loading…*")
         langfuse_btn.click(
             fn=get_langfuse_report,
             inputs=[time_range],
@@ -431,19 +431,19 @@ def build_admin_ui() -> None:
         )
 
     # ---- Promptfoo ------------------------------------------------------
-    with gr.Tab("🧪 Promptfoo"):
+    with gr.Tab("🧪 Promptfoo") as tab_promptfoo:
         promptfoo_btn = gr.Button("🔄 Refresh", variant="secondary")
-        promptfoo_out = gr.Markdown("*Click Refresh to load test suite summary.*")
+        promptfoo_out = gr.Markdown("*Loading…*")
         promptfoo_btn.click(fn=get_promptfoo_report, outputs=[promptfoo_out])
 
     # ---- Settings -------------------------------------------------------
-    with gr.Tab("⚙️ Settings"):
+    with gr.Tab("⚙️ Settings") as tab_settings:
         settings_btn = gr.Button("🔄 Refresh", variant="secondary")
-        settings_out = gr.Markdown(get_settings_report())  # load on startup
+        settings_out = gr.Markdown("*Loading…*")
         settings_btn.click(fn=get_settings_report, outputs=[settings_out])
 
     # ---- Logs -----------------------------------------------------------
-    with gr.Tab("📋 Logs"):
+    with gr.Tab("📋 Logs") as tab_logs:
         with gr.Row():
             log_lines_sl = gr.Slider(
                 minimum=10, maximum=500, value=50, step=10, label="Lines", scale=2
@@ -466,8 +466,28 @@ def build_admin_ui() -> None:
             label="Log output",
             interactive=False,
         )
+
+        def _refresh_logs(lines: int, level: str, service: str) -> str:
+            return get_logs(lines, level, service)
+
         logs_btn.click(
-            fn=get_logs,
+            fn=_refresh_logs,
             inputs=[log_lines_sl, log_level_dd, log_service_dd],
             outputs=[log_output],
         )
+
+    # -----------------------------------------------------------------------
+    # Auto-load on tab select
+    # -----------------------------------------------------------------------
+    tab_health.select(fn=get_health_report, outputs=[health_out])
+    tab_qdrant.select(fn=_refresh_qdrant, outputs=[qdrant_stats, collection_dd])
+    tab_langfuse.select(
+        fn=get_langfuse_report, inputs=[time_range], outputs=[langfuse_out]
+    )
+    tab_promptfoo.select(fn=get_promptfoo_report, outputs=[promptfoo_out])
+    tab_settings.select(fn=get_settings_report, outputs=[settings_out])
+    tab_logs.select(
+        fn=_refresh_logs,
+        inputs=[log_lines_sl, log_level_dd, log_service_dd],
+        outputs=[log_output],
+    )
