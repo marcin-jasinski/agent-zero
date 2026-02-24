@@ -72,6 +72,15 @@ class RetrievalEngine:
             raise ValueError("Query cannot be empty")
 
         try:
+            # Cheap guard: skip embedding generation when the KB is empty.
+            # get_collection() is an O(1) metadata call that avoids wasting
+            # ~1 second on the embedding model for every conversational message.
+            from src.config import get_config as _get_config
+            _collection = _get_config().qdrant.collection_name
+            if not self.qdrant_client.has_documents(_collection):
+                logger.debug("Knowledge base is empty — skipping retrieval")
+                return []
+
             if hybrid:
                 return self._hybrid_search(query, top_k)
             else:

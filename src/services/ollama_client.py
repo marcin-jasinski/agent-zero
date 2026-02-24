@@ -5,7 +5,7 @@ Handles communication with Ollama for LLM inference and embeddings.
 
 import json
 import logging
-from typing import Optional
+from typing import Callable, Optional
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -120,25 +120,33 @@ class OllamaClient:
         temperature: float = 0.7,
         top_p: float = 0.9,
         max_tokens: Optional[int] = None,
+        on_token: Optional[Callable[[str], None]] = None,
     ) -> str:
         """Generate text using Ollama.
 
+        When *on_token* is provided the request is made with ``stream=True``
+        and each token chunk is forwarded to the callback as it arrives,
+        enabling real-time streaming in the UI.  The full response string is
+        still returned for downstream processing.
+
         Args:
-            model: Model name (e.g., 'ministral-3:3b')
+            model: Model name (e.g., 'qwen3:4b')
             prompt: Input prompt
             system: System prompt/instructions
             temperature: Sampling temperature (0-2)
             top_p: Nucleus sampling parameter (0-1)
             max_tokens: Maximum tokens to generate
+            on_token: Optional callback invoked with each streamed token chunk.
+                      When provided, streaming mode is enabled automatically.
 
         Returns:
-            Generated text
+            Generated text (full response, regardless of streaming mode)
         """
         try:
             payload = {
                 "model": model,
                 "prompt": prompt,
-                "stream": False,
+                "stream": on_token is not None,
                 "temperature": temperature,
                 "top_p": top_p,
             }
@@ -149,8 +157,35 @@ class OllamaClient:
             if max_tokens:
                 payload["options"] = {"num_predict": max_tokens}
 
-            data = self._make_request("post", "/api/generate", json=payload)
-            return data.get("response", "")
+            if on_token is None:
+                # Non-streaming path — single JSON response
+                data = self._make_request("post", "/api/generate", json=payload)
+                return data.get("response", "")
+
+            # Streaming path — Ollama returns NDJSON, one chunk per line
+            url = f"{self.base_url}/api/generate"
+            response = self.session.post(
+                url, json=payload, timeout=self.timeout, stream=True
+            )
+            response.raise_for_status()
+
+            accumulated = []
+            for line in response.iter_lines():
+                if not line:
+                    continue
+                try:
+                    chunk = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                token = chunk.get("response", "")
+                if token:
+                    accumulated.append(token)
+                    on_token(token)
+                if chunk.get("done", False):
+                    break
+
+            return "".join(accumulated)
+
         except Exception as e:
             logger.error(f"Text generation failed: {e}")
             raise
@@ -180,27 +215,34 @@ class OllamaClient:
             logger.error(f"Embedding generation failed: {e}")
             raise
 
-    def warm_up(self, model: str) -> bool:
+    def warm_up(self, model: str, timeout: int = 300) -> bool:
         """Warm up/preload a model into memory.
 
         Sends a minimal generation request to load the model weights into memory,
-        reducing latency on the first real user request.
+        reducing latency on the first real user request. Large models (e.g.
+        qwen3:4b) can take 60+ seconds to transfer from disk to GPU VRAM, so
+        a dedicated timeout of 300 s is used instead of the default request
+        timeout.
 
         Args:
             model: Model name to warm up
+            timeout: Request timeout in seconds (default 300 to accommodate
+                     large model load times)
 
         Returns:
             True if successful, False otherwise
         """
         try:
-            logger.info(f"Warming up model '{model}'...")
+            logger.info(f"Warming up model '{model}' (timeout={timeout}s)...")
+            url = f"{self.base_url}/api/generate"
             payload = {
                 "model": model,
                 "prompt": "Hello",
                 "stream": False,
                 "options": {"num_predict": 1},  # Generate minimal output
             }
-            self._make_request("post", "/api/generate", json=payload)
+            response = self.session.post(url, json=payload, timeout=timeout)
+            response.raise_for_status()
             logger.info(f"Model '{model}' warmed up successfully")
             return True
         except Exception as e:

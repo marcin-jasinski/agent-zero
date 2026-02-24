@@ -242,6 +242,12 @@ class AgentOrchestrator:
                 },
             )
 
+            # When streaming: push the source-attribution footer to the UI
+            # callback so it appears inline rather than being silently dropped.
+            if stream_callback and sources:
+                footer = "\n\n**Sources:**\n" + "\n".join(f"- {s}" for s in sources)
+                stream_callback(footer)
+
             # Track agent decision in Langfuse
             self.observability.track_agent_decision(
                 conversation_id=conversation_id,
@@ -415,13 +421,16 @@ class AgentOrchestrator:
     ) -> str:
         """Invoke LLM to generate response.
 
+        When *stream_callback* is provided, tokens are forwarded to the callback
+        as they arrive from Ollama, enabling real-time streaming in the UI.
+
         Args:
             prompt: Complete prompt for LLM
-            stream_callback: Optional callback for streaming tokens (not currently used)
+            stream_callback: Optional callback invoked with each token chunk.
             conversation_id: Optional conversation ID for observability tracking
 
         Returns:
-            Generated response text
+            Generated response text (full string, regardless of streaming mode)
         """
         import time
         start_time = time.time()
@@ -433,6 +442,7 @@ class AgentOrchestrator:
                 system=self.config.system_prompt,
                 temperature=self.config.temperature,
                 max_tokens=self.config.max_tokens,
+                on_token=stream_callback,
             )
 
             # Track LLM generation in Langfuse
@@ -457,10 +467,6 @@ class AgentOrchestrator:
                 output_tokens=len(response.split()),  # Approximate token count
                 duration_seconds=time.time() - start_time
             )
-
-            if stream_callback and isinstance(response, str):
-                # If streaming is implemented, invoke callback
-                stream_callback(response)
 
             return response
 

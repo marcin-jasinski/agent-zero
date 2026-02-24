@@ -12,12 +12,15 @@ Routes:
     /health    → FastAPI health check (used by Docker healthcheck)
 """
 
+import asyncio
 import logging
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 import gradio as gr
 
 from src.logging_config import setup_logging
+from src.startup import ApplicationStartup
 from src.ui.chat import build_chat_ui, initialize_agent
 from src.ui.dashboard import build_admin_ui
 
@@ -29,6 +32,25 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
+# FastAPI lifespan — pre-warm Ollama models on startup
+# ---------------------------------------------------------------------------
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Run application startup sequence before serving requests.
+
+    Executes ApplicationStartup (service health checks, model pull if needed,
+    and model warm-up) in a thread executor so the async event loop is not
+    blocked. Both LLM and embedding models are loaded into GPU VRAM here,
+    eliminating the cold-load delay on the very first user message.
+    """
+    loop = asyncio.get_event_loop()
+    logger.info("Running ApplicationStartup (model warm-up)…")
+    await loop.run_in_executor(None, ApplicationStartup().run)
+    logger.info("ApplicationStartup complete — models are warm and ready")
+    yield
+
+# ---------------------------------------------------------------------------
 # FastAPI REST layer
 # ---------------------------------------------------------------------------
 
@@ -36,6 +58,7 @@ api = FastAPI(
     title="Agent Zero API",
     description="Local Agent Builder (L.A.B.) — REST + UI",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 
