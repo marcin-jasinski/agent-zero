@@ -23,8 +23,8 @@ class TestOllamaConfig:
         """Test default configuration values."""
         config = OllamaConfig()
         assert config.host == "http://localhost:11434"
-        assert config.model == "ministral-3:3b"
-        assert config.embed_model == "nomic-embed-text-v2-moe"
+        assert config.model == "qwen3:4b"
+        assert config.embed_model == "nomic-embed-text:latest"
         assert config.timeout == 300
         assert config.max_retries == 3
 

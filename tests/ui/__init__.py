@@ -1,1 +1,1 @@
-"""UI test package for Agent Zero Chainlit handlers and actions."""
+"""UI test package for Agent Zero Gradio chat and dashboard handlers."""

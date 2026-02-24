@@ -146,11 +146,11 @@ class SecurityConfig(BaseSettings):
 class DashboardConfig(BaseSettings):
     """Dashboard/UI framework configuration.
 
-    Phase 6b migration standardizes the UI framework on Chainlit.
+    Phase 6c migration standardizes the UI framework on FastAPI + Gradio.
     """
 
-    framework: Literal["chainlit"] = Field(
-        default="chainlit",
+    framework: Literal["gradio"] = Field(
+        default="gradio",
         description="UI framework for the A.P.I. dashboard",
     )
 
@@ -172,7 +172,7 @@ class AppConfig(BaseSettings):
     )
     debug: bool = Field(default=False, description="Debug mode")
     host: str = Field(default="0.0.0.0", description="App host")
-    port: int = Field(default=8501, description="Chainlit UI port")
+    port: int = Field(default=8501, description="App UI port (FastAPI + Gradio)")
 
     # Logging
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(

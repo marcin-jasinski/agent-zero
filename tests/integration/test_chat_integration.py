@@ -1,276 +1,260 @@
-"""Integration tests for Chainlit chat flow.
+"""Integration tests for the Gradio Chat tab workflow (Phase 6c).
 
-Validates session lifecycle and recovery behavior using mocked Chainlit runtime.
+Validates the full session lifecycle — initialize_agent → respond → ingest_document
+— using mocked service clients so tests run offline without Docker.
+
+These are "workflow" integration tests: they exercise multiple handler functions
+in sequence, verifying that state flows correctly from one step to the next.
 """
 
-import asyncio
-import importlib
+from __future__ import annotations
+
 from types import SimpleNamespace
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 
-def _load_main_module() -> object:
-    """Import and reload `src.ui.main` so patched Chainlit module is used."""
-    module = importlib.import_module("src.ui.main")
-    return importlib.reload(module)
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_healthy_client() -> MagicMock:
+    c = MagicMock()
+    c.is_healthy.return_value = True
+    return c
+
+
+def _make_agent(responses: list[str] | None = None) -> MagicMock:
+    """Build a mock AgentOrchestrator that streams via its stream_callback."""
+    agent = MagicMock()
+    agent.start_conversation.return_value = "conv-001"
+
+    resp_iter = iter(responses or ["Agent answer"])
+
+    def _process(conv_id, msg, stream_callback=None):
+        token = next(resp_iter, "done")
+        if stream_callback:
+            stream_callback(token)
+
+    agent.process_message.side_effect = _process
+    return agent
+
+
+def _collect(gen) -> list[tuple[str, list[dict]]]:
+    return list(gen)
+
+
+# ---------------------------------------------------------------------------
+# Workflow: full init → send → send → ingest
+# ---------------------------------------------------------------------------
 
 
 @pytest.mark.integration
-class TestChatSessionLifecycle:
-    """Test complete chat session lifecycle."""
-    
-    @pytest.mark.asyncio
-    async def test_full_successful_session(self, mock_chainlit):
-        """Test complete flow: start -> message -> end."""
-        main_module = _load_main_module()
-        
-        # Mock successful agent initialization
-        mock_agent = MagicMock()
-        mock_agent.start_conversation = Mock(return_value="conv-123")
-        mock_agent.process_message = Mock(return_value="Agent response with sources")
-        
-        with patch.object(main_module, "_initialize_agent") as mock_init:
-            mock_init.return_value = (mock_agent, "conv-123", None)
-            
-            # Step 1: Start session
-            await main_module.start()
-            
-            # Verify welcome message was sent
-            assert len(mock_chainlit["messages"]) >= 1
-            
-            # Verify session was initialized
-            assert mock_chainlit["session"]["agent"] == mock_agent
-            assert mock_chainlit["session"]["conversation_id"] == "conv-123"
-            assert mock_chainlit["session"]["agent_initialized"] is True
-            
-            # Step 2: Process message
-            user_message = SimpleNamespace(content="What is RAG?", elements=[])
-            
-            await main_module.main(user_message)
-            
-            # Verify agent processed the message
-            mock_agent.process_message.assert_called_once_with(
-                "conv-123",
-                "What is RAG?",
-                use_retrieval=True
-            )
-            
-            # Step 3: End session
-            await main_module.end()
-            
-            # Session should have completed without errors
-            assert mock_chainlit["session"]["agent_initialized"] is True
-    
-    @pytest.mark.asyncio
-    async def test_session_with_initialization_failure(self, mock_chainlit):
-        """Test session when agent initialization fails."""
-        main_module = _load_main_module()
-        
-        # Mock failed agent initialization
-        with patch.object(main_module, "_initialize_agent") as mock_init:
-            mock_init.return_value = (None, None, "Ollama is not responding")
-            
-            # Start session
-            await main_module.start()
-            
-            # Verify initialization failed
-            assert mock_chainlit["session"].get("agent_initialized", True) is False
-            assert mock_chainlit["session"].get("agent") is None
-            
-            # Try to send a message (should fail gracefully)
-            user_message = SimpleNamespace(content="Test message", elements=[])
-            
-            await main_module.main(user_message)
-            
-            # Should have sent error message
-            assert len(mock_chainlit["messages"]) > 0
-            assert any("Agent not initialized" in msg.content for msg in mock_chainlit["messages"])
-    
-    @pytest.mark.asyncio
-    async def test_multiple_messages_in_session(self, mock_chainlit):
-        """Test multiple messages in single session."""
-        main_module = _load_main_module()
-        
-        mock_agent = MagicMock()
-        mock_agent.start_conversation = Mock(return_value="conv-123")
-        mock_agent.process_message = Mock(side_effect=[
-            "First response",
-            "Second response",
-            "Third response"
-        ])
-        
-        with patch.object(main_module, "_initialize_agent") as mock_init:
-            mock_init.return_value = (mock_agent, "conv-123", None)
-            
-            # Start session
-            await main_module.start()
-            
-            # Send multiple messages
-            messages = ["First", "Second", "Third"]
-            for msg_text in messages:
-                user_message = SimpleNamespace(content=msg_text, elements=[])
-                await main_module.main(user_message)
-            
-            # Verify all messages were processed
-            assert mock_agent.process_message.call_count == 3
-            
-            # Verify conversation_id stayed the same
-            calls = mock_agent.process_message.call_args_list
-            for call in calls:
-                assert call[0][0] == "conv-123"
+class TestChatSessionWorkflow:
+    """Exercise multiple chat handlers in sequence, verifying state continuity."""
+
+    def test_init_then_respond_uses_same_conversation_id(self) -> None:
+        """State produced by initialize_agent is consumed correctly by respond."""
+        from src.ui.chat import initialize_agent, respond
+
+        agent = _make_agent(["Hello back"])
+
+        with (
+            patch("src.services.ollama_client.OllamaClient", return_value=_make_healthy_client()),
+            patch("src.services.qdrant_client.QdrantVectorClient", return_value=_make_healthy_client()),
+            patch("src.services.meilisearch_client.MeilisearchClient", return_value=_make_healthy_client()),
+            patch("src.core.retrieval.RetrievalEngine"),
+            patch("src.core.agent.AgentOrchestrator", return_value=agent),
+        ):
+            state, status = initialize_agent()
+
+        assert "agent" in state, "initialize_agent must populate state['agent']"
+        assert "✅" in status
+
+        conv_id_from_init = state["conversation_id"]
+
+        # Now respond must route the message through the same conversation
+        results = _collect(respond("Hi there", [], state))
+        final_history = results[-1][1]
+        agent.process_message.assert_called_once()
+        call_args = agent.process_message.call_args
+        assert call_args[0][0] == conv_id_from_init, "respond must use conversation_id from state"
+
+        assistant_msgs = [m["content"] for m in final_history if m["role"] == "assistant"]
+        assert any("Hello back" in c for c in assistant_msgs)
+
+    def test_multiple_turns_accumulate_history(self) -> None:
+        """Respond yields growing history across consecutive messages."""
+        from src.ui.chat import respond
+
+        agent = _make_agent(["A1", "A2", "A3"])
+        state = {
+            "agent": agent,
+            "conversation_id": "conv-xyz",
+            "ollama": MagicMock(),
+            "qdrant": MagicMock(),
+            "meilisearch": MagicMock(),
+        }
+
+        history: list[dict] = []
+        for question in ["Q1", "Q2", "Q3"]:
+            for _, history in respond(question, list(history), state):
+                pass  # drain to final state
+
+        roles = [m["role"] for m in history]
+        assert roles.count("user") == 3
+        assert roles.count("assistant") == 3
+
+    def test_error_in_respond_does_not_break_state(self) -> None:
+        """When the LLM raises, respond appends an error message and the state is intact."""
+        from src.ui.chat import respond
+
+        crashing_agent = MagicMock()
+        crashing_agent.process_message.side_effect = RuntimeError("LLM unavailable")
+        state = {
+            "agent": crashing_agent,
+            "conversation_id": "conv-err",
+            "ollama": MagicMock(),
+            "qdrant": MagicMock(),
+            "meilisearch": MagicMock(),
+        }
+
+        results = _collect(respond("Any question", [], state))
+        _, final_history = results[-1]
+        assistant_msgs = [m["content"] for m in final_history if m["role"] == "assistant"]
+        assert any("❌" in c or "Error" in c for c in assistant_msgs)
+        # State still intact for next turn
+        assert state["agent"] is crashing_agent
+
+
+# ---------------------------------------------------------------------------
+# Workflow: ingest then respond
+# ---------------------------------------------------------------------------
 
 
 @pytest.mark.integration
-class TestErrorRecovery:
-    """Test error recovery scenarios."""
-    
-    @pytest.mark.asyncio
-    async def test_recovery_from_timeout(self, mock_chainlit):
-        """Test that session continues after a timeout."""
-        main_module = _load_main_module()
-        
-        mock_agent = MagicMock()
-        mock_agent.start_conversation = Mock(return_value="conv-123")
-        mock_agent.process_message = Mock(side_effect=[
-            TimeoutError("Request timed out"),
-            "Successful response"
-        ])
-        
-        with patch.object(main_module, "_initialize_agent") as mock_init:
-            mock_init.return_value = (mock_agent, "conv-123", None)
-            
-            await main_module.start()
-            
-            # First message times out
-            user_message = SimpleNamespace(content="First", elements=[])
-            await main_module.main(user_message)
-            
-            # Second message succeeds
-            user_message.content = "Second"
-            await main_module.main(user_message)
-            
-            # Verify both attempts were made
-            assert mock_agent.process_message.call_count == 2
-    
-    @pytest.mark.asyncio
-    async def test_recovery_from_connection_error(self, mock_chainlit):
-        """Test that session continues after connection error."""
-        main_module = _load_main_module()
-        
-        mock_agent = MagicMock()
-        mock_agent.start_conversation = Mock(return_value="conv-123")
-        mock_agent.process_message = Mock(side_effect=[
-            ConnectionError("Service unavailable"),
-            "Successful response"
-        ])
-        
-        with patch.object(main_module, "_initialize_agent") as mock_init:
-            mock_init.return_value = (mock_agent, "conv-123", None)
-            
-            await main_module.start()
-            
-            # First message has connection error
-            user_message = SimpleNamespace(content="First", elements=[])
-            await main_module.main(user_message)
-            
-            # Second message succeeds (connection recovered)
-            user_message.content = "Second"
-            await main_module.main(user_message)
-            
-            # Verify both attempts were made
-            assert mock_agent.process_message.call_count == 2
+class TestIngestThenChatWorkflow:
+    """Verify that an ingested document flows into a subsequent chat."""
+
+    def test_text_ingest_then_respond_succeeds(self, tmp_path) -> None:
+        """Upload a text file then send a message — no exceptions."""
+        from src.ui.chat import ingest_document, respond
+
+        # Write temp file
+        p = tmp_path / "guide.txt"
+        p.write_text("RAG stands for Retrieval Augmented Generation.")
+        mock_file = MagicMock()
+        mock_file.name = str(p)
+
+        ingest_result = SimpleNamespace(
+            success=True,
+            skipped_duplicate=False,
+            chunks_count=3,
+            document_id="doc-00001",
+            duration_seconds=0.9,
+        )
+        mock_ingestor = MagicMock()
+        mock_ingestor.ingest_text.return_value = ingest_result
+
+        state = {
+            "agent": _make_agent(["RAG is a retrieval technique"]),
+            "conversation_id": "conv-rag",
+            "ollama": MagicMock(),
+            "qdrant": MagicMock(),
+            "meilisearch": MagicMock(),
+        }
+
+        with patch("src.core.ingest.DocumentIngestor", return_value=mock_ingestor):
+            ingest_status = ingest_document(mock_file, state)
+
+        assert "✅" in ingest_status
+
+        # Now ask a question — must not raise
+        results = _collect(respond("What is RAG?", [], state))
+        final_history = results[-1][1]
+        assistant_msgs = [m["content"] for m in final_history if m["role"] == "assistant"]
+        assert len(assistant_msgs) == 1
+
+    def test_duplicate_ingest_then_respond_succeeds(self, tmp_path) -> None:
+        """Uploading a duplicate document returns info but does not break chat."""
+        from src.ui.chat import ingest_document, respond
+
+        p = tmp_path / "dup.txt"
+        p.write_text("Duplicate content.")
+        mock_file = MagicMock()
+        mock_file.name = str(p)
+
+        dup_result = SimpleNamespace(
+            success=True,
+            skipped_duplicate=True,
+            chunks_count=2,
+            document_id="doc-99999",
+            duration_seconds=0.05,
+        )
+        mock_ingestor = MagicMock()
+        mock_ingestor.ingest_text.return_value = dup_result
+
+        state = {
+            "agent": _make_agent(["ok"]),
+            "conversation_id": "conv-dup",
+            "ollama": MagicMock(),
+            "qdrant": MagicMock(),
+            "meilisearch": MagicMock(),
+        }
+
+        with patch("src.core.ingest.DocumentIngestor", return_value=mock_ingestor):
+            status = ingest_document(mock_file, state)
+
+        assert "ℹ️" in status
+
+        # Chat still works
+        results = _collect(respond("Tell me something", [], state))
+        _, history = results[-1]
+        assert any(m["role"] == "assistant" for m in history)
+
+
+# ---------------------------------------------------------------------------
+# Workflow: initialization failure → partial usage
+# ---------------------------------------------------------------------------
 
 
 @pytest.mark.integration
-class TestRealWorldScenarios:
-    """Test real-world usage scenarios."""
-    
-    @pytest.mark.asyncio
-    async def test_rapid_message_sequence(self, mock_chainlit):
-        """Test handling of rapid message sequence."""
-        main_module = _load_main_module()
-        
-        mock_agent = MagicMock()
-        mock_agent.start_conversation = Mock(return_value="conv-123")
-        
-        # Simulate variable response times
-        responses = [f"Response {i}" for i in range(10)]
-        mock_agent.process_message = Mock(side_effect=responses)
-        
-        with patch.object(main_module, "_initialize_agent") as mock_init:
-            mock_init.return_value = (mock_agent, "conv-123", None)
-            
-            await main_module.start()
-            
-            # Send 10 messages rapidly
-            tasks = []
-            for i in range(10):
-                user_message = SimpleNamespace(content=f"Message {i}", elements=[])
-                task = main_module.main(user_message)
-                tasks.append(task)
-            
-            # Wait for all to complete
-            await asyncio.gather(*tasks)
-            
-            # All messages should have been processed
-            assert mock_agent.process_message.call_count == 10
-    
-    @pytest.mark.asyncio
-    async def test_session_without_messages(self, mock_chainlit):
-        """Test session that starts but receives no messages."""
-        main_module = _load_main_module()
-        
-        mock_agent = MagicMock()
-        mock_agent.start_conversation = Mock(return_value="conv-123")
-        
-        with patch.object(main_module, "_initialize_agent") as mock_init:
-            mock_init.return_value = (mock_agent, "conv-123", None)
-            
-            # Start and immediately end
-            await main_module.start()
-            await main_module.end()
-            
-            # Agent should be initialized but never used
-            assert mock_chainlit["session"]["agent_initialized"] is True
-            assert mock_agent.process_message.call_count == 0
-    
-    @pytest.mark.asyncio
-    async def test_special_characters_in_message(self, mock_chainlit):
-        """Test messages with special characters."""
-        main_module = _load_main_module()
-        
-        mock_agent = MagicMock()
-        mock_agent.start_conversation = Mock(return_value="conv-123")
-        mock_agent.process_message = Mock(return_value="Response")
-        
-        with patch.object(main_module, "_initialize_agent") as mock_init:
-            mock_init.return_value = (mock_agent, "conv-123", None)
-            
-            await main_module.start()
-            
-            # Test various special characters
-            special_messages = [
-                "Hello 👋 emoji test",
-                "Code: `print('hello')`",
-                "Math: x² + y² = z²",
-                "Symbols: @#$%^&*()",
-                "Newlines:\nLine 1\nLine 2"
-            ]
-            
-            for msg_text in special_messages:
-                user_message = SimpleNamespace(content=msg_text, elements=[])
-                await main_module.main(user_message)
-            
-            # All messages should have been processed
-            assert mock_agent.process_message.call_count == len(special_messages)
-            
-            # Verify exact content was passed
-            calls = mock_agent.process_message.call_args_list
-            for i, call in enumerate(calls):
-                assert call[0][1] == special_messages[i]
+class TestInitializationFailureWorkflow:
+    """Verify graceful degradation when services are unavailable."""
 
+    def test_respond_without_init_returns_warning(self) -> None:
+        """Calling respond with empty state never raises — appends ⚠️ message."""
+        from src.ui.chat import respond
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+        # Empty state (startup never ran)
+        results = _collect(respond("Hello?", [], {}))
+        _, history = results[-1]
+        assert any("⚠️" in m["content"] for m in history)
+
+    def test_ingest_without_init_returns_warning(self, tmp_path) -> None:
+        """Calling ingest_document with empty state returns ⚠️ without crashing."""
+        from src.ui.chat import ingest_document
+
+        p = tmp_path / "orphan.txt"
+        p.write_text("some content")
+        mock_file = MagicMock()
+        mock_file.name = str(p)
+
+        result = ingest_document(mock_file, {})
+        assert "⚠️" in result
+
+    def test_ollama_down_returns_error_status(self) -> None:
+        """When Ollama reports unhealthy, initialize_agent returns error status."""
+        from src.ui.chat import initialize_agent
+
+        unhealthy = MagicMock()
+        unhealthy.is_healthy.return_value = False
+
+        with patch("src.services.ollama_client.OllamaClient", return_value=unhealthy):
+            state, status = initialize_agent()
+
+        assert state == {}
+        assert "❌" in status
+        assert "Ollama" in status
