@@ -5,6 +5,7 @@ Handles communication with Ollama for LLM inference and embeddings.
 
 import json
 import logging
+import re
 from typing import Callable, Optional
 
 import requests
@@ -160,7 +161,7 @@ class OllamaClient:
             if on_token is None:
                 # Non-streaming path — single JSON response
                 data = self._make_request("post", "/api/generate", json=payload)
-                return data.get("response", "")
+                return self._strip_thinking_tags(data.get("response", ""))
 
             # Streaming path — Ollama returns NDJSON, one chunk per line
             url = f"{self.base_url}/api/generate"
@@ -170,6 +171,9 @@ class OllamaClient:
             response.raise_for_status()
 
             accumulated = []
+            in_think_block = False  # Suppress <think>...</think> from UI callback
+            think_buffer = ""      # Buffer partial tag detection
+
             for line in response.iter_lines():
                 if not line:
                     continue
@@ -180,15 +184,54 @@ class OllamaClient:
                 token = chunk.get("response", "")
                 if token:
                     accumulated.append(token)
-                    on_token(token)
+                    # Track thinking-block boundaries so the UI only receives
+                    # the actual answer, not the internal reasoning.
+                    think_buffer += token
+                    if "<think>" in think_buffer:
+                        in_think_block = True
+                    if "</think>" in think_buffer:
+                        in_think_block = False
+                        think_buffer = ""
+                    elif not in_think_block:
+                        think_buffer = ""
+                        on_token(token)
                 if chunk.get("done", False):
                     break
 
-            return "".join(accumulated)
+            # Strip any residual <think> blocks from the full accumulated text
+            # (covers the non-streaming path and partial tags).
+            return self._strip_thinking_tags("".join(accumulated))
 
         except Exception as e:
             logger.error(f"Text generation failed: {e}")
             raise
+
+    @staticmethod
+    def _strip_thinking_tags(text: str) -> str:
+        """Remove <think>...</think> reasoning blocks from model output.
+
+        Thinking models such as qwen3 wrap internal chain-of-thought reasoning
+        in <think>...</think> tags.  These blocks should not be stored in
+        conversation memory or scanned by LLM Guard — only the final answer
+        matters for downstream use.
+
+        Handles both complete blocks and the edge-case where a partial opening
+        tag appears without a closing tag (model interrupted mid-think).
+
+        Args:
+            text: Raw model output, possibly containing <think> blocks.
+
+        Returns:
+            Output with all <think>...</think> blocks removed and whitespace
+            trimmed.  Returns the original string unchanged if no tags found.
+        """
+        if "<think>" not in text:
+            return text
+        # Remove complete blocks (including nested newlines)
+        cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+        # Remove any dangling opening tag (model stopped mid-thinking)
+        cleaned = re.sub(r"<think>.*$", "", cleaned, flags=re.DOTALL)
+        return cleaned.strip()
 
     def embed(self, text: str, model: Optional[str] = None) -> list[float]:
         """Generate embeddings for text.

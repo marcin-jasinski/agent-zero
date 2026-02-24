@@ -210,7 +210,13 @@ class AgentOrchestrator:
             )
             logger.info(f"[TIMING] LLM generation completed in {time.time() - llm_start:.2f}s")
 
-            # Scan LLM output for security threats
+            # Scan LLM output for security threats.
+            # Guard against empty responses (e.g. thinking-only output after
+            # <think> stripping) to avoid hard ValueError in scan_llm_output.
+            if not response_text or not response_text.strip():
+                logger.warning("LLM returned empty response after processing; using fallback message")
+                response_text = "I'm sorry, I wasn't able to generate a response. Please try rephrasing your question."
+
             output_scan_result = self.llm_guard.scan_llm_output(
                 response_text, original_prompt=processed_message
             )
