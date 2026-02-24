@@ -1,0 +1,34 @@
+[MAIN]
+# Specify a configuration file.
+jobs=1
+
+[MESSAGES CONTROL]
+# Disable import-error for third-party packages that live in Docker containers
+# but are not installed in the local development venv.
+disable=
+    E0401,  # import-error - packages like requests, qdrant_client, langfuse, gradio,
+            #   fastapi, prometheus_client, meilisearch, pypdf exist in Docker, not local venv
+    W0511,  # fixme - TODO/FIXME comments are valid project management markers
+    W0718,  # broad-exception-caught - intentional: services must not crash on unexpected errors
+
+[FORMAT]
+max-line-length=100
+indent-string='    '
+
+[DESIGN]
+max-args=10
+max-attributes=10
+max-bool-expr=5
+max-branches=15
+max-locals=20
+max-public-methods=30
+max-returns=8
+max-statements=60
+
+[VARIABLES]
+# Variables that are acceptable even if unused
+dummy-variables-rgx=_+$|(_[a-zA-Z0-9_]*[a-zA-Z0-9]+$)|dummy|^ignored_|^unused_
+
+[BASIC]
+# Allow short names for common patterns
+good-names=i,j,k,e,f,n,s,v,x,y,z,ex,ok,db,id,_,kb,ui,t0,t1

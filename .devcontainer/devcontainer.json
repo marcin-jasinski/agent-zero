@@ -1,0 +1,200 @@
+{
+  "name": "Agent Zero Development",
+  "description": "Development environment for Agent Zero (L.A.B.) - Local Agent Builder",
+
+  // Use the same docker-compose.yml for development
+  "dockerComposeFile": ["../docker-compose.yml"],
+  "service": "app-agent",
+  "workspaceFolder": "/app",
+
+  // Forward ports for services
+  "forwardPorts": [
+    8501, // Chainlit UI (A.P.I.)
+    11434, // Ollama
+    6333, // Qdrant
+    7700, // Meilisearch
+    3000, // Langfuse
+    5432 // PostgreSQL (optional, for debugging)
+  ],
+  "portsAttributes": {
+    "8501": {
+      "label": "Chainlit UI (A.P.I.)",
+      "onAutoForward": "notify",
+      "requireLocalPort": false
+    },
+    "11434": {
+      "label": "Ollama LLM Server",
+      "onAutoForward": "silent"
+    },
+    "6333": {
+      "label": "Qdrant Vector DB",
+      "onAutoForward": "silent"
+    },
+    "7700": {
+      "label": "Meilisearch",
+      "onAutoForward": "silent"
+    },
+    "3000": {
+      "label": "Langfuse Dashboard",
+      "onAutoForward": "notify"
+    },
+    "5432": {
+      "label": "PostgreSQL",
+      "onAutoForward": "silent"
+    }
+  },
+
+  // VS Code extensions to install in DevContainer
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        // Python Development
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.debugpy",
+
+        // Code Quality & Formatting
+        "ms-python.black-formatter",
+        "charliermarsh.ruff",
+        "ms-python.flake8",
+
+        // Testing
+        "LittleFoxTeam.vscode-python-test-adapter",
+
+        // Docker Support
+        "ms-azuretools.vscode-docker",
+
+        // Git & Version Control
+        "eamodio.gitlens",
+        "donjayamanne.githistory",
+
+        // REST & API Testing
+        "humao.rest-client",
+        "rangav.vscode-thunder-client",
+
+        // JSON & YAML
+        "redhat.vscode-yaml",
+        "esbenp.prettier-vscode",
+
+        // Documentation
+        "yzhang.markdown-all-in-one",
+
+        // General Productivity
+        "ms-vscode.makefile-tools",
+        "waderyan.gitblame",
+        "streetsidesoftware.code-spell-checker",
+
+        // Themes (optional)
+        "GitHub.github-vscode-theme"
+      ],
+      "settings": {
+        // Python settings
+        "python.defaultInterpreterPath": "/opt/venv/bin/python",
+        "python.linting.enabled": true,
+        "python.linting.pylintEnabled": false,
+        "python.linting.flake8Enabled": true,
+        "python.linting.flake8Args": ["--max-line-length=100", "--ignore=E501,W503"],
+        "python.formatting.provider": "black",
+        "python.formatting.blackArgs": ["--line-length=100"],
+        "[python]": {
+          "editor.defaultFormatter": "ms-python.python",
+          "editor.formatOnSave": true,
+          "editor.formatOnPaste": false
+        },
+
+        // Pylance (Language Server)
+        "pylance.enableTypeStubPackageDownload": true,
+        "pylance.typeCheckingMode": "basic",
+
+        // Testing
+        "python.testing.pytestEnabled": true,
+        "python.testing.pytestArgs": ["tests"],
+        "python.testing.unittestEnabled": false,
+
+        // Editor behavior
+        "editor.rulers": [100],
+        "editor.wordWrap": "on",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+          "source.organizeImports": "explicit"
+        },
+
+        // Files
+        "files.exclude": {
+          "**/__pycache__": true,
+          "**/*.pyc": true,
+          "**/.pytest_cache": true,
+          "**/.venv": true,
+          "**/*.egg-info": true
+        },
+        "files.watcherExclude": {
+          "**/.venv": true,
+          "**/__pycache__": true,
+          "**/node_modules": true
+        },
+
+        // Git
+        "git.ignoreLimitWarning": true,
+
+        // Terminal
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "terminal.integrated.profiles.linux": {
+          "bash": {
+            "path": "/bin/bash",
+            "icon": "terminal-bash"
+          }
+        },
+
+        // Markdown
+        "[markdown]": {
+          "editor.defaultFormatter": "esbenp.prettier-vscode",
+          "editor.formatOnSave": true
+        },
+
+        // JSON
+        "[json]": {
+          "editor.formatOnSave": true
+        },
+
+        // YAML
+        "[yaml]": {
+          "editor.insertSpaces": true,
+          "editor.tabSize": 2
+        }
+      }
+    }
+  },
+
+  // Initialization commands
+  "initializeCommand": "bash /app/.devcontainer/init.sh",
+
+  // Lifecycle commands
+  "postCreateCommand": "python -m pip install -e . && pre-commit install",
+  "postStartCommand": "python -c \"import sys; print(f'Python {sys.version}')\"",
+
+  // Override the default docker compose behavior
+  "overrideCommand": false,
+
+  // Features (if needed in future)
+  "features": {
+    // "ghcr.io/devcontainers/features/git:1": {}
+  },
+
+  // Mounts (additional volumes)
+  "mounts": [
+    // Map .git folder to preserve git history
+    "source=${localEnv:HOME}/.gitconfig,target=/home/agentuser/.gitconfig,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.ssh,target=/home/agentuser/.ssh,type=bind,consistency=cached,readonly"
+  ],
+
+  // User configuration
+  "remoteUser": "agentuser",
+
+  // Remove container when VS Code shuts down
+  "shutdownAction": "stopCompose",
+
+  // Customize the dev container startup
+  "otherPortsAttributes": {
+    "onAutoForward": "silent"
+  }
+}

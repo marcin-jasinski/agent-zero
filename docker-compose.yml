@@ -1,0 +1,381 @@
+# ==============================================================================
+# AGENT ZERO - Docker Compose Configuration
+# ==============================================================================
+# ⚠️  FOR LOCAL DEVELOPMENT ONLY - DO NOT EXPOSE TO PUBLIC INTERNET  ⚠️
+#
+# This configuration uses default/simple credentials because it's designed
+# for single-user local development on localhost. If you need to expose
+# services externally, you MUST:
+#   1. Change all default passwords
+#   2. Implement proper authentication
+#   3. Use HTTPS/TLS for all connections
+#   4. Review and harden security settings
+# ==============================================================================
+
+services:
+  # ============================================================================
+  # APP-AGENT: FastAPI + Gradio unified application (A.P.I.)
+  # ============================================================================
+  app-agent:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.app-agent
+    container_name: agent-zero-app
+    command: ["uvicorn", "src.ui.app:api", "--host", "0.0.0.0", "--port", "8501"]
+    ports:
+      - "8501:8501" # Gradio UI + FastAPI REST — LOCALHOST ONLY, do not expose publicly
+      - "9091:9091" # Prometheus metrics endpoint
+    environment:
+      - APP_ENV=${APP_ENV:-development}
+      - APP_DEBUG=${APP_DEBUG:-true}
+      - APP_HOST=0.0.0.0
+      - APP_PORT=8501
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONPATH=/app
+      # Service Connections
+      - OLLAMA_HOST=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen3:4b}
+      - OLLAMA_EMBED_MODEL=${OLLAMA_EMBED_MODEL:-nomic-embed-text:latest}
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - QDRANT_COLLECTION_NAME=${QDRANT_COLLECTION_NAME:-documents}
+      - MEILISEARCH_HOST=http://meilisearch:7700
+      - MEILISEARCH_API_KEY=${MEILISEARCH_API_KEY:-meilisearch-master-key-changeme-min16chars}
+      - MEILISEARCH_INDEX_NAME=${MEILISEARCH_INDEX_NAME:-documents}
+      - LANGFUSE_HOST=http://langfuse:3000
+      - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY:-}
+      - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY:-}
+      - LANGFUSE_ENABLED=${LANGFUSE_ENABLED:-true}
+      - LLM_GUARD_ENABLED=${LLM_GUARD_ENABLED:-false}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      - ./src:/app/src
+      - ./data:/app/data
+      - ./logs:/app/logs
+    depends_on:
+      ollama:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+      langfuse:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
+      grafana:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - curl
+        - -f
+        - http://localhost:8501/health
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - agent-zero-network
+    restart: unless-stopped
+    mem_limit: 2g
+    cpus: "2"
+    labels:
+      - "com.agent-zero.service=app-agent"
+      - "com.agent-zero.description=FastAPI + Gradio unified app — Chat + Admin tabs on port 8501"
+
+  # ============================================================================
+  # OLLAMA: Local LLM Inference & Embeddings Engine
+  # ============================================================================
+  ollama:
+    image: ollama/ollama:latest
+    container_name: agent-zero-ollama
+    ports:
+      - "11434:11434"
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_MAX_LOADED_MODELS=2
+      # GPU support is optionally enabled via docker-compose.gpu.yml override
+      # Set OLLAMA_GPU=1 for NVIDIA GPU support (Windows WSL2, Linux with NVIDIA drivers)
+      # Leave unset for CPU-only mode (macOS, Linux without NVIDIA, or resource-constrained systems)
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "sh", "-c", "exit 0"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - agent-zero-network
+    restart: unless-stopped
+    mem_limit: 8g
+    cpus: "4"
+    labels:
+      - "com.agent-zero.service=ollama"
+      - "com.agent-zero.description=Local LLM inference and embeddings"
+
+  # ============================================================================
+  # QDRANT: Vector Database for Semantic Search
+  # ============================================================================
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: agent-zero-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334" # gRPC port
+    environment:
+      - QDRANT_API_KEY=${QDRANT_API_KEY:-}
+      - QDRANT__SERVICE__ENABLE_STATIC_CONTENT=true
+    volumes:
+      - qdrant-data:/qdrant/storage
+      - qdrant-snapshots:/qdrant/snapshots
+    healthcheck:
+      test: ["CMD", "sh", "-c", "exit 0"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - agent-zero-network
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: "1"
+    labels:
+      - "com.agent-zero.service=qdrant"
+      - "com.agent-zero.description=Vector database for semantic search"
+
+  # ============================================================================
+  # MEILISEARCH: Full-Text Search Engine
+  # ============================================================================
+  meilisearch:
+    image: getmeili/meilisearch:latest
+    container_name: agent-zero-meilisearch
+    ports:
+      - "7700:7700"
+    environment:
+      - MEILI_MASTER_KEY=${MEILISEARCH_API_KEY:-meilisearch-master-key-changeme-min16chars}
+      - MEILI_ENV=development
+    volumes:
+      - meilisearch-data:/meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - agent-zero-network
+    restart: unless-stopped
+    mem_limit: 1g
+    cpus: "1"
+    labels:
+      - "com.agent-zero.service=meilisearch"
+      - "com.agent-zero.description=Full-text search engine"
+
+  # ============================================================================
+  # POSTGRES: Database for Langfuse (Observability Backing Store)
+  # ============================================================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: agent-zero-postgres
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-langfuse}
+      - POSTGRES_USER=${POSTGRES_USER:-langfuse}
+      # ⚠️ LOCAL DEV ONLY - Change this password if exposing to network!
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme123}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF8
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${POSTGRES_USER:-langfuse} -d ${POSTGRES_DB:-langfuse}
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - agent-zero-network
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: "0.5"
+    labels:
+      - "com.agent-zero.service=postgres"
+      - "com.agent-zero.description=PostgreSQL backing store for Langfuse"
+    # Internal only - not exposed
+    expose:
+      - "5432"
+
+  # ============================================================================
+  # LANGFUSE: Observability & LLM Tracing Dashboard
+  # ============================================================================
+  # NOTE: Langfuse v2 uses PostgreSQL only (no ClickHouse required)
+  langfuse:
+    image: langfuse/langfuse:2.95.1
+    container_name: agent-zero-langfuse
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-langfuse}:${POSTGRES_PASSWORD:-changeme123}@postgres:5432/${POSTGRES_DB:-langfuse}
+      - NEXTAUTH_SECRET=${LANGFUSE_SECRET_KEY:-your-secret-key-change-in-production-min32chars}
+      - NEXTAUTH_URL=http://localhost:3000
+      - SALT=${LANGFUSE_SECRET_KEY:-your-secret-key-change-in-production-min32chars}
+      # ⚠️ FOR LOCAL DEVELOPMENT ONLY - Do not expose to internet without changing secrets!
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"const os = require('os'); fetch('http://' + os.hostname() + ':3000/api/public/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - agent-zero-network
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: "1"
+    labels:
+      - "com.agent-zero.service=langfuse"
+      - "com.agent-zero.description=LLM observability and tracing dashboard"
+
+  # ============================================================================
+  # NOTE: PostgreSQL is the backing store for Langfuse v2
+  # ============================================================================
+
+  # ============================================================================
+  # PROMETHEUS: Time-Series Database for Metrics
+  # ============================================================================
+  prometheus:
+    image: prom/prometheus:v2.48.1
+    container_name: agent-zero-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - agent-zero-network
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: "1"
+    labels:
+      - "com.agent-zero.service=prometheus"
+      - "com.agent-zero.description=Time-series database for metrics"
+
+  # ============================================================================
+  # GRAFANA: Metrics Visualization and Dashboards
+  # ============================================================================
+  grafana:
+    image: grafana/grafana:10.2.3
+    container_name: agent-zero-grafana
+    ports:
+      - "3001:3000"  # Port 3000 is used by Langfuse, so we use 3001
+    environment:
+      # Authentication (development defaults - CHANGE IN PRODUCTION!)
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      # Datasources
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+      # UI Settings
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3001
+      # Logging
+      - GF_LOG_LEVEL=info
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - agent-zero-network
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: "1"
+    labels:
+      - "com.agent-zero.service=grafana"
+      - "com.agent-zero.description=Metrics visualization and dashboards"
+
+# ============================================================================
+# Networks
+# ============================================================================
+networks:
+  agent-zero-network:
+    driver: bridge
+    name: agent-zero-network
+
+# ============================================================================
+# Volumes (Named - persisted across container restarts)
+# ============================================================================
+volumes:
+  # Ollama model cache
+  ollama-data:
+    driver: local
+    labels:
+      - "com.agent-zero.volume=ollama-data"
+      - "com.agent-zero.description=Ollama model cache and data"
+
+  # Qdrant vector storage
+  qdrant-data:
+    driver: local
+    labels:
+      - "com.agent-zero.volume=qdrant-data"
+      - "com.agent-zero.description=Qdrant vector database storage"
+
+  qdrant-snapshots:
+    driver: local
+    labels:
+      - "com.agent-zero.volume=qdrant-snapshots"
+      - "com.agent-zero.description=Qdrant backup snapshots"
+
+  # Meilisearch index storage
+  meilisearch-data:
+    driver: local
+    labels:
+      - "com.agent-zero.volume=meilisearch-data"
+      - "com.agent-zero.description=Meilisearch full-text index storage"
+
+  # PostgreSQL data
+  postgres-data:
+    driver: local
+    labels:
+      - "com.agent-zero.volume=postgres-data"
+      - "com.agent-zero.description=PostgreSQL database storage for Langfuse"
+
+  # Prometheus time-series database
+  prometheus-data:
+    driver: local
+    labels:
+      - "com.agent-zero.volume=prometheus-data"
+      - "com.agent-zero.description=Prometheus TSDB storage"
+
+  # Grafana dashboards and settings
+  grafana-data:
+    driver: local
+    labels:
+      - "com.agent-zero.volume=grafana-data"
+      - "com.agent-zero.description=Grafana data and dashboards"

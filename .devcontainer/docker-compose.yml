@@ -1,0 +1,27 @@
+version: "3.9"
+
+services:
+  app-agent:
+    # Override for development - mount source code for live reload
+    volumes:
+      # Mount entire source directory for development
+      - ./src:/app/src
+      - ./data:/app/data
+      - ./logs:/app/logs
+
+      # Mount poetry/pip cache to speed up subsequent installs
+      - /root/.cache/pip:/root/.cache/pip
+
+      # Mount bash history for persistent shell history
+      - devcontainer-bash-history:/home/agentuser
+
+    # Override environment for development
+    environment:
+      - APP_ENV=development
+      - APP_DEBUG=true
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+
+volumes:
+  devcontainer-bash-history:
+    driver: local

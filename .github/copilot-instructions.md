@@ -80,35 +80,181 @@ When generating code, prioritize readability, scalability, and educational value
 - **Framework:** Use `pytest` for all backend testing.
 - **Structure:** Mirror the source code structure in a `tests/` directory.
   - `src/services/agent.py` -> `tests/services/test_agent.py`
-- **Unit Tests (Default):**
-  - MUST run fast and offline.
-  - **MOCK EVERYTHING:** External dependencies (Ollama, Qdrant, Meilisearch, Langfuse, File System) must be mocked using `unittest.mock` or `pytest-mock`.
-  - Never allow a unit test to make a real network request.
-- **Integration Tests:**
-  - Mark them explicitly with `@pytest.mark.integration`.
-  - These tests verify communication with running Docker containers.
-- **Fixtures:** Use `tests/conftest.py` to define reusable mocks (e.g., a mock embedding generator or a mock vector DB client).
-- **AI/LLM Testing:**
-  - Do not test the "creativity" of the LLM in unit tests.
-  - Test the **logic flow**: Verify that prompts are constructed correctly, that responses are parsed into JSON correctly, and that tools are called with expected arguments.
-- **Coverage:** Aim for high coverage on business logic (`services/`, `utils/`), not just boilerplate.
 
-## 8. Version Control Guidelines (Semantic Git Flow)
+### Pre-Commit Code Review Checklist
 
-- **Branching Strategy:** Git Flow with Semantic Naming.
-  - **`master`:** Stable, production-ready code (tagged releases).
-  - **`develop`:** Main integration branch.
-  - **Working Branches:** MUST create new branches from `develop` using the following prefixes:
-    - `feature/` - New features (e.g., `feature/add-rag`).
-    - `fix/` - Bug fixes (e.g., `fix/ollama-connection`).
-    - `docs/` - Documentation changes only.
-    - `style/` - Code style/formatting (no logic change).
-    - `refactor/` - Code restructuring (no behavior change).
-    - `test/` - Adding or fixing tests.
-    - `chore/` - Maintenance, dependencies, config updates.
-    - `hotfix/` - Critical fixes branching from `master`.
-- **Commit Messages:** MUST follow "Conventional Commits" specification matching the branch type.
-  - Format: `<type>(<scope>): <description>`
-  - Example: `feature(ui): add file upload widget` matching branch `feature/file-upload`.
+Before making any commit, ALWAYS perform the following code review:
 
-When asked to create a new branch or commit, ALWAYS strictly follow these naming conventions.
+1. **Type Hints & Docstrings**
+   - [ ] All function parameters have type hints
+   - [ ] All return values have type hints
+   - [ ] All classes and complex functions have Google-style docstrings
+   - [ ] Docstrings include Args, Returns, Raises sections
+
+2. **Input Validation & Error Handling**
+   - [ ] External API calls wrapped in try-except blocks
+   - [ ] No bare `except:` clauses
+   - [ ] User input validated before processing
+   - [ ] Configuration values validated (empty strings, invalid ranges, etc.)
+
+3. **Edge Cases & Error Scenarios**
+   - [ ] Empty collections handled (empty lists, dicts, strings)
+   - [ ] Null/None values handled appropriately
+   - [ ] Network failures/timeouts considered
+   - [ ] Service unavailability handled gracefully
+   - [ ] Malformed responses validated before use
+
+4. **Logging & Observability**
+   - [ ] All errors logged with context
+   - [ ] Important operations logged (service init, API calls, state changes)
+   - [ ] No sensitive data in logs (secrets, API keys, passwords)
+   - [ ] Log levels appropriate (DEBUG, INFO, WARNING, ERROR)
+
+5. **Code Quality**
+   - [ ] PEP 8 compliance checked
+   - [ ] No commented-out code
+   - [ ] No hardcoded values (use config instead)
+   - [ ] Functions follow single responsibility principle
+
+6. **Security**
+   - [ ] No hardcoded secrets or credentials
+   - [ ] Input sanitization where needed
+   - [ ] API keys/tokens read from environment only
+   - [ ] Sensitive operations logged securely
+
+### Test Generation Workflow
+
+For any new service or module:
+
+1. **Create comprehensive test suite:**
+   - [ ] Initialization tests (normal + error cases)
+   - [ ] Success path tests (happy path)
+   - [ ] Failure tests (network errors, not found, timeouts)
+   - [ ] Edge case tests (empty input, null, malformed data)
+   - [ ] Validation tests (invalid input rejected)
+
+2. **Mock external dependencies:**
+   - [ ] All network calls mocked (requests, etc.)
+   - [ ] All database calls mocked
+   - [ ] All file I/O mocked
+   - [ ] Use `unittest.mock` or `pytest-mock`
+
+3. **Test coverage targets:**
+   - [ ] Core logic: ≥80% coverage
+   - [ ] Error paths: ≥75% coverage
+   - [ ] Edge cases: ≥70% coverage
+
+4. **Document test assumptions:**
+   - [ ] Note which calls are mocked
+   - [ ] Document expected vs actual behavior
+   - [ ] List test dependencies and fixtures
+
+### Unit Tests Standards
+
+- **Framework:** Use `pytest` for all backend testing.
+- **MUST run fast and offline.**
+- **MOCK EVERYTHING:** External dependencies (Ollama, Qdrant, Meilisearch, Langfuse, File System) must be mocked using `unittest.mock` or `pytest-mock`.
+- Never allow a unit test to make a real network request.
+
+### Integration Tests
+
+- Mark them explicitly with `@pytest.mark.integration`.
+- These tests verify communication with running Docker containers.
+
+### Fixtures
+
+- Use `tests/conftest.py` to define reusable mocks (e.g., a mock embedding generator or a mock vector DB client).
+
+### AI/LLM Testing
+
+- Do not test the "creativity" of the LLM in unit tests.
+- Test the **logic flow**: Verify that prompts are constructed correctly, that responses are parsed into JSON correctly, and that tools are called with expected arguments.
+
+### Coverage
+
+- Aim for high coverage on business logic (`services/`, `utils/`), not just boilerplate.
+
+## 8. Bugfixing Workflow (Test-Driven Bug Resolution)
+
+When a bug is reported or discovered, follow this systematic approach:
+
+### Mandatory Bugfix Process
+
+1. **Reproduce the Bug**
+   - [ ] Create a minimal test case that demonstrates the bug
+   - [ ] Document the expected vs actual behavior
+   - [ ] Identify the conditions that trigger the bug
+
+2. **Write a Failing Test FIRST**
+   - [ ] Before fixing anything, write a test that reproduces the bug
+   - [ ] The test must fail with the current code
+   - [ ] Test should be specific to the bug (not general)
+   - [ ] Include edge cases related to the bug
+
+3. **Fix the Bug**
+   - [ ] Implement the minimal fix to make the test pass
+   - [ ] Do not introduce unrelated changes
+   - [ ] Verify the test now passes
+   - [ ] Verify all existing tests still pass
+
+4. **Investigate Similar Bugs**
+   - [ ] Search codebase for similar patterns that might have the same issue
+   - [ ] Check related modules/functions for analogous bugs
+   - [ ] Review code that uses similar logic or data structures
+   - [ ] Add tests for potential similar bugs found
+
+5. **Review Existing Tests**
+   - [ ] Check why existing tests didn't catch this bug
+   - [ ] Identify gaps in test coverage
+   - [ ] Add missing test cases to prevent regression
+   - [ ] Update test documentation if needed
+
+6. **Document the Fix**
+   - [ ] Add clear commit message: `fix: <description>` (Conventional Commits)
+   - [ ] Reference issue number if applicable
+   - [ ] Add code comments explaining the fix if non-obvious
+   - [ ] Update docstrings if behavior changed
+
+### Example Bugfix Workflow
+
+```python
+# Step 1: Bug Report
+# "Agent crashes when KB is empty and user asks a question"
+
+# Step 2: Write Failing Test
+def test_agent_handles_empty_kb_gracefully():
+    """Test that agent doesn't crash when KB is empty."""
+    agent = AgentZero(config=test_config)
+    # Mock empty KB
+    with patch.object(agent.retrieval, 'retrieve_relevant_docs', return_value=[]):
+        response = agent.process_message("What is RAG?")
+        assert response is not None
+        assert "error" not in response.lower()
+
+# Step 3: Run test - it fails
+# Run: pytest tests/core/test_agent.py::test_agent_handles_empty_kb_gracefully
+
+# Step 4: Fix the bug in src/core/agent.py
+def process_message(self, message: str) -> str:
+    docs = self.retrieval.retrieve_relevant_docs(message)
+    if not docs:  # <-- Added this check
+        logger.warning("No documents found in KB")
+        context = "No relevant context available."
+    else:
+        context = self._format_context(docs)
+    # ... rest of logic
+
+# Step 5: Test passes now
+
+# Step 6: Investigate similar bugs
+# Check: ingest.py, retrieval.py for empty list handling
+# Add tests for those modules too
+```
+
+### Red Flags (NEVER Do This)
+
+- ❌ Fixing the bug without writing a test first
+- ❌ Skipping investigation of similar bugs
+- ❌ Marking existing tests as "skip" to make them pass
+- ❌ Changing test expectations to match buggy behavior
+- ❌ Committing without verifying all tests pass
