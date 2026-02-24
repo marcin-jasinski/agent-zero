@@ -77,7 +77,7 @@ rate(agent_zero_requests_total[5m])
 # 1. Open Agent Zero UI
 Start-Process "http://localhost:8501"
 
-# 2. Upload a test document (Chainlit file upload)
+# 2. Upload a test document (Gradio Chat tab → 📎 Upload button)
 # Use: data/samples/rag_introduction.md
 
 # 3. Send test queries in chat
@@ -395,7 +395,7 @@ curl http://localhost:9091/metrics | Select-String "retrieval_documents_count"
 # 6. Verify LLM metrics
 curl http://localhost:9091/metrics | Select-String "llm_tokens_total"
 
-# Expected: agent_zero_llm_tokens_total{model="ministral-3:3b",token_type="input"} > 0
+# Expected: agent_zero_llm_tokens_total{model="qwen3:4b",token_type="input"} > 0
 
 # 7. Check Grafana dashboard
 # UI: http://localhost:3001 → Agent Zero dashboard
@@ -420,7 +420,7 @@ curl http://localhost:9091/metrics | Select-String "llm_tokens_total"
 - Panels display data after test queries
 
 ✅ **Integration:**
-- Dashboard links visible in Chainlit chat (Langfuse, Prometheus, Grafana)
+- Dashboard links accessible via Gradio Admin tab (Langfuse, Prometheus, Grafana)
 - System health report shows Prometheus + Grafana status
 - Metrics update in real-time during usage
 

@@ -2,8 +2,9 @@
 
 The Promptfoo Testing Dashboard provides prompt testing and versioning capabilities for Agent Zero.
 
-> ⚠️ Note: The legacy tab-based UI referenced in this guide was removed during Phase 6b Chainlit migration.
+> ⚠️ Note: The Promptfoo tab visible in earlier UI screenshots was removed during Phase 6c (FastAPI + Gradio migration).
 > Use the `PromptfooClient` service API and local data files for prompt testing workflows.
+> The Admin tab in the Gradio UI provides result viewing via the Health and Logs sub-tabs.
 
 ## Features
 

@@ -84,7 +84,7 @@ GPU acceleration is **automatically detected**. No configuration needed!
 
 **Apple Silicon Note:** M1/M2/M3/M4 Macs have integrated GPU with unified memory architecture, providing excellent inference performance via Metal acceleration.
 
-See [CROSS_PLATFORM_GUIDE.md](CROSS_PLATFORM_GUIDE.md) for detailed platform-specific setup, or [APPLE_SILICON_GPU.md](APPLE_SILICON_GPU.md) for Apple Silicon details.
+See the [Troubleshooting](#-troubleshooting) section below for platform-specific setup help.
 
 ---
 
@@ -126,8 +126,8 @@ Agent Zero is built on a modern, scalable stack:
 
 - **Orchestration:** Docker Compose v2+
 - **Backend:** Python 3.11+ with LangChain
-- **LLM:** Ollama (ministral-3:3b)
-- **Embeddings:** nomic-embed-text-v2-moe (768-dim)
+- **LLM:** Ollama (qwen3:4b — default, configurable via `OLLAMA_MODEL`)
+- **Embeddings:** nomic-embed-text:latest (768-dim, configurable via `OLLAMA_EMBED_MODEL`)
 - **Vector DB:** Qdrant (semantic search)
 - **Search Engine:** Meilisearch (keyword search)
 - **UI:** FastAPI + Gradio (A.P.I. Dashboard — unified Chat & Admin)
@@ -163,10 +163,10 @@ docker logs -f $(docker-compose ps -q)
 
 ## 📚 Documentation
 
-- **[CROSS_PLATFORM_GUIDE.md](CROSS_PLATFORM_GUIDE.md)** — Setup for Windows, macOS, Linux
-- **[GPU_CROSS_PLATFORM.md](GPU_CROSS_PLATFORM.md)** — GPU configuration details
-- **[CODE_REVIEW.md](CODE_REVIEW.md)** — Code quality standards
-- **[PROJECT_PLAN.md](PROJECT_PLAN.md)** — Development roadmap
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** — System design, request flow, session model
+- **[PROJECT_PLAN.md](PROJECT_PLAN.md)** — Development roadmap and phase history
+- **[docs/OBSERVABILITY_IMPLEMENTATION.md](docs/OBSERVABILITY_IMPLEMENTATION.md)** — Langfuse, Prometheus, Grafana setup
+- **[docs/PROMPTFOO_GUIDE.md](docs/PROMPTFOO_GUIDE.md)** — Prompt evaluation with Promptfoo
 
 ---
 
@@ -185,14 +185,16 @@ docker logs -f $(docker-compose ps -q)
 
 ## 📦 Services
 
-| Service          | Port  | Purpose                    |
-| ---------------- | ----- | -------------------------- |
-| **A.P.I. (Gradio)** | 8501 | Unified Chat + Admin UI    |
-| **REST API**     | 8501  | FastAPI `/health` endpoint |
-| **Ollama**       | 11434 | LLM inference & embeddings |
-| **Qdrant**       | 6333  | Vector database            |
-| **Meilisearch**  | 7700  | Full-text search           |
-| **Langfuse**     | 3000  | Observability & monitoring |
+| Service             | Port  | Purpose                         |
+| ------------------- | ----- | ------------------------------- |
+| **A.P.I. (Gradio)** | 8501  | Unified Chat + Admin tabs (UI)  |
+| **FastAPI**         | 8501  | REST `/health` endpoint         |
+| **Ollama**          | 11434 | LLM inference & embeddings      |
+| **Qdrant**          | 6333  | Vector database                 |
+| **Meilisearch**     | 7700  | Full-text search                |
+| **Langfuse**        | 3000  | LLM tracing & observability     |
+| **Prometheus**      | 9090  | Metrics collection (TSDB)       |
+| **Grafana**         | 3001  | Metrics dashboards              |
 
 ---
 
@@ -244,15 +246,15 @@ docker run --rm --runtime=nvidia nvidia/cuda:11.8.0-base-ubuntu22.04 nvidia-smi
 ### Ollama Model Not Found
 
 ```bash
-# Manually pull required models
-docker exec agent-zero-ollama ollama pull ministral-3:3b
-docker exec agent-zero-ollama ollama pull nomic-embed-text-v2-moe
+# Manually pull required models (defaults — override via .env)
+docker exec agent-zero-ollama ollama pull qwen3:4b
+docker exec agent-zero-ollama ollama pull nomic-embed-text:latest
 
 # List available models
 docker exec agent-zero-ollama ollama list
 ```
 
-**Note**: First startup automatically pulls models, but this can take 5-10 minutes.
+**Note**: First startup automatically pulls models, but this can take 5-10 minutes depending on your connection.
 
 ### Out of Memory Errors
 
@@ -296,7 +298,7 @@ netstat -ano | findstr :8501
 2. Model is available: `docker exec agent-zero-ollama ollama list`
 3. Check logs: `docker logs agent-zero-app -f`
 
-For more help, see [CROSS_PLATFORM_GUIDE.md](CROSS_PLATFORM_GUIDE.md#troubleshooting).
+For more help, check container logs: `docker logs agent-zero-app -f`
 
 ---
 
@@ -308,7 +310,7 @@ This project is licensed under the [LICENSE](LICENSE) file.
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please follow the code standards in [CODE_REVIEW.md](CODE_REVIEW.md).
+Contributions are welcome! Please follow PEP 8, add type hints and Google-style docstrings, and include tests for any new logic (see `.github/copilot-instructions.md` for full standards).
 
 ---
 

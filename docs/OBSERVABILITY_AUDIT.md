@@ -32,7 +32,7 @@ This audit evaluates Agent Zero's observability implementation across the three 
 
 2. **Service-Level Filtering** ([logs.py](../src/ui/tools/logs.py)):
    - Pattern-based filtering by logger name
-  - Filter by: Ollama, Qdrant, Meilisearch, Langfuse, Agent Core, Chainlit, etc.
+   - Filter by: Ollama, Qdrant, Meilisearch, Langfuse, Agent Core, etc.
    - Real-time log viewing with auto-refresh (1s intervals)
    - Level-based filtering (INFO, WARNING, ERROR)
 
@@ -452,12 +452,12 @@ This audit evaluates Agent Zero's observability implementation across the three 
 | Tool | Access Method | URL | Status |
 |------|--------------|-----|--------|
 | **Logs** | Container logs + in-chat diagnostics | http://localhost:8501 | ✅ Working |
-| **Langfuse Tracing** | Chainlit links + full dashboard | http://localhost:3000 | ✅ Working |
-| **System Health** | Chainlit action button report | http://localhost:8501 | ✅ Working |
+| **Langfuse Tracing** | Gradio Admin tab + full dashboard | http://localhost:3000 | ✅ Working |
+| **System Health** | Admin tab → Health panel | http://localhost:8501 | ✅ Working |
 | **Qdrant Metrics** | Qdrant dashboard | http://localhost:6333/dashboard | ✅ Working |
 | **Meilisearch Metrics** | Meilisearch native UI | http://localhost:7700 | ✅ Working |
-| **Prometheus** | (Not implemented) | http://localhost:9090 | ❌ Missing |
-| **Grafana** | (Not implemented) | http://localhost:3001 | ❌ Missing |
+| **Prometheus** | Direct TSDB UI | http://localhost:9090 | ✅ Working |
+| **Grafana** | Agent Zero dashboard | http://localhost:3001 | ✅ Working |
 
 ### Feature Flags
 
