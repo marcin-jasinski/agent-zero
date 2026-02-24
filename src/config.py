@@ -39,6 +39,14 @@ class OllamaConfig(BaseSettings):
     embed_model: str = Field(default="nomic-embed-text:latest", description="Embedding model name")
     timeout: int = Field(default=300, description="Request timeout in seconds")
     max_retries: int = Field(default=3, description="Maximum retry attempts")
+    thinking: bool = Field(
+        default=True,
+        description=(
+            "Enable chain-of-thought for thinking models (qwen3, deepseek-r1, etc.). "
+            "Non-thinking models silently ignore this flag. "
+            "Set OLLAMA_THINKING=false to disable."
+        ),
+    )
 
     @property
     def base_url(self) -> str:

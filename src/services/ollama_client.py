@@ -144,6 +144,7 @@ class OllamaClient:
         Returns:
             Generated text (full response, regardless of streaming mode)
         """
+        config = get_config()
         try:
             payload = {
                 "model": model,
@@ -151,9 +152,10 @@ class OllamaClient:
                 "stream": on_token is not None,
                 "temperature": temperature,
                 "top_p": top_p,
-                # Enable chain-of-thought for thinking models (e.g. qwen3, deepseek-r1).
-                # Non-thinking models silently ignore this flag.
-                "think": True,
+                # Enable chain-of-thought for thinking models (qwen3, deepseek-r1).
+                # Non-thinking models silently ignore this flag per Ollama's API contract.
+                # Controlled by OLLAMA_THINKING env var (default: true).
+                "think": config.ollama.thinking,
             }
 
             if system:
