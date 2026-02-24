@@ -148,10 +148,10 @@ def respond(
         state: Per-session state dict produced by initialize_agent().
 
     Yields:
-        Tuple of (cleared_input_text, updated_history).
+        Tuple of (cleared_input_text, updated_history, thinking_accordion_update).
     """
     if not message or not message.strip():
-        yield "", history
+        yield "", history, gr.update(visible=False), gr.update()
         return
 
     if not state or "agent" not in state:
@@ -163,7 +163,7 @@ def respond(
                 "content": "⚠️ Agent is not initialized. Please wait for startup to complete.",
             }
         )
-        yield "", history
+        yield "", history, gr.update(visible=False), gr.update()
         return
 
     agent = state["agent"]
@@ -173,7 +173,7 @@ def respond(
     history = list(history)
     history.append({"role": "user", "content": message})
     history.append({"role": "assistant", "content": "⏳ Thinking…"})
-    yield "", history
+    yield "", history, gr.update(visible=False), gr.update()
 
     # Run the blocking LLM call in a thread; collect response via queue
     chunk_queue: queue.Queue[Optional[str]] = queue.Queue()
@@ -210,21 +210,19 @@ def respond(
             break
         accumulated += chunk
         history[-1]["content"] = accumulated
-        yield "", history
+        yield "", history, gr.update(visible=False), gr.update()
 
     if not accumulated:
         history[-1]["content"] = "⚠️ No response was generated. Please try again."
-        yield "", history
+        yield "", history, gr.update(visible=False), gr.update(value="")
     else:
         thinking = thinking_holder.get("text", "").strip()
         if thinking:
-            # Prepend chain-of-thought as a collapsible HTML block.
-            # Gradio's Chatbot renders HTML inside message bubbles.
-            history[-1]["content"] = (
-                f"<details><summary>💡 View thinking process</summary>\n\n"
-                f"{thinking}\n\n</details>\n\n{accumulated}"
-            )
-            yield "", history
+            # Surface chain-of-thought in a dedicated Accordion component.
+            # (Gradio sanitises <details>/<summary> HTML inside Chatbot bubbles.)
+            yield "", history, gr.update(visible=True), gr.update(value=thinking)
+        else:
+            yield "", history, gr.update(visible=False), gr.update(value="")
 
 
 # ---------------------------------------------------------------------------
@@ -317,15 +315,16 @@ def ingest_document(
 # ---------------------------------------------------------------------------
 
 
-def build_chat_ui() -> tuple[gr.State, gr.Markdown]:
+def build_chat_ui() -> tuple:
     """Register all Chat tab components inside the active gr.Blocks context.
 
-    Must be called inside an open ``with gr.Blocks() as …`` / ``with gr.Tab():``
-    context.  Returns *(state, status_bar)* so the caller (app.py) can wire
-    the ``blocks.load()`` event to ``initialize_agent``.
+    Must be called inside an open ``with gr.Blocks() as \u2026`` / ``with gr.Tab():"""
+    """context.  Returns *(state, status_bar, msg_box, send_btn, thinking_md)* so
+    the caller (app.py) can wire the ``blocks.load()`` event to
+    ``initialize_agent``, and ``respond`` to all five outputs.
 
     Returns:
-        Tuple of (session state component, status markdown component).
+        Tuple of (session state, status bar, msg box, send btn, thinking markdown).
     """
     state = gr.State({})
 
@@ -343,6 +342,11 @@ def build_chat_ui() -> tuple[gr.State, gr.Markdown]:
         buttons=["copy"],
         layout="bubble",
     )
+
+    # Chain-of-thought reasoning — populated after each response, hidden by default.
+    # Uses a Gradio Accordion because Chatbot bubbles sanitise <details> HTML.
+    with gr.Accordion("💡 Thinking process", open=True, visible=False) as thinking_accordion:
+        thinking_md = gr.Markdown("")
 
     # Input row
     with gr.Row():
@@ -371,8 +375,10 @@ def build_chat_ui() -> tuple[gr.State, gr.Markdown]:
     submit_args = dict(
         fn=respond,
         inputs=[msg_box, chatbot, state],
-        outputs=[msg_box, chatbot],
+        outputs=[msg_box, chatbot, thinking_accordion, thinking_md],
     )
+    # Also need to show/hide the accordion wrapper when thinking is present.
+    # We wire respond() additionally to the accordion visibility.
     msg_box.submit(**submit_args)
     send_btn.click(**submit_args)
 
@@ -384,4 +390,4 @@ def build_chat_ui() -> tuple[gr.State, gr.Markdown]:
     )
 
     # Return components needed by app.py to wire the .load() event
-    return state, status_bar, msg_box, send_btn
+    return state, status_bar, msg_box, send_btn, thinking_md, thinking_accordion

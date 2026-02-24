@@ -151,6 +151,9 @@ class OllamaClient:
                 "stream": on_token is not None,
                 "temperature": temperature,
                 "top_p": top_p,
+                # Enable chain-of-thought for thinking models (e.g. qwen3, deepseek-r1).
+                # Non-thinking models silently ignore this flag.
+                "think": True,
             }
 
             if system:
@@ -196,6 +199,8 @@ class OllamaClient:
                     if "<think>" in think_buffer:
                         in_think_block = True
                     if "</think>" in think_buffer:
+                        # Closing tag found — leave this token out of the UI
+                        # stream (it may contain </think> partial content).
                         in_think_block = False
                         think_buffer = ""
                     elif not in_think_block:

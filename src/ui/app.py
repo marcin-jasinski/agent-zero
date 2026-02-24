@@ -89,8 +89,8 @@ with gr.Blocks(
         "<span style='font-size:0.9rem;color:#888'>Local Agent Builder (L.A.B.)</span>"
     )
     with gr.Tab("💬 Chat"):
-        # build_chat_ui returns (state, status_bar, msg_box, send_btn) for load wiring
-        _chat_state, _chat_status, _msg_box, _send_btn = build_chat_ui()
+        # build_chat_ui returns (state, status_bar, msg_box, send_btn, thinking_md, thinking_accordion)
+        _chat_state, _chat_status, _msg_box, _send_btn, _thinking_md, _thinking_accordion = build_chat_ui()
     with gr.Tab("🛡️ Admin") as _admin_tab:
         _health_out = build_admin_ui()
 

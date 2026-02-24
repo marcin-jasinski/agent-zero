@@ -132,7 +132,7 @@ def _build_state(agent: MagicMock | None = None) -> dict:
     }
 
 
-def _collect(gen) -> list[tuple[str, list[dict]]]:
+def _collect(gen) -> list[tuple]:
     return list(gen)
 
 
@@ -145,7 +145,7 @@ class TestRespond:
         history = [{"role": "user", "content": "hi"}]
         results = _collect(respond("", history, _build_state()))
         assert len(results) == 1
-        cleared, returned_history = results[0]
+        cleared, returned_history, *_ = results[0]
         assert cleared == ""
         assert returned_history is history
 
@@ -153,7 +153,7 @@ class TestRespond:
         from src.ui.chat import respond
 
         results = _collect(respond("hello", [], {}))
-        _, history = results[-1]
+        _, history, *_ = results[-1]
         contents = [m["content"] for m in history]
         assert any("⚠️" in c for c in contents)
 
@@ -190,7 +190,7 @@ class TestRespond:
 
         results = _collect(respond("hello", [], _build_state(agent)))
         # Every yield must return an empty string as the first element (cleared input)
-        for cleared, _ in results:
+        for cleared, *_ in results:
             assert cleared == ""
 
     def test_agent_exception_appends_error_message(self) -> None:

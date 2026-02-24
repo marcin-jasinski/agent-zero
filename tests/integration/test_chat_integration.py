@@ -100,7 +100,7 @@ class TestChatSessionWorkflow:
 
         history: list[dict] = []
         for question in ["Q1", "Q2", "Q3"]:
-            for _, history in respond(question, list(history), state):
+            for _, history, *_ in respond(question, list(history), state):
                 pass  # drain to final state
 
         roles = [m["role"] for m in history]
@@ -122,7 +122,7 @@ class TestChatSessionWorkflow:
         }
 
         results = _collect(respond("Any question", [], state))
-        _, final_history = results[-1]
+        _, final_history, *_ = results[-1]
         assistant_msgs = [m["content"] for m in final_history if m["role"] == "assistant"]
         assert any("❌" in c or "Error" in c for c in assistant_msgs)
         # State still intact for next turn
@@ -211,7 +211,7 @@ class TestIngestThenChatWorkflow:
 
         # Chat still works
         results = _collect(respond("Tell me something", [], state))
-        _, history = results[-1]
+        _, history, *_ = results[-1]
         assert any(m["role"] == "assistant" for m in history)
 
 
@@ -230,7 +230,7 @@ class TestInitializationFailureWorkflow:
 
         # Empty state (startup never ran)
         results = _collect(respond("Hello?", [], {}))
-        _, history = results[-1]
+        _, history, *_ = results[-1]
         assert any("⚠️" in m["content"] for m in history)
 
     def test_ingest_without_init_returns_warning(self, tmp_path) -> None:
