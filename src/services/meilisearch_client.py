@@ -4,6 +4,7 @@ Handles keyword search and document indexing.
 """
 
 import logging
+import re
 from typing import Optional
 
 import meilisearch
@@ -16,7 +17,12 @@ logger = logging.getLogger(__name__)
 class MeilisearchClient:
     """Client for Meilisearch full-text search engine."""
 
-    def __init__(self, host: Optional[str] = None, port: Optional[int] = None, api_key: Optional[str] = None):
+    def __init__(
+        self,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
+        api_key: Optional[str] = None,
+    ):
         """Initialize Meilisearch client.
 
         Args:
@@ -28,29 +34,19 @@ class MeilisearchClient:
         # If host is provided, use it; otherwise use config which already contains full URL
         if host:
             self.host = host
-            self.port = port or 7700
+            self.port = port or config.meilisearch.port
+            self.api_key = api_key or config.meilisearch.api_key
+            self.url = f"http://{self.host}:{self.port}"
         else:
             # Config already provides full URL (e.g., http://meilisearch:7700)
             self.url = config.meilisearch.host
             self.api_key = api_key or config.meilisearch.api_key
-            try:
-                self.client = meilisearch.Client(self.url, api_key=self.api_key)
-                logger.info(f"Meilisearch client initialized: {self.url}")
-            except Exception as e:
-                logger.error(f"Failed to initialize Meilisearch client: {e}")
-                raise
-            return
-            
-        # If host was explicitly provided, construct URL
-        self.port = port or config.meilisearch.port
-        self.api_key = api_key or config.meilisearch.api_key
-        self.url = f"http://{self.host}:{self.port}"
 
         try:
             self.client = meilisearch.Client(self.url, api_key=self.api_key)
-            logger.info(f"Meilisearch client initialized: {self.url}")
+            logger.info("Meilisearch client initialized: %s", self.url)
         except Exception as e:
-            logger.error(f"Failed to initialize Meilisearch client: {e}")
+            logger.error("Failed to initialize Meilisearch client: %s", e)
             raise
 
     def is_healthy(self) -> bool:
@@ -63,7 +59,7 @@ class MeilisearchClient:
             health = self.client.health()
             return health.get("status") == "available"
         except Exception as e:
-            logger.warning(f"Meilisearch health check failed: {e}")
+            logger.warning("Meilisearch health check failed: %s", e)
             return False
 
     def create_index(
@@ -84,23 +80,22 @@ class MeilisearchClient:
             ValueError: If index_uid is invalid
         """
         # Validate index_uid (Meilisearch naming rules)
-        import re
         if not re.match(r"^[a-zA-Z0-9_-]+$", index_uid):
             raise ValueError(
                 f"index_uid must contain only alphanumeric characters, hyphens, "
                 f"and underscores, got '{index_uid}'"
             )
-        
+
         try:
             self.client.create_index(index_uid, {"primaryKey": primary_key})
-            logger.info(f"Index '{index_uid}' created")
+            logger.info("Index '%s' created", index_uid)
             return True
         except Exception as e:
             error_msg = str(e).lower()
             if "already exists" in error_msg or "index_already_exists" in error_msg:
-                logger.info(f"Index '{index_uid}' already exists, skipping creation")
+                logger.info("Index '%s' already exists, skipping creation", index_uid)
                 return True
-            logger.error(f"Failed to create index: {e}")
+            logger.error("Failed to create index: %s", e)
             return False
 
     def add_documents(
@@ -122,10 +117,10 @@ class MeilisearchClient:
         try:
             index = self.client.index(index_uid)
             index.add_documents(documents, primary_key=primary_key)
-            logger.info(f"Added {len(documents)} documents to index '{index_uid}'")
+            logger.info("Added %s documents to index '%s'", len(documents), index_uid)
             return True
         except Exception as e:
-            logger.error(f"Failed to add documents: {e}")
+            logger.error("Failed to add documents: %s", e)
             return False
 
     def search(
@@ -149,7 +144,7 @@ class MeilisearchClient:
             results = index.search(query, {"limit": limit})
             return results.get("hits", [])
         except Exception as e:
-            logger.error(f"Search failed: {e}")
+            logger.error("Search failed: %s", e)
             return []
 
     def delete_index(self, index_uid: str) -> bool:
@@ -163,10 +158,10 @@ class MeilisearchClient:
         """
         try:
             self.client.delete_index(index_uid)
-            logger.info(f"Index '{index_uid}' deleted")
+            logger.info("Index '%s' deleted", index_uid)
             return True
         except Exception as e:
-            logger.error(f"Failed to delete index: {e}")
+            logger.error("Failed to delete index: %s", e)
             return False
 
     def get_index_stats(self, index_uid: str) -> Optional[dict]:
@@ -182,7 +177,9 @@ class MeilisearchClient:
             index = self.client.index(index_uid)
             stats = index.get_stats()
             if isinstance(stats, dict):
-                documents_count = stats.get("numberOfDocuments", stats.get("number_of_documents", 0))
+                documents_count = stats.get(
+                    "numberOfDocuments", stats.get("number_of_documents", 0)
+                )
                 is_indexing = stats.get("isIndexing", stats.get("is_indexing", False))
             else:
                 documents_count = getattr(stats, "number_of_documents", 0)
@@ -193,7 +190,7 @@ class MeilisearchClient:
                 "is_indexing": is_indexing,
             }
         except Exception as e:
-            logger.error(f"Failed to get index stats: {e}")
+            logger.error("Failed to get index stats: %s", e)
             return None
 
     def list_indexes(self) -> list[str]:
@@ -222,5 +219,5 @@ class MeilisearchClient:
 
             return parsed_indexes
         except Exception as e:
-            logger.error(f"Failed to list indexes: {e}")
+            logger.error("Failed to list indexes: %s", e)
             return []

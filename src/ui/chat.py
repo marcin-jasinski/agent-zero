@@ -45,6 +45,7 @@ def initialize_agent(progress: gr.Progress = gr.Progress()) -> tuple[dict, str]:
         On failure the state dict is empty and the status contains the error.
     """
     try:
+        # pylint: disable=import-outside-toplevel
         from src.core.agent import AgentOrchestrator
         from src.core.retrieval import RetrievalEngine
         from src.services.ollama_client import OllamaClient
@@ -85,7 +86,8 @@ def initialize_agent(progress: gr.Progress = gr.Progress()) -> tuple[dict, str]:
         if not meilisearch.is_healthy():
             return (
                 {},
-                "❌ **Meilisearch is not reachable.**\n\nCheck that the Meilisearch container is running.",
+                "❌ **Meilisearch is not reachable.**\n\n"
+                "Check that the Meilisearch container is running.",
                 gr.update(interactive=False),
                 gr.update(interactive=False),
             )
@@ -99,7 +101,7 @@ def initialize_agent(progress: gr.Progress = gr.Progress()) -> tuple[dict, str]:
         conversation_id = agent.start_conversation()
 
         progress(1.0, desc="Agent ready ✅")
-        logger.info(f"Chat agent initialized — conversation_id={conversation_id}")
+        logger.info("Chat agent initialized — conversation_id=%s", conversation_id)
 
         state = {
             "agent": agent,
@@ -116,7 +118,7 @@ def initialize_agent(progress: gr.Progress = gr.Progress()) -> tuple[dict, str]:
         )
 
     except Exception as exc:
-        logger.error(f"Agent initialization failed: {exc}", exc_info=True)
+        logger.error("Agent initialization failed: %s", exc, exc_info=True)
         return (
             {},
             f"❌ **Initialization error:**\n\n```\n{exc}\n```",
@@ -196,7 +198,7 @@ def respond(
                 thinking_callback=_thinking_cb,
             )
         except Exception as exc:
-            logger.error(f"Message processing error: {exc}", exc_info=True)
+            logger.error("Message processing error: %s", exc, exc_info=True)
             chunk_queue.put(f"\n\n❌ **Error:** {exc}")
         finally:
             chunk_queue.put(None)  # sentinel
@@ -254,6 +256,7 @@ def ingest_document(
         return "⚠️ Agent not initialized. Please wait for startup to complete."
 
     try:
+        # pylint: disable=import-outside-toplevel
         from src.core.ingest import DocumentIngestor
 
         # Gradio 6: gr.File returns a str path; older versions returned an object.
@@ -306,7 +309,7 @@ def ingest_document(
     except UnicodeDecodeError:
         return f"❌ Could not read `{filename}` as UTF-8 text. Please ensure the file is valid."
     except Exception as exc:
-        logger.error(f"Document ingestion failed: {exc}", exc_info=True)
+        logger.error("Document ingestion failed: %s", exc, exc_info=True)
         return f"❌ **Ingestion error:** {exc}"
 
 
@@ -318,8 +321,8 @@ def ingest_document(
 def build_chat_ui() -> tuple:
     """Register all Chat tab components inside the active gr.Blocks context.
 
-    Must be called inside an open ``with gr.Blocks() as \u2026`` / ``with gr.Tab():"""
-    """context.  Returns *(state, status_bar, msg_box, send_btn, thinking_md)* so
+    Must be called inside an open ``with gr.Blocks() as \u2026`` / ``with gr.Tab():``
+    context.  Returns *(state, status_bar, msg_box, send_btn, thinking_md)* so
     the caller (app.py) can wire the ``blocks.load()`` event to
     ``initialize_agent``, and ``respond`` to all five outputs.
 
@@ -338,7 +341,10 @@ def build_chat_ui() -> tuple:
         value=[],
         height=520,
         label="Agent Zero",
-        avatar_images=(None, "https://raw.githubusercontent.com/gradio-app/gradio/main/guides/assets/logo.svg"),
+        avatar_images=(
+            None,
+            "https://raw.githubusercontent.com/gradio-app/gradio/main/guides/assets/logo.svg",
+        ),
         buttons=["copy"],
         layout="bubble",
     )
@@ -372,11 +378,11 @@ def build_chat_ui() -> tuple:
     # -----------------------------------------------------------------------
 
     # Submit message (Enter key or Send button)
-    submit_args = dict(
-        fn=respond,
-        inputs=[msg_box, chatbot, state],
-        outputs=[msg_box, chatbot, thinking_accordion, thinking_md],
-    )
+    submit_args = {
+        "fn": respond,
+        "inputs": [msg_box, chatbot, state],
+        "outputs": [msg_box, chatbot, thinking_accordion, thinking_md],
+    }
     # Also need to show/hide the accordion wrapper when thinking is present.
     # We wire respond() additionally to the accordion visibility.
     msg_box.submit(**submit_args)

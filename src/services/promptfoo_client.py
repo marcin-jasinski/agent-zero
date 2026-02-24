@@ -13,7 +13,6 @@ from typing import Dict, List, Optional
 
 from src.models.promptfoo import (
     PromptComparison,
-    PromptVersion,
     TestResult,
     TestRun,
     TestScenario,
@@ -36,7 +35,7 @@ class PromptfooClient:
         scenarios_file: Path to scenarios JSON file
         runs_file: Path to test runs JSON file
     """
-    
+
     def __init__(self, data_dir: str = "data/promptfoo"):
         """Initialize Promptfoo client.
         
@@ -45,21 +44,21 @@ class PromptfooClient:
         """
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
-        
+
         self.scenarios_file = self.data_dir / "scenarios.json"
         self.runs_file = self.data_dir / "test_runs.json"
-        
+
         # Initialize files if they don't exist
         if not self.scenarios_file.exists():
             self._save_scenarios([])
         if not self.runs_file.exists():
             self._save_runs([])
-        
-        logger.info(f"PromptfooClient initialized with data_dir={data_dir}")
-    
+
+        logger.info("PromptfooClient initialized with data_dir=%s", data_dir)
+
     # ========== Test Scenario Management ==========
-    
-    def create_scenario(
+
+    def create_scenario(  # pylint: disable=too-many-positional-arguments
         self,
         name: str,
         description: str,
@@ -90,14 +89,14 @@ class PromptfooClient:
             assertions=assertions or [],
             tags=tags or [],
         )
-        
+
         scenarios = self.list_scenarios()
         scenarios.append(scenario)
         self._save_scenarios(scenarios)
-        
-        logger.info(f"Created test scenario: {scenario.id} - {name}")
+
+        logger.info("Created test scenario: %s - %s", scenario.id, name)
         return scenario
-    
+
     def list_scenarios(self, tags: Optional[List[str]] = None) -> List[TestScenario]:
         """List all test scenarios, optionally filtered by tags.
         
@@ -108,15 +107,15 @@ class PromptfooClient:
             List of TestScenario instances
         """
         scenarios = self._load_scenarios()
-        
+
         if tags:
             scenarios = [
                 s for s in scenarios
                 if any(tag in s.tags for tag in tags)
             ]
-        
+
         return scenarios
-    
+
     def get_scenario(self, scenario_id: str) -> Optional[TestScenario]:
         """Get a specific test scenario by ID.
         
@@ -131,7 +130,7 @@ class PromptfooClient:
             if scenario.id == scenario_id:
                 return scenario
         return None
-    
+
     def update_scenario(self, scenario_id: str, **updates) -> Optional[TestScenario]:
         """Update an existing test scenario.
         
@@ -143,21 +142,21 @@ class PromptfooClient:
             Updated TestScenario if found, None otherwise
         """
         scenarios = self.list_scenarios()
-        for i, scenario in enumerate(scenarios):
+        for _, scenario in enumerate(scenarios):
             if scenario.id == scenario_id:
                 # Update fields
                 for key, value in updates.items():
                     if hasattr(scenario, key):
                         setattr(scenario, key, value)
                 scenario.updated_at = datetime.now()
-                
+
                 self._save_scenarios(scenarios)
-                logger.info(f"Updated scenario: {scenario_id}")
+                logger.info("Updated scenario: %s", scenario_id)
                 return scenario
-        
-        logger.warning(f"Scenario not found: {scenario_id}")
+
+        logger.warning("Scenario not found: %s", scenario_id)
         return None
-    
+
     def delete_scenario(self, scenario_id: str) -> bool:
         """Delete a test scenario.
         
@@ -170,17 +169,17 @@ class PromptfooClient:
         scenarios = self.list_scenarios()
         original_count = len(scenarios)
         scenarios = [s for s in scenarios if s.id != scenario_id]
-        
+
         if len(scenarios) < original_count:
             self._save_scenarios(scenarios)
-            logger.info(f"Deleted scenario: {scenario_id}")
+            logger.info("Deleted scenario: %s", scenario_id)
             return True
-        
-        logger.warning(f"Scenario not found: {scenario_id}")
+
+        logger.warning("Scenario not found: %s", scenario_id)
         return False
-    
+
     # ========== Test Execution ==========
-    
+
     def run_tests(
         self,
         prompt_version: str,
@@ -203,44 +202,47 @@ class PromptfooClient:
             scenarios = [s for s in all_scenarios if s.id in scenario_ids]
         else:
             scenarios = all_scenarios
-        
+
         if not scenarios:
             logger.warning("No scenarios to test")
             return TestRun(
                 id=str(uuid.uuid4()),
                 prompt_version=prompt_version,
             )
-        
+
         # Create test run
         test_run = TestRun(
             id=str(uuid.uuid4()),
             prompt_version=prompt_version,
             started_at=datetime.now(),
         )
-        
-        logger.info(f"Starting test run {test_run.id} for {prompt_version} with {len(scenarios)} scenarios")
-        
+
+        logger.info(
+            "Starting test run %s for %s with %s scenarios",
+            test_run.id, prompt_version, len(scenarios),
+        )
+
         # Execute each scenario
         for scenario in scenarios:
             result = self._execute_scenario(scenario, agent_callback)
             test_run.results.append(result)
-        
+
         # Finalize metrics
         test_run.completed_at = datetime.now()
         test_run.calculate_metrics()
-        
+
         # Save test run
         runs = self._load_runs()
         runs.append(test_run)
         self._save_runs(runs)
-        
+
         logger.info(
-            f"Test run completed: {test_run.passed_tests}/{test_run.total_tests} passed "
-            f"({test_run.pass_rate:.1f}%)"
+            "Test run completed: %d/%d passed (%.1f%%)",
+            test_run.passed_tests, test_run.total_tests, test_run.pass_rate,
         )
-        
+
         return test_run
-    
+
     def _execute_scenario(
         self,
         scenario: TestScenario,
@@ -256,7 +258,7 @@ class PromptfooClient:
             TestResult instance
         """
         start_time = datetime.now()
-        
+
         try:
             # Call agent (or use mock response)
             if agent_callback:
@@ -266,28 +268,28 @@ class PromptfooClient:
                 # Mock response for testing
                 actual_output = f"Mock response for: {scenario.input_text}"
                 token_count = 10
-            
+
             # Calculate latency
             end_time = datetime.now()
             latency_ms = (end_time - start_time).total_seconds() * 1000
-            
+
             # Run assertions
             assertion_results = {}
             all_passed = True
-            
+
             for assertion in scenario.assertions:
                 passed = self._check_assertion(assertion, actual_output, scenario.expected_output)
                 assertion_results[assertion] = passed
                 if not passed:
                     all_passed = False
-            
+
             # Determine status
             if not scenario.assertions:
                 # No assertions = consider passed if we got a response
                 status = TestStatus.PASSED
             else:
                 status = TestStatus.PASSED if all_passed else TestStatus.FAILED
-            
+
             return TestResult(
                 scenario_id=scenario.id,
                 status=status,
@@ -296,9 +298,9 @@ class PromptfooClient:
                 token_count=token_count,
                 assertion_results=assertion_results,
             )
-            
+
         except Exception as e:
-            logger.error(f"Error executing scenario {scenario.id}: {e}")
+            logger.error("Error executing scenario %s: %s", scenario.id, e)
             return TestResult(
                 scenario_id=scenario.id,
                 status=TestStatus.ERROR,
@@ -306,7 +308,7 @@ class PromptfooClient:
                 latency_ms=0.0,
                 error_message=str(e),
             )
-    
+
     def _check_assertion(
         self,
         assertion: str,
@@ -324,35 +326,29 @@ class PromptfooClient:
             True if assertion passes, False otherwise
         """
         assertion_lower = assertion.lower()
-        
+
         # Simple assertion types
         if assertion_lower.startswith("contains:"):
             keyword = assertion.split(":", 1)[1].strip()
             return keyword.lower() in actual_output.lower()
-        
-        elif assertion_lower == "not_empty":
+        if assertion_lower == "not_empty":
             return len(actual_output.strip()) > 0
-        
-        elif assertion_lower == "no_toxic":
+        if assertion_lower == "no_toxic":
             # Simple toxicity check (would use LLM Guard in real impl)
             toxic_words = ["hate", "violence", "offensive"]
             return not any(word in actual_output.lower() for word in toxic_words)
-        
-        elif assertion_lower == "matches_expected":
+        if assertion_lower == "matches_expected":
             if expected_output:
                 return actual_output.strip() == expected_output.strip()
             return False
-        
-        elif assertion_lower.startswith("max_length:"):
+        if assertion_lower.startswith("max_length:"):
             max_len = int(assertion.split(":", 1)[1].strip())
             return len(actual_output) <= max_len
-        
-        else:
-            logger.warning(f"Unknown assertion type: {assertion}")
-            return True  # Default to pass for unknown assertions
-    
+        logger.warning("Unknown assertion type: %s", assertion)
+        return True  # Default to pass for unknown assertions
+
     # ========== Test Run History ==========
-    
+
     def list_runs(
         self,
         prompt_version: Optional[str] = None,
@@ -368,16 +364,16 @@ class PromptfooClient:
             List of TestRun instances, newest first
         """
         runs = self._load_runs()
-        
+
         # Filter by version if specified
         if prompt_version:
             runs = [r for r in runs if r.prompt_version == prompt_version]
-        
+
         # Sort by started_at descending (newest first)
         runs.sort(key=lambda r: r.started_at, reverse=True)
-        
+
         return runs[:limit]
-    
+
     def get_run(self, run_id: str) -> Optional[TestRun]:
         """Get a specific test run by ID.
         
@@ -392,9 +388,9 @@ class PromptfooClient:
             if run.id == run_id:
                 return run
         return None
-    
+
     # ========== Version Comparison ==========
-    
+
     def compare_versions(
         self,
         version_a: str,
@@ -412,21 +408,23 @@ class PromptfooClient:
         # Get latest run for each version
         runs_a = self.list_runs(prompt_version=version_a, limit=1)
         runs_b = self.list_runs(prompt_version=version_b, limit=1)
-        
+
         if not runs_a or not runs_b:
-            logger.warning(f"Missing test runs for comparison: {version_a} or {version_b}")
+            logger.warning(
+                "Missing test runs for comparison: %s or %s", version_a, version_b
+            )
             return None
-        
+
         comparison = PromptComparison(
             version_a=version_a,
             version_b=version_b,
             run_a=runs_a[0],
             run_b=runs_b[0],
         )
-        
+
         comparison.analyze()
         return comparison
-    
+
     def get_summary_metrics(self) -> Dict:
         """Get summary metrics across all test runs.
         
@@ -435,7 +433,7 @@ class PromptfooClient:
         """
         runs = self._load_runs()
         scenarios = self.list_scenarios()
-        
+
         if not runs:
             return {
                 "total_scenarios": len(scenarios),
@@ -443,12 +441,12 @@ class PromptfooClient:
                 "average_pass_rate": 0.0,
                 "latest_run": None,
             }
-        
+
         # Calculate aggregate metrics
         total_runs = len(runs)
         average_pass_rate = sum(r.pass_rate for r in runs) / total_runs
         latest_run = max(runs, key=lambda r: r.started_at)
-        
+
         return {
             "total_scenarios": len(scenarios),
             "total_runs": total_runs,
@@ -460,49 +458,49 @@ class PromptfooClient:
                 "started_at": latest_run.started_at.isoformat(),
             },
         }
-    
+
     # ========== Persistence Helpers ==========
-    
+
     def _load_scenarios(self) -> List[TestScenario]:
         """Load scenarios from JSON file."""
         try:
-            with open(self.scenarios_file, "r") as f:
+            with open(self.scenarios_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            
+
             scenarios = []
             for item in data:
                 # Parse datetime fields
                 item["created_at"] = datetime.fromisoformat(item["created_at"])
                 item["updated_at"] = datetime.fromisoformat(item["updated_at"])
                 scenarios.append(TestScenario(**item))
-            
+
             return scenarios
         except Exception as e:
-            logger.error(f"Error loading scenarios: {e}")
+            logger.error("Error loading scenarios: %s", e)
             return []
-    
+
     def _save_scenarios(self, scenarios: List[TestScenario]) -> None:
         """Save scenarios to JSON file."""
         try:
             data = [s.to_dict() for s in scenarios]
-            with open(self.scenarios_file, "w") as f:
+            with open(self.scenarios_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
         except Exception as e:
-            logger.error(f"Error saving scenarios: {e}")
-    
+            logger.error("Error saving scenarios: %s", e)
+
     def _load_runs(self) -> List[TestRun]:
         """Load test runs from JSON file."""
         try:
-            with open(self.runs_file, "r") as f:
+            with open(self.runs_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            
+
             runs = []
             for run_data in data:
                 # Parse datetime fields
                 run_data["started_at"] = datetime.fromisoformat(run_data["started_at"])
                 if run_data.get("completed_at"):
                     run_data["completed_at"] = datetime.fromisoformat(run_data["completed_at"])
-                
+
                 # Parse results
                 results = []
                 for result_data in run_data.get("results", []):
@@ -510,19 +508,19 @@ class PromptfooClient:
                     result_data["status"] = TestStatus(result_data["status"])
                     results.append(TestResult(**result_data))
                 run_data["results"] = results
-                
+
                 runs.append(TestRun(**run_data))
-            
+
             return runs
         except Exception as e:
-            logger.error(f"Error loading runs: {e}")
+            logger.error("Error loading runs: %s", e)
             return []
-    
+
     def _save_runs(self, runs: List[TestRun]) -> None:
         """Save test runs to JSON file."""
         try:
             data = [r.to_dict() for r in runs]
-            with open(self.runs_file, "w") as f:
+            with open(self.runs_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
         except Exception as e:
-            logger.error(f"Error saving runs: {e}")
+            logger.error("Error saving runs: %s", e)

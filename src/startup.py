@@ -47,7 +47,7 @@ def _retry_with_backoff(
     """
     delay = initial_delay
     last_error = None
-    
+
     for attempt in range(max_retries):
         try:
             result = func()
@@ -56,13 +56,16 @@ def _retry_with_backoff(
             last_error = "Service returned False"
         except Exception as e:
             last_error = str(e)
-            logger.debug(f"  Attempt {attempt + 1}/{max_retries} for {service_name} failed: {e}")
-        
+            logger.debug(
+                "  Attempt %s/%s for %s failed: %s",
+                attempt + 1, max_retries, service_name, e,
+            )
+
         if attempt < max_retries - 1:
-            logger.info(f"  → Retrying {service_name} in {delay:.1f}s...")
+            logger.info("  → Retrying %s in %.1fs...", service_name, delay)
             time.sleep(delay)
             delay *= RETRY_BACKOFF_MULTIPLIER
-    
+
     return False, last_error
 
 
@@ -112,11 +115,14 @@ class ApplicationStartup:
             self._log_startup_summary()
 
             # Return success if all critical steps passed
-            critical_failed = [s for s in self.statuses if not s.success and "critical" in s.message.lower()]
+            critical_failed = [
+                s for s in self.statuses
+                if not s.success and "critical" in s.message.lower()
+            ]
             return len(critical_failed) == 0
 
         except Exception as e:
-            logger.error(f"Unexpected error during startup: {e}")
+            logger.error("Unexpected error during startup: %s", e)
             return False
 
     def _check_services(self) -> None:
@@ -132,29 +138,32 @@ class ApplicationStartup:
 
             for service_name, status in statuses.items():
                 if status.is_healthy:
-                    logger.info(f"  ✓ {service_name}: Healthy ({status.message})")
+                    logger.info("  ✓ %s: Healthy (%s)", service_name, status.message)
                 else:
-                    logger.warning(f"  ⚠ {service_name}: Unhealthy ({status.message})")
+                    logger.warning("  ⚠ %s: Unhealthy (%s)", service_name, status.message)
                     unhealthy_services.append(service_name)
 
             # Retry unhealthy services
             if unhealthy_services:
-                logger.info(f"  → Retrying unhealthy services: {', '.join(unhealthy_services)}")
+                logger.info("  → Retrying unhealthy services: %s", ', '.join(unhealthy_services))
                 for service_name in unhealthy_services:
                     success, error = _retry_with_backoff(
                         lambda sn=service_name: self._check_single_service(sn),
                         service_name,
                     )
                     if success:
-                        logger.info(f"  ✓ {service_name}: Now healthy after retry")
+                        logger.info("  ✓ %s: Now healthy after retry", service_name)
                     else:
-                        logger.warning(f"  ⚠ {service_name}: Still unhealthy after retries ({error})")
+                        logger.warning(
+                            "  ⚠ %s: Still unhealthy after retries (%s)",
+                            service_name, error,
+                        )
 
             # Record status
             final_statuses = self.health_checker.check_all()
             healthy_count = sum(1 for s in final_statuses.values() if s.is_healthy)
             total_count = len(final_statuses)
-            
+
             self.statuses.append(
                 StartupStatus(
                     step_name="Service Health Check",
@@ -163,7 +172,7 @@ class ApplicationStartup:
                 )
             )
         except Exception as e:
-            logger.error(f"  ✗ Failed to check service health: {e}")
+            logger.error("  ✗ Failed to check service health: %s", e)
             self.statuses.append(
                 StartupStatus(
                     step_name="Service Health Check",
@@ -185,7 +194,7 @@ class ApplicationStartup:
         status = self.health_checker.check_service(service_name)
         return status.is_healthy if status else False
 
-    def _initialize_ollama(self) -> None:
+    def _initialize_ollama(self) -> None:  # pylint: disable=too-many-branches
         """Initialize Ollama service and pull required models with retry logic."""
         logger.info("\n[2/4] Initializing Ollama LLM service...")
 
@@ -197,12 +206,12 @@ class ApplicationStartup:
                 ollama.is_healthy,
                 "Ollama",
             )
-            
+
             if not success:
-                logger.warning(f"  ⚠ Ollama service not responding after retries")
-                logger.warning(f"    → Error: {error}")
-                logger.warning(f"    → Troubleshooting: Check if Ollama container is running")
-                logger.warning(f"    → Try: docker-compose up -d ollama")
+                logger.warning("  ⚠ Ollama service not responding after retries")
+                logger.warning("    → Error: %s", error)
+                logger.warning("    → Troubleshooting: Check if Ollama container is running")
+                logger.warning("    → Try: docker-compose up -d ollama")
                 self.statuses.append(
                     StartupStatus(
                         step_name="Ollama Initialization",
@@ -216,12 +225,12 @@ class ApplicationStartup:
             # List available models
             try:
                 models = ollama.list_models()
-                logger.info(f"  ✓ Available models: {len(models)} model(s)")
+                logger.info("  ✓ Available models: %s model(s)", len(models))
                 if models:
                     for model in models:
-                        logger.debug(f"    - {model}")
+                        logger.debug("    - %s", model)
             except Exception as e:
-                logger.warning(f"  ⚠ Could not list models: {e}")
+                logger.warning("  ⚠ Could not list models: %s", e)
                 models = []
 
             # Ensure required models are available
@@ -229,50 +238,53 @@ class ApplicationStartup:
                 self.config.ollama.model,
                 self.config.ollama.embed_model,
             ]
-            
+
             missing_models = [m for m in required_models if m not in models]
-            
+
             if missing_models:
-                logger.info(f"  ℹ Missing models detected: {', '.join(missing_models)}")
+                logger.info("  ℹ Missing models detected: %s", ', '.join(missing_models))
                 logger.info("  → Pulling required models (this may take several minutes)...")
-                
+
                 for model in missing_models:
                     try:
-                        logger.info(f"  → Pulling '{model}'...")
+                        logger.info("  → Pulling '%s'...", model)
                         success = ollama.pull_model(model)
                         if success:
-                            logger.info(f"  ✓ Model '{model}' pulled successfully")
+                            logger.info("  ✓ Model '%s' pulled successfully", model)
                         else:
-                            logger.warning(f"  ⚠ Failed to pull model '{model}'")
+                            logger.warning("  ⚠ Failed to pull model '%s'", model)
                     except Exception as e:
-                        logger.warning(f"  ⚠ Could not pull model '{model}': {e}")
+                        logger.warning("  ⚠ Could not pull model '%s': %s", model, e)
             else:
-                logger.info(f"  ✓ All required models available")
+                logger.info("  ✓ All required models available")
 
             # Warm up both LLM and embedding models to preload into memory
             # (reduces first-response latency significantly)
             llm_model = self.config.ollama.model
             embed_model = self.config.ollama.embed_model
-            
-            logger.info(f"  → Warming up LLM model '{llm_model}' (preloading into memory)...")
+
+            logger.info("  → Warming up LLM model '%s' (preloading into memory)...", llm_model)
             try:
                 if ollama.warm_up(llm_model):
-                    logger.info(f"  ✓ LLM model '{llm_model}' preloaded and ready")
+                    logger.info("  ✓ LLM model '%s' preloaded and ready", llm_model)
                 else:
-                    logger.warning(f"  ⚠ LLM warm-up failed, model will load on first request")
+                    logger.warning("  ⚠ LLM warm-up failed, model will load on first request")
             except Exception as e:
-                logger.warning(f"  ⚠ LLM warm-up error: {e}")
-            
-            logger.info(f"  → Warming up embedding model '{embed_model}' (preloading into memory)...")
+                logger.warning("  ⚠ LLM warm-up error: %s", e)
+
+            logger.info(
+                "  → Warming up embedding model '%s' (preloading into memory)...",
+                embed_model,
+            )
             try:
                 # Generate a test embedding to warm up the model
                 test_embedding = ollama.embed("warmup test")
                 if test_embedding and len(test_embedding) > 0:
-                    logger.info(f"  ✓ Embedding model '{embed_model}' preloaded and ready")
+                    logger.info("  ✓ Embedding model '%s' preloaded and ready", embed_model)
                 else:
-                    logger.warning(f"  ⚠ Embedding warm-up returned empty result")
+                    logger.warning("  ⚠ Embedding warm-up returned empty result")
             except Exception as e:
-                logger.warning(f"  ⚠ Embedding warm-up error: {e}")
+                logger.warning("  ⚠ Embedding warm-up error: %s", e)
 
             self.statuses.append(
                 StartupStatus(
@@ -283,7 +295,7 @@ class ApplicationStartup:
             )
 
         except Exception as e:
-            logger.error(f"  ✗ Ollama initialization failed: {e}")
+            logger.error("  ✗ Ollama initialization failed: %s", e)
             self.statuses.append(
                 StartupStatus(
                     step_name="Ollama Initialization",
@@ -305,12 +317,12 @@ class ApplicationStartup:
                 qdrant.is_healthy,
                 "Qdrant",
             )
-            
+
             if not success:
-                logger.warning(f"  ⚠ Qdrant service not responding after retries")
-                logger.warning(f"    → Error: {error}")
-                logger.warning(f"    → Troubleshooting: Check if Qdrant container is running")
-                logger.warning(f"    → Try: docker-compose up -d qdrant")
+                logger.warning("  ⚠ Qdrant service not responding after retries")
+                logger.warning("    → Error: %s", error)
+                logger.warning("    → Troubleshooting: Check if Qdrant container is running")
+                logger.warning("    → Try: docker-compose up -d qdrant")
                 self.statuses.append(
                     StartupStatus(
                         step_name="Qdrant Initialization",
@@ -325,7 +337,7 @@ class ApplicationStartup:
             collection_name = self.config.qdrant.collection_name
             vector_size = self.config.qdrant.vector_size
 
-            logger.info(f"  → Creating collection: {collection_name}")
+            logger.info("  → Creating collection: %s", collection_name)
             success = qdrant.create_collection(
                 collection_name=collection_name,
                 vector_size=vector_size,
@@ -333,13 +345,13 @@ class ApplicationStartup:
             )
 
             if success:
-                logger.info(f"  ✓ Collection '{collection_name}' ready")
+                logger.info("  ✓ Collection '%s' ready", collection_name)
                 # Get collection info
                 info = qdrant.get_collection_info(collection_name)
                 if info:
-                    logger.debug(f"    - Vectors: {info.get('vectors_count', 'unknown')}")
+                    logger.debug("    - Vectors: %s", info.get('vectors_count', 'unknown'))
             else:
-                logger.warning(f"  ⚠ Could not verify collection '{collection_name}'")
+                logger.warning("  ⚠ Could not verify collection '%s'", collection_name)
 
             self.statuses.append(
                 StartupStatus(
@@ -350,7 +362,7 @@ class ApplicationStartup:
             )
 
         except Exception as e:
-            logger.error(f"  ✗ Qdrant initialization failed: {e}")
+            logger.error("  ✗ Qdrant initialization failed: %s", e)
             self.statuses.append(
                 StartupStatus(
                     step_name="Qdrant Initialization",
@@ -372,12 +384,12 @@ class ApplicationStartup:
                 meilisearch.is_healthy,
                 "Meilisearch",
             )
-            
+
             if not success:
-                logger.warning(f"  ⚠ Meilisearch service not responding after retries")
-                logger.warning(f"    → Error: {error}")
-                logger.warning(f"    → Troubleshooting: Check if Meilisearch container is running")
-                logger.warning(f"    → Try: docker-compose up -d meilisearch")
+                logger.warning("  ⚠ Meilisearch service not responding after retries")
+                logger.warning("    → Error: %s", error)
+                logger.warning("    → Troubleshooting: Check if Meilisearch container is running")
+                logger.warning("    → Try: docker-compose up -d meilisearch")
                 self.statuses.append(
                     StartupStatus(
                         step_name="Meilisearch Initialization",
@@ -391,20 +403,20 @@ class ApplicationStartup:
             # Create documents index
             index_name = self.config.meilisearch.index_name
 
-            logger.info(f"  → Creating index: {index_name}")
+            logger.info("  → Creating index: %s", index_name)
             success = meilisearch.create_index(
                 index_uid=index_name,
                 primary_key="id",
             )
 
             if success:
-                logger.info(f"  ✓ Index '{index_name}' ready")
+                logger.info("  ✓ Index '%s' ready", index_name)
                 # Get index stats
                 stats = meilisearch.get_index_stats(index_name)
                 if stats:
-                    logger.debug(f"    - Documents: {stats.get('numberOfDocuments', 0)}")
+                    logger.debug("    - Documents: %s", stats.get('numberOfDocuments', 0))
             else:
-                logger.warning(f"  ⚠ Could not verify index '{index_name}'")
+                logger.warning("  ⚠ Could not verify index '%s'", index_name)
 
             self.statuses.append(
                 StartupStatus(
@@ -415,7 +427,7 @@ class ApplicationStartup:
             )
 
         except Exception as e:
-            logger.error(f"  ✗ Meilisearch initialization failed: {e}")
+            logger.error("  ✗ Meilisearch initialization failed: %s", e)
             self.statuses.append(
                 StartupStatus(
                     step_name="Meilisearch Initialization",
@@ -427,7 +439,7 @@ class ApplicationStartup:
 
     def _log_startup_summary(self) -> None:
         """Log summary of startup steps."""
-        logger.info("\n" + "=" * 60)
+        logger.info("%s", "\n" + "=" * 60)
         logger.info("STARTUP SUMMARY")
         logger.info("=" * 60)
 
@@ -436,12 +448,12 @@ class ApplicationStartup:
 
         for status in self.statuses:
             symbol = "✓" if status.success else "✗"
-            logger.info(f"{symbol} {status.step_name}: {status.message}")
+            logger.info("%s %s: %s", symbol, status.step_name, status.message)
             if status.error:
-                logger.debug(f"  Error: {status.error}")
+                logger.debug("  Error: %s", status.error)
 
         logger.info("-" * 60)
-        logger.info(f"Summary: {successful}/{total} steps completed successfully")
+        logger.info("Summary: %s/%s steps completed successfully", successful, total)
 
         if successful == total:
             logger.info("✓ APPLICATION READY FOR USE")

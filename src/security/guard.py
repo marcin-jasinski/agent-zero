@@ -10,7 +10,7 @@ Uses the llm-guard library with pre-configured scanners.
 """
 
 import logging
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 from enum import Enum
 
@@ -25,8 +25,6 @@ try:
         Bias,
         Deanonymize,
         MaliciousURLs,
-        NoRefusal,
-        Relevance,
         Sensitive,
     )
     from llm_guard.vault import Vault
@@ -74,7 +72,7 @@ class LLMGuard:
     multiple layers of protection from the llm-guard library.
     """
 
-    def __init__(
+    def __init__(  # pylint: disable=too-many-positional-arguments
         self,
         enabled: bool = True,
         input_scan_enabled: bool = True,
@@ -115,8 +113,9 @@ class LLMGuard:
         if self.enabled and LLM_GUARD_AVAILABLE:
             self._initialize_scanners()
             logger.info(
-                f"LLM Guard initialized: input_scan={input_scan_enabled}, "
-                f"output_scan={output_scan_enabled}"
+                "LLM Guard initialized: input_scan=%s, output_scan=%s",
+                input_scan_enabled,
+                output_scan_enabled,
             )
 
     def _initialize_scanners(self) -> None:
@@ -149,12 +148,13 @@ class LLMGuard:
                 ]
 
             logger.info(
-                f"Initialized {len(self.input_scanners)} input scanners, "
-                f"{len(self.output_scanners)} output scanners"
+                "Initialized %s input scanners, %s output scanners",
+                len(self.input_scanners),
+                len(self.output_scanners),
             )
 
         except Exception as e:
-            logger.error(f"Failed to initialize LLM Guard scanners: {e}", exc_info=True)
+            logger.error("Failed to initialize LLM Guard scanners: %s", e, exc_info=True)
             self.enabled = False
 
     def scan_user_input(self, user_input: str) -> ScanResult:
@@ -185,7 +185,9 @@ class LLMGuard:
             # Check input length
             if len(user_input) > self.max_input_length:
                 logger.warning(
-                    f"Input exceeds max length: {len(user_input)} > {self.max_input_length}"
+                    "Input exceeds max length: %s > %s",
+                    len(user_input),
+                    self.max_input_length,
                 )
                 return ScanResult(
                     is_safe=False,
@@ -214,11 +216,13 @@ class LLMGuard:
                     if not is_valid:
                         violations.append(f"{scanner_name} detected risk (score: {risk_score})")
                         logger.warning(
-                            f"Input failed {scanner_name} scan: risk_score={risk_score}"
+                            "Input failed %s scan: risk_score=%s",
+                            scanner_name,
+                            risk_score,
                         )
 
                 except Exception as e:
-                    logger.error(f"Scanner {scanner_name} failed: {e}")
+                    logger.error("Scanner %s failed: %s", scanner_name, e)
                     scanner_results[scanner_name] = {"error": str(e)}
 
             # Determine threat level
@@ -235,14 +239,15 @@ class LLMGuard:
 
             if not is_safe:
                 logger.warning(
-                    f"Input blocked: threat_level={threat_level.value}, "
-                    f"violations={violations}"
+                    "Input blocked: threat_level=%s, violations=%s",
+                    threat_level.value,
+                    violations,
                 )
 
             return result
 
         except Exception as e:
-            logger.error(f"Error scanning user input: {e}", exc_info=True)
+            logger.error("Error scanning user input: %s", e, exc_info=True)
             # Fail open for non-critical errors
             return ScanResult(
                 is_safe=True,
@@ -282,7 +287,9 @@ class LLMGuard:
             # Check output length
             if len(llm_output) > self.max_output_length:
                 logger.warning(
-                    f"Output exceeds max length: {len(llm_output)} > {self.max_output_length}"
+                    "Output exceeds max length: %s > %s",
+                    len(llm_output),
+                    self.max_output_length,
                 )
                 return ScanResult(
                     is_safe=False,
@@ -317,11 +324,13 @@ class LLMGuard:
                     if not is_valid:
                         violations.append(f"{scanner_name} detected risk (score: {risk_score})")
                         logger.warning(
-                            f"Output failed {scanner_name} scan: risk_score={risk_score}"
+                            "Output failed %s scan: risk_score=%s",
+                            scanner_name,
+                            risk_score,
                         )
 
                 except Exception as e:
-                    logger.error(f"Scanner {scanner_name} failed: {e}")
+                    logger.error("Scanner %s failed: %s", scanner_name, e)
                     scanner_results[scanner_name] = {"error": str(e)}
 
             # Determine threat level
@@ -338,14 +347,15 @@ class LLMGuard:
 
             if not is_safe:
                 logger.warning(
-                    f"Output blocked: threat_level={threat_level.value}, "
-                    f"violations={violations}"
+                    "Output blocked: threat_level=%s, violations=%s",
+                    threat_level.value,
+                    violations,
                 )
 
             return result
 
         except Exception as e:
-            logger.error(f"Error scanning LLM output: {e}", exc_info=True)
+            logger.error("Error scanning LLM output: %s", e, exc_info=True)
             # Fail open for non-critical errors
             return ScanResult(
                 is_safe=True,
@@ -380,10 +390,9 @@ class LLMGuard:
 
         if len(violations) >= 3:
             return ThreatLevel.HIGH
-        elif len(violations) >= 2:
+        if len(violations) >= 2:
             return ThreatLevel.MEDIUM
-        else:
-            return ThreatLevel.LOW
+        return ThreatLevel.LOW
 
     def get_status(self) -> Dict[str, Any]:
         """Get current guard status and configuration.

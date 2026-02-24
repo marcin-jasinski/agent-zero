@@ -6,8 +6,9 @@ and keyword relevance (Meilisearch) for improved document retrieval.
 
 import logging
 import time
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Optional
 
+from src.config import get_config
 from src.models.retrieval import RetrievalResult, HybridSearchConfig
 from src.services.ollama_client import OllamaClient
 from src.services.qdrant_client import QdrantVectorClient
@@ -75,19 +76,17 @@ class RetrievalEngine:
             # Cheap guard: skip embedding generation when the KB is empty.
             # get_collection() is an O(1) metadata call that avoids wasting
             # ~1 second on the embedding model for every conversational message.
-            from src.config import get_config as _get_config
-            _collection = _get_config().qdrant.collection_name
+            _collection = get_config().qdrant.collection_name
             if not self.qdrant_client.has_documents(_collection):
                 logger.debug("Knowledge base is empty — skipping retrieval")
                 return []
 
             if hybrid:
                 return self._hybrid_search(query, top_k)
-            else:
-                return self._semantic_search(query, top_k)
+            return self._semantic_search(query, top_k)
 
         except Exception as e:
-            logger.error(f"Retrieval error for query '{query}': {e}", exc_info=True)
+            logger.error("Retrieval error for query '%s': %s", query, e, exc_info=True)
             raise
 
     def _semantic_search(self, query: str, top_k: int) -> List[RetrievalResult]:
@@ -100,17 +99,15 @@ class RetrievalEngine:
         Returns:
             List of RetrievalResult objects sorted by similarity score
         """
-        import time
         try:
-            from src.config import get_config
             config = get_config()
-            
+
             # Generate embedding for query
             embed_start = time.time()
             query_embedding = self.ollama_client.embed(query)
             embed_duration = time.time() - embed_start
-            logger.info(f"[TIMING] Embedding generation took {embed_duration:.2f}s")
-            
+            logger.info("[TIMING] Embedding generation took %.2fs", embed_duration)
+
             # Track embedding metrics
             track_embedding_duration(embed_duration)
 
@@ -122,7 +119,7 @@ class RetrievalEngine:
                 limit=top_k,
                 score_threshold=self.config.min_semantic_score,
             )
-            logger.info(f"[TIMING] Qdrant search took {time.time() - search_start:.2f}s")
+            logger.info("[TIMING] Qdrant search took %.2fs", time.time() - search_start)
 
             results = []
             for result in search_results:
@@ -139,19 +136,19 @@ class RetrievalEngine:
                     )
                 )
 
-            logger.debug(f"Semantic search found {len(results)} results for query '{query}'")
-            
+            logger.debug("Semantic search found %d results for query '%s'", len(results), query)
+
             # Track semantic search metrics
             track_retrieval(
                 retrieval_type='semantic',
                 document_count=len(results),
                 duration_seconds=time.time() - embed_start
             )
-            
+
             return sorted(results)
 
         except Exception as e:
-            logger.error(f"Semantic search failed: {e}", exc_info=True)
+            logger.error("Semantic search failed: %s", e, exc_info=True)
             raise
 
     def _keyword_search(self, query: str, top_k: int) -> List[RetrievalResult]:
@@ -166,9 +163,8 @@ class RetrievalEngine:
         """
         search_start = time.time()
         try:
-            from src.config import get_config
             config = get_config()
-            
+
             # Search Meilisearch
             search_results = self.meilisearch_client.search(
                 index_uid=config.meilisearch.index_name,
@@ -194,19 +190,19 @@ class RetrievalEngine:
                         )
                     )
 
-            logger.debug(f"Keyword search found {len(results)} results for query '{query}'")
-            
+            logger.debug("Keyword search found %d results for query '%s'", len(results), query)
+
             # Track keyword search metrics
             track_retrieval(
                 retrieval_type='keyword',
                 document_count=len(results),
                 duration_seconds=time.time() - search_start
             )
-            
+
             return sorted(results)
 
         except Exception as e:
-            logger.error(f"Keyword search failed: {e}", exc_info=True)
+            logger.error("Keyword search failed: %s", e, exc_info=True)
             raise
 
     def _hybrid_search(self, query: str, top_k: int) -> List[RetrievalResult]:
@@ -222,18 +218,17 @@ class RetrievalEngine:
         Returns:
             List of RetrievalResult objects sorted by combined relevance score
         """
-        import time
         hybrid_start = time.time()
-        logger.info(f"Using HYBRID search for query: '{query[:100]}...'")
+        logger.info("Using HYBRID search for query: '%s...'", query[:100])
         try:
             # Run both searches in parallel
             logger.debug("Executing semantic search (Qdrant)...")
             semantic_results = self._semantic_search(query, top_k * 2)  # Get more for merging
-            logger.info(f"Semantic search returned {len(semantic_results)} results")
-            
+            logger.info("Semantic search returned %d results", len(semantic_results))
+
             logger.debug("Executing keyword search (Meilisearch)...")
             keyword_results = self._keyword_search(query, top_k * 2)
-            logger.info(f"Keyword search returned {len(keyword_results)} results")
+            logger.info("Keyword search returned %d results", len(keyword_results))
 
             # Merge results by ID, combining scores
             merged: Dict[str, RetrievalResult] = {}
@@ -262,20 +257,20 @@ class RetrievalEngine:
             final_results = sorted(merged.values())[:top_k]
 
             logger.debug(
-                f"Hybrid search found {len(final_results)} results for query '{query}'"
+                "Hybrid search found %d results for query '%s'", len(final_results), query
             )
-            
+
             # Track hybrid search metrics
             track_retrieval(
                 retrieval_type='hybrid',
                 document_count=len(final_results),
                 duration_seconds=time.time() - hybrid_start
             )
-            
+
             return final_results
 
         except Exception as e:
-            logger.error(f"Hybrid search failed: {e}", exc_info=True)
+            logger.error("Hybrid search failed: %s", e, exc_info=True)
             # Fallback to semantic search only
             logger.warning("Falling back to semantic search only")
             return self._semantic_search(query, top_k)
@@ -315,7 +310,7 @@ class RetrievalEngine:
 
                 # Get next chunk (if exists)
                 if context_chunks >= 1:
-                    next_chunk = self._get_chunk_by_index(
+                    next_chunk = self._get_chunk_by_index(  # pylint: disable=assignment-from-none
                         result.source,
                         result.chunk_index + 1,
                     )
@@ -324,7 +319,7 @@ class RetrievalEngine:
 
                 # Get previous chunk (if exists)
                 if context_chunks >= 2:
-                    prev_chunk = self._get_chunk_by_index(
+                    prev_chunk = self._get_chunk_by_index(  # pylint: disable=assignment-from-none
                         result.source,
                         result.chunk_index - 1,
                     )
@@ -334,7 +329,7 @@ class RetrievalEngine:
             return final_results
 
         except Exception as e:
-            logger.error(f"Context retrieval failed: {e}", exc_info=True)
+            logger.error("Context retrieval failed: %s", e, exc_info=True)
             return self.retrieve_relevant_docs(query, top_k=top_k)
 
     def _get_chunk_by_index(self, source: str, chunk_index: int) -> Optional[RetrievalResult]:
@@ -349,19 +344,9 @@ class RetrievalEngine:
         """
         if chunk_index < 0:
             return None
-
-        try:
-            from src.config import get_config
-            config = get_config()
-            
-            # Note: Simple vector search doesn't support complex filtering.
-            # In production, consider using Qdrant's scroll API or full-text search.
-            # For now, we return None to indicate context chunks are not available
-            # via this simplified search method.
-            logger.debug(f"Context chunk lookup (source={source}, index={chunk_index}) not implemented")
-            return None
-            
-        except Exception as e:
-            logger.debug(f"Failed to retrieve context chunk: {e}")
-
+        # Note: Simple vector search doesn't support complex filtering.
+        # TODO: Use Qdrant scroll API for context-aware chunk retrieval.
+        logger.debug(
+            "Context chunk lookup (source=%s, index=%d) not implemented", source, chunk_index
+        )
         return None

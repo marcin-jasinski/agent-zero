@@ -14,6 +14,7 @@ Routes:
 
 import asyncio
 import logging
+import warnings
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -31,23 +32,40 @@ from src.ui.dashboard import build_admin_ui, get_health_report
 setup_logging()
 logger = logging.getLogger(__name__)
 
+# Gradio 6 moved theme/css to launch(), but when mounting on FastAPI via
+# gr.mount_gradio_app() there is no launch() call.  The params still work
+# in gr.Blocks(); suppress the advisory warning for this use-case.
+warnings.filterwarnings(
+    "ignore",
+    message="The parameters have been moved from the Blocks constructor",
+    category=UserWarning,
+    module="gradio",
+)
+
 # ---------------------------------------------------------------------------
 # FastAPI lifespan — pre-warm Ollama models on startup
 # ---------------------------------------------------------------------------
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Run application startup sequence before serving requests.
 
-    Executes ApplicationStartup (service health checks, model pull if needed,
-    and model warm-up) in a thread executor so the async event loop is not
-    blocked. Both LLM and embedding models are loaded into GPU VRAM here,
-    eliminating the cold-load delay on the very first user message.
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """Start the app immediately, run warm-up in the background.
+
+    Yields right away so FastAPI begins accepting requests (including the
+    Docker HEALTHCHECK ``/health`` probe) before the slow model warm-up
+    finishes.  The warm-up task runs concurrently and logs its result.
     """
-    loop = asyncio.get_event_loop()
-    logger.info("Running ApplicationStartup (model warm-up)…")
-    await loop.run_in_executor(None, ApplicationStartup().run)
-    logger.info("ApplicationStartup complete — models are warm and ready")
+    async def _background_startup() -> None:
+        loop = asyncio.get_event_loop()
+        try:
+            logger.info("ApplicationStartup running in background…")
+            await loop.run_in_executor(None, ApplicationStartup().run)
+            logger.info("ApplicationStartup complete — models are warm and ready")
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            logger.error("ApplicationStartup failed: %s", exc, exc_info=True)
+
+    asyncio.ensure_future(_background_startup())
+    logger.info("FastAPI ready — startup warm-up running in background")
     yield
 
 # ---------------------------------------------------------------------------
@@ -89,8 +107,12 @@ with gr.Blocks(
         "<span style='font-size:0.9rem;color:#888'>Local Agent Builder (L.A.B.)</span>"
     )
     with gr.Tab("💬 Chat"):
-        # build_chat_ui returns (state, status_bar, msg_box, send_btn, thinking_md, thinking_accordion)
-        _chat_state, _chat_status, _msg_box, _send_btn, _thinking_md, _thinking_accordion = build_chat_ui()
+        # build_chat_ui returns (state, status_bar, msg_box, send_btn,
+        # thinking_md, thinking_accordion)
+        (
+            _chat_state, _chat_status, _msg_box,
+            _send_btn, _thinking_md, _thinking_accordion,
+        ) = build_chat_ui()
     with gr.Tab("🛡️ Admin") as _admin_tab:
         _health_out = build_admin_ui()
 

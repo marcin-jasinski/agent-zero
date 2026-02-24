@@ -41,6 +41,7 @@ def get_health_report() -> str:
         Markdown string with per-service status.
     """
     try:
+        # pylint: disable=import-outside-toplevel
         from src.services.health_check import HealthChecker
 
         checker = HealthChecker()
@@ -50,7 +51,9 @@ def get_health_report() -> str:
         lines = [
             "# 🏥 System Health Report\n",
             f"*Generated at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*\n",
-            "✅ **All services operational.**\n" if all_healthy else "⚠️ **Some services have issues.**\n",
+            ("✅ **All services operational.**\n"
+             if all_healthy
+             else "⚠️ **Some services have issues.**\n"),
             "| Service | Status | Message |",
             "|---------|--------|---------|",
         ]
@@ -68,7 +71,7 @@ def get_health_report() -> str:
         return "\n".join(lines)
 
     except Exception as exc:
-        logger.error(f"Health report failed: {exc}", exc_info=True)
+        logger.error("Health report failed: %s", exc, exc_info=True)
         return f"❌ **Health check failed:**\n\n```\n{exc}\n```"
 
 
@@ -84,6 +87,7 @@ def get_qdrant_collections() -> tuple[str, list[str]]:
         Tuple of (markdown stats string, list of collection names).
     """
     try:
+        # pylint: disable=import-outside-toplevel
         from src.services.qdrant_client import QdrantVectorClient
 
         qdrant = QdrantVectorClient()
@@ -102,12 +106,14 @@ def get_qdrant_collections() -> tuple[str, list[str]]:
         ]
         for c in collections:
             lines.append(
-                f"| **{c['name']}** | {c.get('vectors_count', 0):,} | {c.get('points_count', 0):,} |"
+                f"| **{c['name']}** "
+                f"| {c.get('vectors_count', 0):,} "
+                f"| {c.get('points_count', 0):,} |"
             )
         return "\n".join(lines), names
 
     except Exception as exc:
-        logger.error(f"Qdrant collections failed: {exc}", exc_info=True)
+        logger.error("Qdrant collections failed: %s", exc, exc_info=True)
         return f"❌ **Error:** {exc}", []
 
 
@@ -127,6 +133,7 @@ def search_qdrant(query: str, collection: str) -> str:
         return "⚠️ Select a collection first."
 
     try:
+        # pylint: disable=import-outside-toplevel
         from src.services.ollama_client import OllamaClient
         from src.services.qdrant_client import QdrantVectorClient
 
@@ -146,7 +153,7 @@ def search_qdrant(query: str, collection: str) -> str:
         return "\n".join(lines)
 
     except Exception as exc:
-        logger.error(f"Qdrant search failed: {exc}", exc_info=True)
+        logger.error("Qdrant search failed: %s", exc, exc_info=True)
         return f"❌ **Search error:** {exc}"
 
 
@@ -165,6 +172,7 @@ def get_langfuse_report(time_range: str = "24h") -> str:
         Markdown string with trace summary and recent traces.
     """
     try:
+        # pylint: disable=import-outside-toplevel
         from src.services.langfuse_client import LangfuseClient
 
         client = LangfuseClient()
@@ -179,8 +187,8 @@ def get_langfuse_report(time_range: str = "24h") -> str:
 
         lines = [
             f"# 🔬 Langfuse Observability — last {time_range}\n",
-            f"| Metric | Value |",
-            f"|--------|-------|",
+            "| Metric | Value |",
+            "|--------|-------|",
             f"| Total Traces | {summary.total_traces} |",
             f"| Last 24 h | {summary.traces_24h} |",
             f"| Avg Latency | {summary.avg_latency_ms:.0f} ms |",
@@ -206,7 +214,7 @@ def get_langfuse_report(time_range: str = "24h") -> str:
         return "\n".join(lines)
 
     except Exception as exc:
-        logger.error(f"Langfuse report failed: {exc}", exc_info=True)
+        logger.error("Langfuse report failed: %s", exc, exc_info=True)
         return f"❌ **Langfuse error:** {exc}"
 
 
@@ -222,6 +230,7 @@ def get_promptfoo_report() -> str:
         Markdown string with scenario list and recent runs.
     """
     try:
+        # pylint: disable=import-outside-toplevel
         from src.services.promptfoo_client import PromptfooClient
 
         client = PromptfooClient()
@@ -253,7 +262,8 @@ def get_promptfoo_report() -> str:
             ]
             for r in runs:
                 lines.append(
-                    f"| {r.prompt_version} | {r.pass_rate:.1f}% | {r.passed_tests}/{r.total_tests} |"
+                    f"| {r.prompt_version} | {r.pass_rate:.1f}% "
+                    f"| {r.passed_tests}/{r.total_tests} |"
                 )
         else:
             lines.append("*No test runs yet.*")
@@ -261,7 +271,7 @@ def get_promptfoo_report() -> str:
         return "\n".join(lines)
 
     except Exception as exc:
-        logger.error(f"Promptfoo report failed: {exc}", exc_info=True)
+        logger.error("Promptfoo report failed: %s", exc, exc_info=True)
         return f"❌ **Promptfoo error:** {exc}"
 
 
@@ -296,7 +306,8 @@ def get_settings_report() -> str:
             f"- **Index**: `{config.meilisearch.index_name}`",
             f"- **Host**: `{config.meilisearch.host}`",
             "\n## Security",
-            f"- **LLM Guard**: {'✅ Enabled' if config.security.llm_guard_enabled else '❌ Disabled'}",
+            (f"- **LLM Guard**: "
+             f"{'✅ Enabled' if config.security.llm_guard_enabled else '❌ Disabled'}"),
             f"- **Max Input**: {config.security.max_input_length:,} chars",
             f"- **Max Output**: {config.security.max_output_length:,} chars",
             "\n## Observability (Langfuse)",
@@ -309,7 +320,7 @@ def get_settings_report() -> str:
         return "\n".join(lines)
 
     except Exception as exc:
-        logger.error(f"Settings report failed: {exc}", exc_info=True)
+        logger.error("Settings report failed: %s", exc, exc_info=True)
         return f"❌ **Error reading settings:** {exc}"
 
 
@@ -339,6 +350,7 @@ def get_logs(lines: int = 50, level: str = "ALL", service: str = "ALL") -> str:
     Returns:
         Filtered log text (plain text, not markdown — shown in a Textbox).
     """
+    # pylint: disable=import-outside-toplevel
     from pathlib import Path
 
     candidates = [
@@ -373,7 +385,7 @@ def get_logs(lines: int = 50, level: str = "ALL", service: str = "ALL") -> str:
 # ---------------------------------------------------------------------------
 
 
-def build_admin_ui() -> gr.Markdown:
+def build_admin_ui() -> gr.Markdown:  # pylint: disable=too-many-locals
     """Register all Admin tab components inside the active gr.Blocks context.
 
     Must be called inside an open ``with gr.Blocks() as \u2026`` / ``with gr.Tab():
@@ -472,10 +484,13 @@ def build_admin_ui() -> gr.Markdown:
             elem_id="az-log-output",
         )
 
-        _SCROLL_LOG_JS = """
+        scroll_log_js = """
         () => {
             const box = document.getElementById('az-log-output');
-            if (box) { const ta = box.querySelector('textarea'); if (ta) ta.scrollTop = ta.scrollHeight; }
+            if (box) {
+                const ta = box.querySelector('textarea');
+                if (ta) ta.scrollTop = ta.scrollHeight;
+            }
         }
         """
 
@@ -486,7 +501,7 @@ def build_admin_ui() -> gr.Markdown:
             fn=_refresh_logs,
             inputs=[log_lines_sl, log_level_dd, log_service_dd],
             outputs=[log_output],
-        ).then(fn=None, inputs=[], outputs=[], js=_SCROLL_LOG_JS)
+        ).then(fn=None, inputs=[], outputs=[], js=scroll_log_js)
 
     # -----------------------------------------------------------------------
     # Auto-load on tab select
@@ -502,6 +517,6 @@ def build_admin_ui() -> gr.Markdown:
         fn=_refresh_logs,
         inputs=[log_lines_sl, log_level_dd, log_service_dd],
         outputs=[log_output],
-    ).then(fn=None, inputs=[], outputs=[], js=_SCROLL_LOG_JS)
+    ).then(fn=None, inputs=[], outputs=[], js=scroll_log_js)
 
     return health_out

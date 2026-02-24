@@ -58,10 +58,10 @@ class ConversationManager:
             metadata=metadata or {},
         )
 
-        logger.info(f"Created conversation {conversation_id}")
+        logger.info("Created conversation %s", conversation_id)
         return conversation_id
 
-    def add_message(
+    def add_message(  # pylint: disable=too-many-positional-arguments
         self,
         conversation_id: str,
         role: MessageRole,
@@ -102,7 +102,7 @@ class ConversationManager:
 
         self._conversations[conversation_id].add_message(message)
         logger.debug(
-            f"Added {role.value} message to conversation {conversation_id}"
+            "Added %s message to conversation %s", role.value, conversation_id
         )
 
         return message
@@ -180,7 +180,7 @@ class ConversationManager:
             raise ValueError(f"Conversation {conversation_id} not found")
 
         self._conversations[conversation_id].clear_messages()
-        logger.info(f"Cleared messages in conversation {conversation_id}")
+        logger.info("Cleared messages in conversation %s", conversation_id)
 
     def delete_conversation(self, conversation_id: str) -> None:
         """Delete an entire conversation.
@@ -195,7 +195,7 @@ class ConversationManager:
             raise ValueError(f"Conversation {conversation_id} not found")
 
         del self._conversations[conversation_id]
-        logger.info(f"Deleted conversation {conversation_id}")
+        logger.info("Deleted conversation %s", conversation_id)
 
     def get_conversation_summary(
         self,

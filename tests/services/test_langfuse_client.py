@@ -19,7 +19,7 @@ from src.services.langfuse_client import (
 
 class TestLangfuseClientInitialization:
     """Tests for LangfuseClient initialization."""
-    
+
     @patch("src.services.langfuse_client.get_config")
     def test_initialization_with_enabled_config(self, mock_get_config):
         """Test client initialization with Langfuse enabled."""
@@ -30,14 +30,14 @@ class TestLangfuseClientInitialization:
         mock_config.langfuse.timeout = 30
         mock_config.langfuse.enabled = True
         mock_get_config.return_value = mock_config
-        
+
         client = LangfuseClient()
-        
+
         assert client.host == "http://langfuse:3000"
         assert client.public_key == "pk-test"
         assert client.secret_key == "sk-test"
         assert client.enabled is True
-    
+
     @patch("src.services.langfuse_client.get_config")
     def test_initialization_with_disabled_config(self, mock_get_config):
         """Test client initialization with Langfuse disabled."""
@@ -48,11 +48,11 @@ class TestLangfuseClientInitialization:
         mock_config.langfuse.timeout = 30
         mock_config.langfuse.enabled = False
         mock_get_config.return_value = mock_config
-        
+
         client = LangfuseClient()
-        
+
         assert client.enabled is False
-    
+
     @patch("src.services.langfuse_client.get_config")
     def test_host_trailing_slash_removed(self, mock_get_config):
         """Test that trailing slash is removed from host."""
@@ -63,15 +63,15 @@ class TestLangfuseClientInitialization:
         mock_config.langfuse.timeout = 30
         mock_config.langfuse.enabled = True
         mock_get_config.return_value = mock_config
-        
+
         client = LangfuseClient()
-        
+
         assert client.host == "http://langfuse:3000"
 
 
 class TestLangfuseClientHealthCheck:
     """Tests for health check functionality."""
-    
+
     @patch("src.services.langfuse_client.get_config")
     def test_is_healthy_when_disabled(self, mock_get_config):
         """Test health check returns False when disabled."""
@@ -82,11 +82,11 @@ class TestLangfuseClientHealthCheck:
         mock_config.langfuse.timeout = 30
         mock_config.langfuse.enabled = False
         mock_get_config.return_value = mock_config
-        
+
         client = LangfuseClient()
-        
+
         assert client.is_healthy() is False
-    
+
     @patch("src.services.langfuse_client.get_config")
     @patch("requests.Session.get")
     def test_is_healthy_when_service_responds(self, mock_get, mock_get_config):
@@ -98,15 +98,15 @@ class TestLangfuseClientHealthCheck:
         mock_config.langfuse.timeout = 30
         mock_config.langfuse.enabled = True
         mock_get_config.return_value = mock_config
-        
+
         mock_response = Mock()
         mock_response.ok = True
         mock_get.return_value = mock_response
-        
+
         client = LangfuseClient()
-        
+
         assert client.is_healthy() is True
-    
+
     @patch("src.services.langfuse_client.get_config")
     @patch("requests.Session.get")
     def test_is_healthy_handles_connection_error(self, mock_get, mock_get_config):
@@ -118,17 +118,17 @@ class TestLangfuseClientHealthCheck:
         mock_config.langfuse.timeout = 30
         mock_config.langfuse.enabled = True
         mock_get_config.return_value = mock_config
-        
+
         mock_get.side_effect = requests.exceptions.ConnectionError("Connection refused")
-        
+
         client = LangfuseClient()
-        
+
         assert client.is_healthy() is False
 
 
 class TestTraceSummary:
     """Tests for get_trace_summary functionality."""
-    
+
     @patch("src.services.langfuse_client.get_config")
     def test_get_trace_summary_when_disabled(self, mock_get_config):
         """Test trace summary returns empty when disabled."""
@@ -139,14 +139,14 @@ class TestTraceSummary:
         mock_config.langfuse.timeout = 30
         mock_config.langfuse.enabled = False
         mock_get_config.return_value = mock_config
-        
+
         client = LangfuseClient()
         summary = client.get_trace_summary("24h")
-        
+
         assert summary.total_traces == 0
         assert summary.traces_24h == 0
         assert summary.time_range == "24h"
-    
+
     @patch("src.services.langfuse_client.get_config")
     @patch("requests.Session.get")
     def test_get_trace_summary_with_traces(self, mock_get, mock_get_config):
@@ -158,7 +158,7 @@ class TestTraceSummary:
         mock_config.langfuse.timeout = 30
         mock_config.langfuse.enabled = True
         mock_get_config.return_value = mock_config
-        
+
         now = datetime.utcnow()
         mock_response = Mock()
         mock_response.ok = True
@@ -185,15 +185,15 @@ class TestTraceSummary:
             ]
         }
         mock_get.return_value = mock_response
-        
+
         client = LangfuseClient()
         summary = client.get_trace_summary("24h")
-        
+
         assert summary.total_traces == 3
         assert summary.traces_24h == 3
         assert summary.avg_latency_ms == 1500.0  # (1500 + 2000 + 1000) / 3
         assert summary.error_rate == pytest.approx(33.33, rel=0.1)  # 1/3 errors
-    
+
     @patch("src.services.langfuse_client.get_config")
     @patch("requests.Session.get")
     def test_get_trace_summary_with_empty_response(self, mock_get, mock_get_config):
@@ -205,20 +205,20 @@ class TestTraceSummary:
         mock_config.langfuse.timeout = 30
         mock_config.langfuse.enabled = True
         mock_get_config.return_value = mock_config
-        
+
         mock_response = Mock()
         mock_response.ok = True
         mock_response.json.return_value = {"data": []}
         mock_get.return_value = mock_response
-        
+
         client = LangfuseClient()
         summary = client.get_trace_summary("7d")
-        
+
         assert summary.total_traces == 0
         assert summary.avg_latency_ms == 0.0
         assert summary.error_rate == 0.0
         assert summary.time_range == "7d"
-    
+
     @patch("src.services.langfuse_client.get_config")
     @patch("requests.Session.get")
     def test_get_trace_summary_handles_api_error(self, mock_get, mock_get_config):
@@ -230,21 +230,21 @@ class TestTraceSummary:
         mock_config.langfuse.timeout = 30
         mock_config.langfuse.enabled = True
         mock_get_config.return_value = mock_config
-        
+
         mock_response = Mock()
         mock_response.ok = False
         mock_response.status_code = 500
         mock_get.return_value = mock_response
-        
+
         client = LangfuseClient()
         summary = client.get_trace_summary("24h")
-        
+
         assert summary.total_traces == 0
 
 
 class TestRecentTraces:
     """Tests for get_recent_traces functionality."""
-    
+
     @patch("src.services.langfuse_client.get_config")
     def test_get_recent_traces_when_disabled(self, mock_get_config):
         """Test recent traces returns empty list when disabled."""
@@ -255,12 +255,12 @@ class TestRecentTraces:
         mock_config.langfuse.timeout = 30
         mock_config.langfuse.enabled = False
         mock_get_config.return_value = mock_config
-        
+
         client = LangfuseClient()
         traces = client.get_recent_traces(limit=20)
-        
+
         assert traces == []
-    
+
     @patch("src.services.langfuse_client.get_config")
     @patch("requests.Session.get")
     def test_get_recent_traces_returns_trace_info(self, mock_get, mock_get_config):
@@ -272,7 +272,7 @@ class TestRecentTraces:
         mock_config.langfuse.timeout = 30
         mock_config.langfuse.enabled = True
         mock_get_config.return_value = mock_config
-        
+
         now = datetime.utcnow()
         mock_response = Mock()
         mock_response.ok = True
@@ -291,10 +291,10 @@ class TestRecentTraces:
             ]
         }
         mock_get.return_value = mock_response
-        
+
         client = LangfuseClient()
         traces = client.get_recent_traces(limit=20)
-        
+
         assert len(traces) == 1
         assert isinstance(traces[0], TraceInfo)
         assert traces[0].trace_id == "trace-1"
@@ -303,7 +303,7 @@ class TestRecentTraces:
         assert traces[0].status == "success"
         assert traces[0].input_tokens == 245
         assert traces[0].output_tokens == 89
-    
+
     @patch("src.services.langfuse_client.get_config")
     @patch("requests.Session.get")
     def test_get_recent_traces_with_status_filter_success(self, mock_get, mock_get_config):
@@ -315,7 +315,7 @@ class TestRecentTraces:
         mock_config.langfuse.timeout = 30
         mock_config.langfuse.enabled = True
         mock_get_config.return_value = mock_config
-        
+
         now = datetime.utcnow()
         mock_response = Mock()
         mock_response.ok = True
@@ -327,13 +327,13 @@ class TestRecentTraces:
             ]
         }
         mock_get.return_value = mock_response
-        
+
         client = LangfuseClient()
         traces = client.get_recent_traces(limit=20, status_filter="success")
-        
+
         assert len(traces) == 2
         assert all(t.status == "success" for t in traces)
-    
+
     @patch("src.services.langfuse_client.get_config")
     @patch("requests.Session.get")
     def test_get_recent_traces_with_status_filter_error(self, mock_get, mock_get_config):
@@ -345,7 +345,7 @@ class TestRecentTraces:
         mock_config.langfuse.timeout = 30
         mock_config.langfuse.enabled = True
         mock_get_config.return_value = mock_config
-        
+
         now = datetime.utcnow()
         mock_response = Mock()
         mock_response.ok = True
@@ -356,13 +356,13 @@ class TestRecentTraces:
             ]
         }
         mock_get.return_value = mock_response
-        
+
         client = LangfuseClient()
         traces = client.get_recent_traces(limit=20, status_filter="error")
-        
+
         assert len(traces) == 1
         assert traces[0].status == "error"
-    
+
     @patch("src.services.langfuse_client.get_config")
     @patch("requests.Session.get")
     def test_get_recent_traces_clamps_limit(self, mock_get, mock_get_config):
@@ -374,19 +374,19 @@ class TestRecentTraces:
         mock_config.langfuse.timeout = 30
         mock_config.langfuse.enabled = True
         mock_get_config.return_value = mock_config
-        
+
         mock_response = Mock()
         mock_response.ok = True
         mock_response.json.return_value = {"data": []}
         mock_get.return_value = mock_response
-        
+
         client = LangfuseClient()
-        
+
         # Test with limit > 100
         client.get_recent_traces(limit=200)
         call_args = mock_get.call_args
         assert call_args[1]["params"]["limit"] == 100
-        
+
         # Test with limit < 1
         mock_get.reset_mock()
         client.get_recent_traces(limit=0)
@@ -396,7 +396,7 @@ class TestRecentTraces:
 
 class TestTraceDetails:
     """Tests for get_trace_details functionality."""
-    
+
     @patch("src.services.langfuse_client.get_config")
     def test_get_trace_details_when_disabled(self, mock_get_config):
         """Test trace details returns None when disabled."""
@@ -407,12 +407,12 @@ class TestTraceDetails:
         mock_config.langfuse.timeout = 30
         mock_config.langfuse.enabled = False
         mock_get_config.return_value = mock_config
-        
+
         client = LangfuseClient()
         details = client.get_trace_details("trace-123")
-        
+
         assert details is None
-    
+
     @patch("src.services.langfuse_client.get_config")
     def test_get_trace_details_with_empty_trace_id(self, mock_get_config):
         """Test trace details returns None for empty trace_id."""
@@ -423,12 +423,12 @@ class TestTraceDetails:
         mock_config.langfuse.timeout = 30
         mock_config.langfuse.enabled = True
         mock_get_config.return_value = mock_config
-        
+
         client = LangfuseClient()
         details = client.get_trace_details("")
-        
+
         assert details is None
-    
+
     @patch("src.services.langfuse_client.get_config")
     @patch("requests.Session.get")
     def test_get_trace_details_returns_details(self, mock_get, mock_get_config):
@@ -440,7 +440,7 @@ class TestTraceDetails:
         mock_config.langfuse.timeout = 30
         mock_config.langfuse.enabled = True
         mock_get_config.return_value = mock_config
-        
+
         now = datetime.utcnow()
         mock_response = Mock()
         mock_response.ok = True
@@ -464,10 +464,10 @@ class TestTraceDetails:
             ],
         }
         mock_get.return_value = mock_response
-        
+
         client = LangfuseClient()
         details = client.get_trace_details("trace-123")
-        
+
         assert details is not None
         assert isinstance(details, TraceDetails)
         assert details.trace.trace_id == "trace-123"
@@ -476,7 +476,7 @@ class TestTraceDetails:
         assert details.token_usage["output"] == 50
         assert details.token_usage["total"] == 150
         assert len(details.spans) == 1
-    
+
     @patch("src.services.langfuse_client.get_config")
     @patch("requests.Session.get")
     def test_get_trace_details_not_found(self, mock_get, mock_get_config):
@@ -488,17 +488,17 @@ class TestTraceDetails:
         mock_config.langfuse.timeout = 30
         mock_config.langfuse.enabled = True
         mock_get_config.return_value = mock_config
-        
+
         mock_response = Mock()
         mock_response.ok = False
         mock_response.status_code = 404
         mock_get.return_value = mock_response
-        
+
         client = LangfuseClient()
         details = client.get_trace_details("nonexistent-trace")
-        
+
         assert details is None
-    
+
     @patch("src.services.langfuse_client.get_config")
     @patch("requests.Session.get")
     def test_get_trace_details_with_error_status(self, mock_get, mock_get_config):
@@ -510,7 +510,7 @@ class TestTraceDetails:
         mock_config.langfuse.timeout = 30
         mock_config.langfuse.enabled = True
         mock_get_config.return_value = mock_config
-        
+
         now = datetime.utcnow()
         mock_response = Mock()
         mock_response.ok = True
@@ -523,10 +523,10 @@ class TestTraceDetails:
             "observations": [],
         }
         mock_get.return_value = mock_response
-        
+
         client = LangfuseClient()
         details = client.get_trace_details("trace-error")
-        
+
         assert details is not None
         assert details.trace.status == "error"
         assert details.error_message == "Connection timeout"
@@ -534,7 +534,7 @@ class TestTraceDetails:
 
 class TestTimestampParsing:
     """Tests for timestamp parsing functionality."""
-    
+
     @patch("src.services.langfuse_client.get_config")
     def test_parse_timestamp_with_z_suffix(self, mock_get_config):
         """Test parsing timestamp with Z suffix."""
@@ -545,15 +545,15 @@ class TestTimestampParsing:
         mock_config.langfuse.timeout = 30
         mock_config.langfuse.enabled = True
         mock_get_config.return_value = mock_config
-        
+
         client = LangfuseClient()
         result = client._parse_timestamp("2024-01-15T10:30:00Z")
-        
+
         assert isinstance(result, datetime)
         assert result.year == 2024
         assert result.month == 1
         assert result.day == 15
-    
+
     @patch("src.services.langfuse_client.get_config")
     def test_parse_timestamp_with_none(self, mock_get_config):
         """Test parsing None timestamp returns current time."""
@@ -564,14 +564,14 @@ class TestTimestampParsing:
         mock_config.langfuse.timeout = 30
         mock_config.langfuse.enabled = True
         mock_get_config.return_value = mock_config
-        
+
         client = LangfuseClient()
         before = datetime.utcnow()
         result = client._parse_timestamp(None)
         after = datetime.utcnow()
-        
+
         assert before <= result <= after
-    
+
     @patch("src.services.langfuse_client.get_config")
     def test_parse_timestamp_with_invalid_format(self, mock_get_config):
         """Test parsing invalid timestamp returns current time."""
@@ -582,16 +582,16 @@ class TestTimestampParsing:
         mock_config.langfuse.timeout = 30
         mock_config.langfuse.enabled = True
         mock_get_config.return_value = mock_config
-        
+
         client = LangfuseClient()
         result = client._parse_timestamp("not-a-date")
-        
+
         assert isinstance(result, datetime)
 
 
 class TestGetFullDashboardUrl:
     """Tests for get_full_dashboard_url functionality."""
-    
+
     @patch("src.services.langfuse_client.get_config")
     def test_get_full_dashboard_url(self, mock_get_config):
         """Test getting full dashboard URL."""
@@ -602,8 +602,8 @@ class TestGetFullDashboardUrl:
         mock_config.langfuse.timeout = 30
         mock_config.langfuse.enabled = True
         mock_get_config.return_value = mock_config
-        
+
         client = LangfuseClient()
         url = client.get_full_dashboard_url()
-        
+
         assert url == "http://langfuse:3000"

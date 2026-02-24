@@ -20,11 +20,12 @@ For nested configurations in AppConfig, use the nested delimiter format:
 - Note: Double underscore (__) separates parent from child field name
 """
 
+# pylint: disable=too-few-public-methods
 import logging
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, HttpUrl, field_validator, ConfigDict
+from pydantic import Field, field_validator, ConfigDict
 from pydantic_settings import BaseSettings
 
 
@@ -53,7 +54,7 @@ class OllamaConfig(BaseSettings):
         """Alias for host for backwards compatibility."""
         return self.host
 
-    class Config:
+    class Config:  # pylint: disable=missing-class-docstring
         env_prefix = "OLLAMA_"
 
 
@@ -64,7 +65,10 @@ class QdrantConfig(BaseSettings):
     port: int = Field(default=6333, description="Qdrant server port")
     api_key: str = Field(default="", description="Optional API key")
     collection_name: str = Field(default="documents", description="Default collection name")
-    vector_size: int = Field(default=768, description="Embedding vector size (must match embedding model output)")
+    vector_size: int = Field(
+        default=768,
+        description="Embedding vector size (must match embedding model output)",
+    )
     similarity_metric: str = Field(default="cosine", description="Vector similarity metric")
     timeout: int = Field(default=30, description="Request timeout in seconds")
 
@@ -73,7 +77,7 @@ class QdrantConfig(BaseSettings):
         """Construct Qdrant API URL."""
         return f"http://{self.host}:{self.port}"
 
-    class Config:
+    class Config:  # pylint: disable=missing-class-docstring
         env_prefix = "QDRANT_"
 
 
@@ -93,7 +97,7 @@ class MeilisearchConfig(BaseSettings):
             return int(self.host.split(":")[-1])
         return 7700
 
-    class Config:
+    class Config:  # pylint: disable=missing-class-docstring
         env_prefix = "MEILISEARCH_"
 
 
@@ -115,7 +119,7 @@ class PostgresConfig(BaseSettings):
             f"postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.db}"
         )
 
-    class Config:
+    class Config:  # pylint: disable=missing-class-docstring
         env_prefix = "POSTGRES_"
 
 
@@ -129,7 +133,7 @@ class LangfuseConfig(BaseSettings):
     timeout: int = Field(default=30, description="Request timeout in seconds")
     batch_size: int = Field(default=100, description="Trace batch size")
 
-    class Config:
+    class Config:  # pylint: disable=missing-class-docstring
         env_prefix = "LANGFUSE_"
 
 
@@ -147,7 +151,7 @@ class SecurityConfig(BaseSettings):
         default=["http://localhost:8501"], description="CORS allowed origins"
     )
 
-    class Config:
+    class Config:  # pylint: disable=missing-class-docstring
         env_prefix = "LLM_GUARD_"
 
 
@@ -162,7 +166,7 @@ class DashboardConfig(BaseSettings):
         description="UI framework for the A.P.I. dashboard",
     )
 
-    class Config:
+    class Config:  # pylint: disable=missing-class-docstring
         env_prefix = "APP_DASHBOARD_"
 
 
@@ -265,7 +269,7 @@ class AppConfig(BaseSettings):
                     "Production environment error: log_level must not be DEBUG. "
                     "Use INFO or higher"
                 )
-        
+
         elif self.env == "staging":
             # Staging: Security guards required, debug discouraged
             if self.debug:
@@ -283,7 +287,7 @@ class AppConfig(BaseSettings):
                     "Staging environment error: LLM Guard security scanning is required. "
                     "Set LLM_GUARD_ENABLED=true"
                 )
-        
+
         elif self.env == "development":
             # Development: Flexible settings with warnings
             if not self.security.llm_guard_enabled:
@@ -300,13 +304,16 @@ class AppConfig(BaseSettings):
     def _log_environment_configuration(self) -> None:
         """Log current environment configuration for visibility."""
         logger.info("=" * 70)
-        logger.info(f"🚀 Agent Zero Configuration Loaded")
+        logger.info("🚀 Agent Zero Configuration Loaded")
         logger.info("=" * 70)
-        logger.info(f"Environment: {self.env.upper()}")
-        logger.info(f"Debug Mode: {self.debug}")
-        logger.info(f"Log Level: {self.log_level}")
-        logger.info(f"LLM Guard: {'✓ Enabled' if self.security.llm_guard_enabled else '✗ Disabled'}")
-        logger.info(f"Langfuse: {'✓ Enabled' if self.langfuse.enabled else '✗ Disabled'}")
+        logger.info("Environment: %s", self.env.upper())
+        logger.info("Debug Mode: %s", self.debug)
+        logger.info("Log Level: %s", self.log_level)
+        logger.info(
+            "LLM Guard: %s",
+            '✓ Enabled' if self.security.llm_guard_enabled else '✗ Disabled',
+        )
+        logger.info("Langfuse: %s", '✓ Enabled' if self.langfuse.enabled else '✗ Disabled')
         logger.info("=" * 70)
 
     model_config = ConfigDict(
@@ -333,19 +340,20 @@ def get_config() -> AppConfig:
     Raises:
         ValidationError: If configuration values are invalid.
     """
-    config = AppConfig()
+    _config = AppConfig()
 
-    logger = logging.getLogger(__name__)
-    logger.info(
-        f"Configuration loaded: env={config.env}, "
-        f"debug={config.debug}, log_level={config.log_level}"
+    _logger = logging.getLogger(__name__)
+    _logger.info(
+        "Configuration loaded: env=%s, debug=%s, log_level=%s",
+        _config.env,
+        _config.debug,
+        _config.log_level,
     )
 
-    return config
+    return _config
 
 
 # Convenience function for quick access
 def config() -> AppConfig:
     """Get the current configuration instance."""
     return get_config()
-

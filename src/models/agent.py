@@ -50,8 +50,8 @@ class AgentMessage:
         if isinstance(self.role, str):
             try:
                 self.role = MessageRole(self.role)
-            except ValueError:
-                raise ValueError(f"Invalid role: {self.role}")
+            except ValueError as exc:
+                raise ValueError(f"Invalid role: {self.role}") from exc
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert message to dictionary for serialization."""
@@ -98,11 +98,11 @@ class AgentConfig:
 
     def __post_init__(self) -> None:
         """Validate configuration."""
-        if not (0.0 <= self.temperature <= 1.0):
+        if not 0.0 <= self.temperature <= 1.0:
             raise ValueError(f"temperature must be 0.0-1.0, got {self.temperature}")
         if self.max_tokens <= 0:
             raise ValueError(f"max_tokens must be positive, got {self.max_tokens}")
-        if not (0.0 <= self.top_p <= 1.0):
+        if not 0.0 <= self.top_p <= 1.0:
             raise ValueError(f"top_p must be 0.0-1.0, got {self.top_p}")
         if self.top_k <= 0:
             raise ValueError(f"top_k must be positive, got {self.top_k}")

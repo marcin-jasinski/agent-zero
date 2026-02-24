@@ -25,7 +25,7 @@ import time
 from functools import wraps
 from typing import Callable, Optional, Any
 
-from prometheus_client import Counter, Histogram, Gauge, Summary, start_http_server
+from prometheus_client import Counter, Histogram, Gauge, start_http_server
 
 logger = logging.getLogger(__name__)
 
@@ -186,14 +186,14 @@ def track_request_latency(endpoint: str) -> Callable:
         @wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             active_requests.labels(endpoint=endpoint).inc()
-            
+
             start = time.time()
             status = 'success'
-            
+
             try:
                 result = func(*args, **kwargs)
                 return result
-            except Exception as e:
+            except Exception:
                 status = 'error'
                 raise
             finally:
@@ -201,7 +201,7 @@ def track_request_latency(endpoint: str) -> Callable:
                 request_duration_seconds.labels(endpoint=endpoint).observe(duration)
                 requests_total.labels(endpoint=endpoint, status=status).inc()
                 active_requests.labels(endpoint=endpoint).dec()
-        
+
         return wrapper
     return decorator
 
@@ -336,7 +336,7 @@ def track_llm_guard_scan(scan_type: str, is_safe: bool, threat_level: Optional[s
     """
     result = 'safe' if is_safe else 'unsafe'
     llm_guard_scans_total.labels(type=scan_type, result=result).inc()
-    
+
     if not is_safe and threat_level:
         llm_guard_threats_total.labels(threat_level=threat_level).inc()
 
@@ -365,12 +365,12 @@ def start_metrics_server(port: int = 9091, registry: Optional[Any] = None) -> No
             start_http_server(port=port)
         else:
             start_http_server(port=port, registry=registry)
-        logger.info(f"Prometheus metrics server started on port {port}")
-        logger.info(f"Metrics available at: http://localhost:{port}/metrics")
+        logger.info("Prometheus metrics server started on port %s", port)
+        logger.info("Metrics available at: http://localhost:%s/metrics", port)
     except OSError as e:
         if "Address already in use" in str(e):
-            logger.warning(f"Metrics server already running on port {port}")
+            logger.warning("Metrics server already running on port %s", port)
         else:
-            logger.error(f"Failed to start metrics server: {e}", exc_info=True)
-    except Exception as e:
-        logger.error(f"Failed to start metrics server: {e}", exc_info=True)
+            logger.error("Failed to start metrics server: %s", e, exc_info=True)
+    except Exception as _:
+        logger.error("Failed to start metrics server", exc_info=True)

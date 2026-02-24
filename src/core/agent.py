@@ -5,14 +5,14 @@ tool calling, and LLM invocation for multi-turn conversations.
 """
 
 import asyncio
-import json
 import logging
+import time
 from typing import Dict, List, Any, Optional, Callable
 from datetime import datetime
 
 from src.core.retrieval import RetrievalEngine
 from src.core.memory import ConversationManager
-from src.models.agent import AgentConfig, AgentMessage, MessageRole, ConversationState
+from src.models.agent import AgentConfig, AgentMessage, MessageRole
 from src.models.retrieval import RetrievalResult
 from src.services.ollama_client import OllamaClient
 from src.security.guard import LLMGuard, ThreatLevel
@@ -77,9 +77,12 @@ class AgentOrchestrator:
         }
 
         logger.info(
-            f"Initialized AgentOrchestrator with model {self.config.model_name}, "
-            f"LLM Guard enabled={self.llm_guard.enabled}, "
-            f"Langfuse observability enabled={self.observability.enabled}"
+            "Initialized AgentOrchestrator with model %s, "
+            "LLM Guard enabled=%s, "
+            "Langfuse observability enabled=%s",
+            self.config.model_name,
+            self.llm_guard.enabled,
+            self.observability.enabled,
         )
 
     def start_conversation(self, metadata: Optional[Dict] = None) -> str:
@@ -103,7 +106,7 @@ class AgentOrchestrator:
 
         return conversation_id
 
-    def process_message(
+    def process_message(  # pylint: disable=too-many-positional-arguments,too-many-locals
         self,
         conversation_id: str,
         user_message: str,
@@ -137,21 +140,21 @@ class AgentOrchestrator:
         if not user_message or not user_message.strip():
             raise ValueError("User message cannot be empty")
 
-        import time
-        start_time = time.time()
-        logger.info(f"[TIMING] Starting message processing")
+        _start_time = time.time()
+        logger.info("[TIMING] Starting message processing")
 
         try:
             # Scan user input for security threats
             scan_start = time.time()
             input_scan_result = self.llm_guard.scan_user_input(user_message)
-            logger.info(f"[TIMING] Input scan completed in {time.time() - scan_start:.2f}s")
+            logger.info("[TIMING] Input scan completed in %.2fs", time.time() - scan_start)
 
             # Block critical threats
             if not input_scan_result.is_safe:
                 logger.warning(
-                    f"User input blocked: threat_level={input_scan_result.threat_level.value}, "
-                    f"violations={input_scan_result.violations}"
+                    "User input blocked: threat_level=%s, violations=%s",
+                    input_scan_result.threat_level.value,
+                    input_scan_result.violations,
                 )
 
                 if input_scan_result.threat_level in [ThreatLevel.CRITICAL, ThreatLevel.HIGH]:
@@ -159,7 +162,7 @@ class AgentOrchestrator:
                         "Your message was blocked due to security concerns. "
                         f"Detected violations: {', '.join(input_scan_result.violations[:2])}"
                     )
-                    logger.error(f"Critical threat blocked for conversation {conversation_id}")
+                    logger.error("Critical threat blocked for conversation %s", conversation_id)
                     return error_msg
 
             # Use sanitized input if available
@@ -185,7 +188,11 @@ class AgentOrchestrator:
                         processed_message,
                         top_k=5,
                     )
-                    logger.info(f"[TIMING] Retrieval completed in {time.time() - retrieval_start:.2f}s - Retrieved {len(retrieved_docs)} documents")
+                    logger.info(
+                        "[TIMING] Retrieval completed in %.2fs - Retrieved %s documents",
+                        time.time() - retrieval_start,
+                        len(retrieved_docs),
+                    )
 
                     # Track retrieval metrics in Langfuse
                     self.observability.track_retrieval(
@@ -196,7 +203,7 @@ class AgentOrchestrator:
                     )
 
                 except Exception as e:
-                    logger.warning(f"Document retrieval failed: {e}")
+                    logger.warning("Document retrieval failed: %s", e)
 
             prompt_start = time.time()
             context = self._build_prompt(
@@ -204,21 +211,29 @@ class AgentOrchestrator:
                 processed_message,
                 retrieved_docs,
             )
-            logger.info(f"[TIMING] Prompt building completed in {time.time() - prompt_start:.2f}s")
+            logger.info("[TIMING] Prompt building completed in %.2fs", time.time() - prompt_start)
 
             # Generate response
             llm_start = time.time()
             response_text = self._invoke_llm(
-                context, stream_callback, thinking_callback=thinking_callback, conversation_id=conversation_id
+                context,
+                stream_callback,
+                thinking_callback=thinking_callback,
+                conversation_id=conversation_id,
             )
-            logger.info(f"[TIMING] LLM generation completed in {time.time() - llm_start:.2f}s")
+            logger.info("[TIMING] LLM generation completed in %.2fs", time.time() - llm_start)
 
             # Scan LLM output for security threats.
             # Guard against empty responses (e.g. thinking-only output after
             # <think> stripping) to avoid hard ValueError in scan_llm_output.
             if not response_text or not response_text.strip():
-                logger.warning("LLM returned empty response after processing; using fallback message")
-                response_text = "I'm sorry, I wasn't able to generate a response. Please try rephrasing your question."
+                logger.warning(
+                    "LLM returned empty response after processing; using fallback message"
+                )
+                response_text = (
+                    "I'm sorry, I wasn't able to generate a response. "
+                    "Please try rephrasing your question."
+                )
 
             output_scan_result = self.llm_guard.scan_llm_output(
                 response_text, original_prompt=processed_message
@@ -227,8 +242,9 @@ class AgentOrchestrator:
             # Block unsafe outputs
             if not output_scan_result.is_safe:
                 logger.warning(
-                    f"LLM output blocked: threat_level={output_scan_result.threat_level.value}, "
-                    f"violations={output_scan_result.violations}"
+                    "LLM output blocked: threat_level=%s, violations=%s",
+                    output_scan_result.threat_level.value,
+                    output_scan_result.violations,
                 )
 
                 if output_scan_result.threat_level in [ThreatLevel.CRITICAL, ThreatLevel.HIGH]:
@@ -277,11 +293,11 @@ class AgentOrchestrator:
             # Flush Langfuse traces
             self.observability.flush()
 
-            logger.info(f"Generated response for conversation {conversation_id}")
+            logger.info("Generated response for conversation %s", conversation_id)
             return formatted_response
 
         except Exception as e:
-            logger.error(f"Error processing message: {e}", exc_info=True)
+            logger.error("Error processing message: %s", e, exc_info=True)
             raise
 
     async def process_message_async(
@@ -329,7 +345,7 @@ class AgentOrchestrator:
                 for r in results
             ]
         except Exception as e:
-            logger.error(f"Document retrieval tool failed: {e}")
+            logger.error("Document retrieval tool failed: %s", e)
             return []
 
     def _search_knowledge_base(self, query: str) -> Dict[str, Any]:
@@ -361,7 +377,7 @@ class AgentOrchestrator:
                 "query": query,
             }
         except Exception as e:
-            logger.error(f"Knowledge base search tool failed: {e}")
+            logger.error("Knowledge base search tool failed: %s", e)
             return {"error": str(e), "results": []}
 
     def _get_current_time(self) -> Dict[str, str]:
@@ -446,7 +462,6 @@ class AgentOrchestrator:
         Returns:
             Generated response text (full string, reasoning stripped)
         """
-        import time
         start_time = time.time()
 
         try:
@@ -474,7 +489,7 @@ class AgentOrchestrator:
                         "max_tokens": self.config.max_tokens,
                     },
                 )
-            
+
             # Track LLM generation metrics in Prometheus
             track_llm_generation(
                 model=self.config.model_name,
@@ -486,7 +501,7 @@ class AgentOrchestrator:
             return response
 
         except Exception as e:
-            logger.error(f"LLM invocation failed: {e}")
+            logger.error("LLM invocation failed: %s", e)
             raise
 
     def _extract_sources(self, retrieved_docs: List[RetrievalResult]) -> List[str]:
@@ -554,5 +569,5 @@ class AgentOrchestrator:
         """
         summary = self.memory.get_conversation_summary(conversation_id)
         self.memory.delete_conversation(conversation_id)
-        logger.info(f"Ended conversation {conversation_id}")
+        logger.info("Ended conversation %s", conversation_id)
         return summary

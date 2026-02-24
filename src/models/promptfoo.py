@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Any
 
 class TestStatus(str, Enum):
     """Test execution status."""
-    
+
     PENDING = "pending"
     RUNNING = "running"
     PASSED = "passed"
@@ -24,7 +24,7 @@ class TestStatus(str, Enum):
 
 class PromptVersion(str, Enum):
     """Prompt version tracking."""
-    
+
     V1 = "v1.0"
     V2 = "v2.0"
     V3 = "v3.0"
@@ -46,7 +46,7 @@ class TestScenario:
         created_at: Timestamp of creation
         updated_at: Timestamp of last modification
     """
-    
+
     id: str
     name: str
     description: str
@@ -57,7 +57,7 @@ class TestScenario:
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
     __test__ = False
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
@@ -87,7 +87,7 @@ class TestResult:
         error_message: Error details if status is ERROR
         executed_at: Timestamp of execution
     """
-    
+
     scenario_id: str
     status: TestStatus
     actual_output: str
@@ -97,7 +97,7 @@ class TestResult:
     error_message: Optional[str] = None
     executed_at: datetime = field(default_factory=datetime.now)
     __test__ = False
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
@@ -113,7 +113,7 @@ class TestResult:
 
 
 @dataclass
-class TestRun:
+class TestRun:  # pylint: disable=too-many-instance-attributes
     """A complete test run across multiple scenarios.
     
     Attributes:
@@ -129,7 +129,7 @@ class TestRun:
         average_latency_ms: Average response time across all tests
         total_tokens: Total tokens used in the run
     """
-    
+
     id: str
     prompt_version: str
     results: List[TestResult] = field(default_factory=list)
@@ -142,25 +142,25 @@ class TestRun:
     average_latency_ms: float = 0.0
     total_tokens: int = 0
     __test__ = False
-    
+
     def calculate_metrics(self) -> None:
         """Calculate summary metrics from results."""
         self.total_tests = len(self.results)
         self.passed_tests = sum(1 for r in self.results if r.status == TestStatus.PASSED)
         self.failed_tests = sum(1 for r in self.results if r.status == TestStatus.FAILED)
         self.error_tests = sum(1 for r in self.results if r.status == TestStatus.ERROR)
-        
+
         if self.results:
             self.average_latency_ms = sum(r.latency_ms for r in self.results) / len(self.results)
             self.total_tokens = sum(r.token_count or 0 for r in self.results)
-    
+
     @property
     def pass_rate(self) -> float:
         """Calculate pass rate as percentage."""
         if self.total_tests == 0:
             return 0.0
         return (self.passed_tests / self.total_tests) * 100
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {
@@ -191,7 +191,7 @@ class PromptComparison:
         regressions: List of metrics that regressed in version B
         recommendation: Which version is recommended and why
     """
-    
+
     version_a: str
     version_b: str
     run_a: TestRun
@@ -199,12 +199,12 @@ class PromptComparison:
     improvements: List[str] = field(default_factory=list)
     regressions: List[str] = field(default_factory=list)
     recommendation: str = ""
-    
+
     def analyze(self) -> None:
         """Analyze differences and generate recommendation."""
         self.improvements = []
         self.regressions = []
-        
+
         # Compare pass rates
         if self.run_b.pass_rate > self.run_a.pass_rate:
             self.improvements.append(
@@ -214,7 +214,7 @@ class PromptComparison:
             self.regressions.append(
                 f"Pass rate regressed: {self.run_a.pass_rate:.1f}% → {self.run_b.pass_rate:.1f}%"
             )
-        
+
         # Compare latency
         if self.run_b.average_latency_ms < self.run_a.average_latency_ms:
             improvement_pct = (
@@ -234,15 +234,15 @@ class PromptComparison:
             self.regressions.append(
                 f"Latency regressed: {regression_pct:.1f}% slower"
             )
-        
+
         # Generate recommendation
         if len(self.improvements) > len(self.regressions):
             self.recommendation = f"✅ {self.version_b} recommended (more improvements)"
         elif len(self.regressions) > len(self.improvements):
             self.recommendation = f"⚠️ {self.version_a} recommended (avoid regressions)"
         else:
-            self.recommendation = f"🤝 Both versions similar, choose based on specific needs"
-    
+            self.recommendation = "🤝 Both versions similar, choose based on specific needs"
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         return {

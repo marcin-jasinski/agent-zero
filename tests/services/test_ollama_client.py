@@ -262,7 +262,7 @@ class TestOllamaClientPullModel:
             b'{"status": "pulling"}'.decode(),
             b'{"status": "success"}'.decode(),
         ])
-        
+
         with patch.object(ollama_client.session, "post", return_value=mock_response):
             result = ollama_client.pull_model("ministral-3:3b")
             assert result is True

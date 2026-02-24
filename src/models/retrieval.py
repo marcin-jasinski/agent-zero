@@ -5,7 +5,7 @@ scoring across semantic and keyword search.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 
 @dataclass
@@ -61,11 +61,11 @@ class HybridSearchConfig:
     def __post_init__(self) -> None:
         """Validate configuration."""
         weights_sum = self.semantic_weight + self.keyword_weight
-        if not (0.99 <= weights_sum <= 1.01):  # Allow for floating point rounding
+        if not 0.99 <= weights_sum <= 1.01:  # Allow for floating point rounding
             raise ValueError(f"Semantic + keyword weights must sum to 1.0, got {weights_sum}")
-        if not (0.0 <= self.min_semantic_score <= 1.0):
+        if not 0.0 <= self.min_semantic_score <= 1.0:
             raise ValueError(f"min_semantic_score must be 0.0-1.0, got {self.min_semantic_score}")
-        if not (0.0 <= self.min_keyword_score <= 1.0):
+        if not 0.0 <= self.min_keyword_score <= 1.0:
             raise ValueError(f"min_keyword_score must be 0.0-1.0, got {self.min_keyword_score}")
         if self.max_results <= 0:
             raise ValueError(f"max_results must be positive, got {self.max_results}")

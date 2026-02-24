@@ -8,7 +8,6 @@ import json
 import logging
 import logging.config
 import sys
-import warnings
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -98,10 +97,10 @@ def setup_logging() -> None:
 
     # Determine formatter based on config
     if config.log_format == "json":
-        formatter = JSONFormatter()
+        _formatter = JSONFormatter()
         file_format = "%(message)s"  # JSON formatter handles all formatting
     else:
-        formatter = TextFormatter()
+        _formatter = TextFormatter()
         file_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
     # Create logging config dict
@@ -194,8 +193,10 @@ def setup_logging() -> None:
     # Log startup message at DEBUG level to avoid log flooding
     logger = logging.getLogger(__name__)
     logger.debug(
-        f"Logging configured: env={config.env}, "
-        f"level={config.log_level}, format={config.log_format}"
+        "Logging configured: env=%s, level=%s, format=%s",
+        config.env,
+        config.log_level,
+        config.log_format,
     )
 
 
@@ -210,4 +211,3 @@ def get_logger(name: str) -> logging.Logger:
         logging.Logger: Configured logger instance
     """
     return logging.getLogger(name)
-

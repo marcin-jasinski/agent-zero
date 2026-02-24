@@ -32,13 +32,13 @@ class OllamaClient:
         """
         config = get_config()
         self.base_url = base_url or config.ollama.base_url
-        
+
         # Validate inputs
         if not self.base_url or not self.base_url.strip():
             raise ValueError("base_url cannot be empty")
         if timeout <= 0:
             raise ValueError(f"timeout must be positive, got {timeout}")
-        
+
         self.timeout = timeout
 
         # Setup session with retry strategy
@@ -52,7 +52,7 @@ class OllamaClient:
         self.session.mount("http://", adapter)
         self.session.mount("https://", adapter)
 
-        logger.info(f"Ollama client initialized: {self.base_url}")
+        logger.info("Ollama client initialized: %s", self.base_url)
 
     def _make_request(self, method: str, endpoint: str, **kwargs) -> dict:
         """Make HTTP request to Ollama.
@@ -79,7 +79,7 @@ class OllamaClient:
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
-            logger.error(f"Ollama request failed: {e}")
+            logger.error("Ollama request failed: %s", e)
             raise
 
     def is_healthy(self) -> bool:
@@ -95,7 +95,7 @@ class OllamaClient:
             )
             return response.status_code == 200
         except Exception as e:
-            logger.warning(f"Ollama health check failed: {e}")
+            logger.warning("Ollama health check failed: %s", e)
             return False
 
     def list_models(self) -> list[str]:
@@ -107,13 +107,13 @@ class OllamaClient:
         try:
             data = self._make_request("get", "/api/tags")
             models = [model["name"] for model in data.get("models", [])]
-            logger.info(f"Available models: {models}")
+            logger.info("Available models: %s", models)
             return models
         except Exception as e:
-            logger.error(f"Failed to list models: {e}")
+            logger.error("Failed to list models: %s", e)
             return []
 
-    def generate(
+    def generate(  # pylint: disable=too-many-positional-arguments,too-many-locals,too-many-branches
         self,
         model: str,
         prompt: str,
@@ -219,7 +219,7 @@ class OllamaClient:
             return self._strip_thinking_tags(full_text)
 
         except Exception as e:
-            logger.error(f"Text generation failed: {e}")
+            logger.error("Text generation failed: %s", e)
             raise
 
     @staticmethod
@@ -289,7 +289,7 @@ class OllamaClient:
             data = self._make_request("post", "/api/embed", json=payload)
             return data.get("embeddings", [[]])[0]
         except Exception as e:
-            logger.error(f"Embedding generation failed: {e}")
+            logger.error("Embedding generation failed: %s", e)
             raise
 
     def warm_up(self, model: str, timeout: int = 300) -> bool:
@@ -310,7 +310,7 @@ class OllamaClient:
             True if successful, False otherwise
         """
         try:
-            logger.info(f"Warming up model '{model}' (timeout={timeout}s)...")
+            logger.info("Warming up model '%s' (timeout=%ss)...", model, timeout)
             url = f"{self.base_url}/api/generate"
             payload = {
                 "model": model,
@@ -320,10 +320,10 @@ class OllamaClient:
             }
             response = self.session.post(url, json=payload, timeout=timeout)
             response.raise_for_status()
-            logger.info(f"Model '{model}' warmed up successfully")
+            logger.info("Model '%s' warmed up successfully", model)
             return True
         except Exception as e:
-            logger.warning(f"Failed to warm up model '{model}': {e}")
+            logger.warning("Failed to warm up model '%s': %s", model, e)
             return False
 
     def pull_model(self, model: str) -> bool:
@@ -338,7 +338,7 @@ class OllamaClient:
         try:
             url = f"{self.base_url}/api/pull"
             payload = {"name": model}
-            
+
             # The /api/pull endpoint returns streaming responses
             # We need to handle the streaming format
             response = self.session.post(
@@ -348,19 +348,19 @@ class OllamaClient:
                 stream=True,
             )
             response.raise_for_status()
-            
+
             # Read all streamed responses
             for line in response.iter_lines():
                 if line:
                     try:
                         data = json.loads(line)
                         if data.get("status") == "success":
-                            logger.info(f"Model '{model}' pulled successfully")
+                            logger.info("Model '%s' pulled successfully", model)
                     except json.JSONDecodeError:
                         # Ignore malformed JSON lines
                         pass
-            
+
             return True
         except Exception as e:
-            logger.error(f"Failed to pull model '{model}': {e}")
+            logger.error("Failed to pull model '%s': %s", model, e)
             return False

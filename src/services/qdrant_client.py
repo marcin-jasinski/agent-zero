@@ -31,9 +31,9 @@ class QdrantVectorClient:
 
         try:
             self.client = QdrantClient(host=self.host, port=self.port, timeout=30.0)
-            logger.info(f"Qdrant client initialized: {self.host}:{self.port}")
+            logger.info("Qdrant client initialized: %s:%s", self.host, self.port)
         except Exception as e:
-            logger.error(f"Failed to initialize Qdrant client: {e}")
+            logger.error("Failed to initialize Qdrant client: %s", e)
             raise
 
     def is_healthy(self) -> bool:
@@ -46,7 +46,7 @@ class QdrantVectorClient:
             self.client.get_collections()
             return True
         except Exception as e:
-            logger.warning(f"Qdrant health check failed: {e}")
+            logger.warning("Qdrant health check failed: %s", e)
             return False
 
     def has_documents(self, collection_name: str) -> bool:
@@ -90,9 +90,9 @@ class QdrantVectorClient:
             ValueError: If vector_size is invalid
         """
         # Validate inputs
-        if not (0 < vector_size <= 2048):
+        if vector_size <= 0 or vector_size > 2048:
             raise ValueError(f"vector_size must be between 1 and 2048, got {vector_size}")
-        
+
         try:
             if force_recreate:
                 self.client.delete_collection(collection_name)
@@ -105,10 +105,10 @@ class QdrantVectorClient:
                 ),
             )
 
-            logger.info(f"Collection '{collection_name}' created")
+            logger.info("Collection '%s' created", collection_name)
             return True
         except Exception as e:
-            logger.error(f"Failed to create collection: {e}")
+            logger.error("Failed to create collection: %s", e)
             return False
 
     def upsert_vectors(
@@ -140,10 +140,10 @@ class QdrantVectorClient:
                 points=qdrant_points,
             )
 
-            logger.info(f"Upserted {len(points)} vectors into '{collection_name}'")
+            logger.info("Upserted %d vectors into '%s'", len(points), collection_name)
             return True
         except Exception as e:
-            logger.error(f"Failed to upsert vectors: {e}")
+            logger.error("Failed to upsert vectors: %s", e)
             return False
 
     def search(
@@ -181,7 +181,7 @@ class QdrantVectorClient:
                 for point in results.points
             ]
         except Exception as e:
-            logger.error(f"Search failed: {e}")
+            logger.error("Search failed: %s", e)
             return []
 
     def delete_collection(self, collection_name: str) -> bool:
@@ -195,10 +195,10 @@ class QdrantVectorClient:
         """
         try:
             self.client.delete_collection(collection_name)
-            logger.info(f"Collection '{collection_name}' deleted")
+            logger.info("Collection '%s' deleted", collection_name)
             return True
         except Exception as e:
-            logger.error(f"Failed to delete collection: {e}")
+            logger.error("Failed to delete collection: %s", e)
             return False
 
     def get_collection_info(self, collection_name: str) -> Optional[dict]:
@@ -218,7 +218,7 @@ class QdrantVectorClient:
                 "vectors_count": collection.vectors_count,
             }
         except Exception as e:
-            logger.error(f"Failed to get collection info: {e}")
+            logger.error("Failed to get collection info: %s", e)
             return None
 
     def list_collections(self) -> list[dict[str, Any]]:
@@ -239,7 +239,7 @@ class QdrantVectorClient:
         try:
             collections_response = self.client.get_collections()
             collections = []
-            
+
             for collection in collections_response.collections:
                 try:
                     # Get detailed info for each collection
@@ -250,17 +250,20 @@ class QdrantVectorClient:
                         "points_count": info.points_count or 0,
                     })
                 except Exception as e:
-                    logger.warning(f"Failed to get info for collection '{collection.name}': {e}")
+                    logger.warning(
+                        "Failed to get info for collection '%s': %s",
+                        collection.name, e,
+                    )
                     collections.append({
                         "name": collection.name,
                         "vectors_count": 0,
                         "points_count": 0,
                     })
-            
-            logger.debug(f"Listed {len(collections)} collections")
+
+            logger.debug("Listed %d collections", len(collections))
             return collections
         except Exception as e:
-            logger.error(f"Failed to list collections: {e}")
+            logger.error("Failed to list collections: %s", e)
             return []
 
     def get_collection_stats(self, collection_name: str) -> Optional[dict[str, Any]]:
@@ -284,7 +287,7 @@ class QdrantVectorClient:
         """
         try:
             collection = self.client.get_collection(collection_name)
-            
+
             # Extract vector config
             vector_config = collection.config.params.vectors
             if isinstance(vector_config, dict):
@@ -294,21 +297,31 @@ class QdrantVectorClient:
             else:
                 # Single vector config
                 vector_size = vector_config.size
-                distance = vector_config.distance.value if hasattr(vector_config.distance, 'value') else str(vector_config.distance)
-            
+                distance = (
+                    vector_config.distance.value
+                    if hasattr(vector_config.distance, 'value')
+                    else str(vector_config.distance)
+                )
+
             stats = {
                 "name": collection_name,
                 "vectors_count": collection.vectors_count or 0,
                 "points_count": collection.points_count or 0,
                 "vector_size": vector_size,
                 "distance_metric": distance,
-                "status": collection.status.value if hasattr(collection.status, 'value') else str(collection.status),
+                "status": (
+                    collection.status.value
+                    if hasattr(collection.status, 'value')
+                    else str(collection.status)
+                ),
             }
-            
-            logger.debug(f"Retrieved stats for collection '{collection_name}'")
+
+            logger.debug("Retrieved stats for collection '%s'", collection_name)
             return stats
         except Exception as e:
-            logger.error(f"Failed to get collection stats for '{collection_name}': {e}")
+            logger.error(
+                "Failed to get collection stats for '%s': %s", collection_name, e
+            )
             return None
 
     def search_by_text(
@@ -342,20 +355,20 @@ class QdrantVectorClient:
         """
         if not query or not query.strip():
             raise ValueError("Query cannot be empty")
-        
+
         try:
             # Get embedding from Ollama if client provided, otherwise import
             if ollama_client is None:
-                from src.services.ollama_client import OllamaClient
+                from src.services.ollama_client import OllamaClient  # pylint: disable=import-outside-toplevel
                 ollama_client = OllamaClient()
-            
+
             # Generate embedding for query
             query_vector = ollama_client.embed(query)
-            
+
             if not query_vector:
                 logger.error("Failed to generate embedding for query")
                 return []
-            
+
             # Search using vector
             results = self.search(
                 collection_name=collection,
@@ -363,7 +376,7 @@ class QdrantVectorClient:
                 limit=top_k,
                 score_threshold=0.0,  # Return all results, sorted by score
             )
-            
+
             # Enhance results with content from payload
             enhanced_results = []
             for result in results:
@@ -375,11 +388,13 @@ class QdrantVectorClient:
                     "chunk_index": result["payload"].get("chunk_index", 0),
                 }
                 enhanced_results.append(enhanced_result)
-            
-            logger.info(f"Text search returned {len(enhanced_results)} results from '{collection}'")
+
+            logger.info(
+                "Text search returned %d results from '%s'", len(enhanced_results), collection
+            )
             return enhanced_results
         except Exception as e:
-            logger.error(f"Text search failed: {e}", exc_info=True)
+            logger.error("Text search failed: %s", e, exc_info=True)
             return []
 
     def create_collection_ui(
@@ -401,27 +416,30 @@ class QdrantVectorClient:
         # Validate collection name
         if not name or not name.strip():
             return False, "Collection name cannot be empty"
-        
+
         name = name.strip()
         if not all(c.isalnum() or c in ('_', '-') for c in name):
-            return False, "Collection name can only contain letters, numbers, underscore, and hyphen"
-        
+            return False, (
+                "Collection name can only contain letters, numbers, "
+                "underscore, and hyphen"
+            )
+
         # Validate vector size
-        if not (1 <= vector_size <= 2048):
+        if vector_size < 1 or vector_size > 2048:
             return False, f"Vector size must be between 1 and 2048 (got {vector_size})"
-        
+
         # Validate distance metric
         valid_distances = {"Cosine", "Euclid", "Dot"}
         if distance not in valid_distances:
             return False, f"Distance must be one of {valid_distances} (got '{distance}')"
-        
+
         # Map string to Qdrant enum
         distance_map = {
             "Cosine": models.Distance.COSINE,
             "Euclid": models.Distance.EUCLID,
             "Dot": models.Distance.DOT,
         }
-        
+
         try:
             # Check if collection already exists
             try:
@@ -430,7 +448,7 @@ class QdrantVectorClient:
             except Exception:
                 # Collection doesn't exist, proceed with creation
                 pass
-            
+
             # Create collection
             self.client.create_collection(
                 collection_name=name,
@@ -439,8 +457,11 @@ class QdrantVectorClient:
                     distance=distance_map[distance],
                 ),
             )
-            
-            logger.info(f"Collection '{name}' created via UI (size={vector_size}, distance={distance})")
+
+            logger.info(
+                "Collection '%s' created via UI (size=%d, distance=%s)",
+                name, vector_size, distance,
+            )
             return True, f"Collection '{name}' created successfully"
         except Exception as e:
             error_msg = f"Failed to create collection: {str(e)}"
@@ -458,26 +479,24 @@ class QdrantVectorClient:
         """
         if not name or not name.strip():
             return False, "Collection name cannot be empty"
-        
+
         name = name.strip()
-        
+
         try:
             # Check if collection exists
             try:
                 self.client.get_collection(name)
             except Exception:
                 return False, f"Collection '{name}' does not exist"
-            
+
             # Delete collection
             success = self.delete_collection(name)
-            
+
             if success:
-                logger.info(f"Collection '{name}' deleted via UI")
+                logger.info("Collection '%s' deleted via UI", name)
                 return True, f"Collection '{name}' deleted successfully"
-            else:
-                return False, f"Failed to delete collection '{name}'"
+            return False, f"Failed to delete collection '{name}'"
         except Exception as e:
             error_msg = f"Failed to delete collection: {str(e)}"
             logger.error(error_msg, exc_info=True)
             return False, error_msg
-

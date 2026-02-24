@@ -233,7 +233,7 @@ class TestAppConfigStagingEnvironment:
             with patch("src.config.logger") as mock_logger:
                 config = AppConfig()
                 # Should not raise error but should warn
-                assert any("debug mode enabled" in str(call).lower() 
+                assert any("debug mode enabled" in str(call).lower()
                           for call in mock_logger.warning.call_args_list)
 
     def test_staging_valid_configuration(self):

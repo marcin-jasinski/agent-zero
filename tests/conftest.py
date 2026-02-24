@@ -73,26 +73,26 @@ def mock_config():
     config.host = "0.0.0.0"
     config.port = 8501
     config.log_level = "INFO"
-    
+
     # Ollama config
     config.ollama = Mock()
     config.ollama.host = "http://localhost:11434"
     config.ollama.model = "qwen3:4b"
     config.ollama.embed_model = "nomic-embed-text-v2-moe"
     config.ollama.timeout = 300
-    
+
     # Qdrant config
     config.qdrant = Mock()
     config.qdrant.host = "localhost"
     config.qdrant.port = 6333
     config.qdrant.collection_name = "documents"
     config.qdrant.vector_size = 768
-    
+
     # Meilisearch config
     config.meilisearch = Mock()
     config.meilisearch.host = "http://localhost:7700"
     config.meilisearch.index_name = "documents"
-    
+
     # Langfuse config
     config.langfuse = Mock()
     config.langfuse.host = "http://localhost:3000"
@@ -100,11 +100,11 @@ def mock_config():
     config.langfuse.public_key = ""
     config.langfuse.secret_key = ""
     config.langfuse.timeout = 30
-    
+
     # Security config
     config.security = Mock()
     config.security.llm_guard_enabled = False
-    
+
     # Dashboard features
     config.dashboard = Mock()
     config.dashboard.show_chat = True
@@ -114,7 +114,7 @@ def mock_config():
     config.dashboard.show_qdrant_manager = False
     config.dashboard.show_langfuse_dashboard = False
     config.dashboard.show_system_health = False
-    
+
     return config
 
 
@@ -214,31 +214,31 @@ def mock_langfuse_client():
 def mock_health_checker(mock_ollama_client, mock_qdrant_client, mock_meilisearch_client):
     """Create a mock health checker with healthy services."""
     checker = Mock()
-    
+
     ollama_status = Mock()
     ollama_status.name = "Ollama"
     ollama_status.is_healthy = True
     ollama_status.message = "LLM service operational"
     ollama_status.details = {"models": 2}
-    
+
     qdrant_status = Mock()
     qdrant_status.name = "Qdrant"
     qdrant_status.is_healthy = True
     qdrant_status.message = "Vector DB operational"
     qdrant_status.details = {}
-    
+
     meilisearch_status = Mock()
     meilisearch_status.name = "Meilisearch"
     meilisearch_status.is_healthy = True
     meilisearch_status.message = "Search engine operational"
     meilisearch_status.details = {}
-    
+
     langfuse_status = Mock()
     langfuse_status.name = "Langfuse"
     langfuse_status.is_healthy = True
     langfuse_status.message = "Observability operational"
     langfuse_status.details = {"enabled": True}
-    
+
     checker.check_all.return_value = {
         "ollama": ollama_status,
         "qdrant": qdrant_status,
@@ -246,7 +246,7 @@ def mock_health_checker(mock_ollama_client, mock_qdrant_client, mock_meilisearch
         "langfuse": langfuse_status,
     }
     checker.all_healthy = True
-    
+
     return checker
 
 
@@ -254,25 +254,25 @@ def mock_health_checker(mock_ollama_client, mock_qdrant_client, mock_meilisearch
 def mock_unhealthy_checker():
     """Create a mock health checker with some unhealthy services."""
     checker = Mock()
-    
+
     ollama_status = Mock()
     ollama_status.name = "Ollama"
     ollama_status.is_healthy = False
     ollama_status.message = "Connection refused"
     ollama_status.details = {}
-    
+
     qdrant_status = Mock()
     qdrant_status.name = "Qdrant"
     qdrant_status.is_healthy = True
     qdrant_status.message = "Vector DB operational"
     qdrant_status.details = {}
-    
+
     checker.check_all.return_value = {
         "ollama": ollama_status,
         "qdrant": qdrant_status,
     }
     checker.all_healthy = False
-    
+
     return checker
 
 

@@ -38,23 +38,43 @@ try:
     METRICS_AVAILABLE = True
 except ImportError as e:
     # Print to stderr for immediate visibility (before logging is fully initialized)
-    error_msg = f"Warning: Prometheus metrics unavailable: {e}\n"
-    sys.stderr.write(error_msg)
+    sys.stderr.write(f"Warning: Prometheus metrics unavailable: {e}\n")
     sys.stderr.flush()
-    logger.warning(f"Metrics module unavailable: {e}. Prometheus metrics disabled.")
+    logger.warning("Metrics module unavailable: %s. Prometheus metrics disabled.", e)
     METRICS_AVAILABLE = False
-    
+
     # Provide no-op fallbacks
-    def start_metrics_server(*args, **kwargs): pass
-    def track_retrieval(*args, **kwargs): pass
-    def track_embedding_duration(*args, **kwargs): pass
-    def track_llm_generation(*args, **kwargs): pass
-    def track_llm_error(*args, **kwargs): pass
-    def track_document_ingestion(*args, **kwargs): pass
-    def update_collection_sizes(*args, **kwargs): pass
-    def track_llm_guard_scan(*args, **kwargs): pass
-    def track_request_latency(*args, **kwargs): return lambda f: f
-    def track_latency(*args, **kwargs): return lambda f: f
+    def start_metrics_server(*_args, **_kwargs):
+        """No-op fallback when Prometheus is unavailable."""
+
+    def track_retrieval(*_args, **_kwargs):
+        """No-op fallback when Prometheus is unavailable."""
+
+    def track_embedding_duration(*_args, **_kwargs):
+        """No-op fallback when Prometheus is unavailable."""
+
+    def track_llm_generation(*_args, **_kwargs):
+        """No-op fallback when Prometheus is unavailable."""
+
+    def track_llm_error(*_args, **_kwargs):
+        """No-op fallback when Prometheus is unavailable."""
+
+    def track_document_ingestion(*_args, **_kwargs):
+        """No-op fallback when Prometheus is unavailable."""
+
+    def update_collection_sizes(*_args, **_kwargs):
+        """No-op fallback when Prometheus is unavailable."""
+
+    def track_llm_guard_scan(*_args, **_kwargs):
+        """No-op fallback when Prometheus is unavailable."""
+
+    def track_request_latency(*_args, **_kwargs):
+        """No-op fallback when Prometheus is unavailable."""
+        return lambda f: f
+
+    def track_latency(*_args, **_kwargs):
+        """No-op fallback when Prometheus is unavailable."""
+        return lambda f: f
 
 __all__ = [
     "LangfuseObservability",

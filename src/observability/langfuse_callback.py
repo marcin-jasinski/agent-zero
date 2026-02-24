@@ -45,10 +45,11 @@ class LangfuseObservability:
             try:
                 self._initialize_langfuse()
                 logger.info(
-                    f"Langfuse observability initialized: host={self.config.langfuse.host}"
+                    "Langfuse observability initialized: host=%s",
+                    self.config.langfuse.host,
                 )
             except Exception as e:
-                logger.error(f"Failed to initialize Langfuse: {e}")
+                logger.error("Failed to initialize Langfuse: %s", e)
                 logger.warning("Langfuse observability disabled due to initialization error")
                 self.enabled = False
 
@@ -77,10 +78,14 @@ class LangfuseObservability:
             logger.info("Langfuse client initialized successfully")
 
         except Exception as e:
-            logger.error(f"Langfuse initialization failed: {e}")
-            raise ConnectionError(f"Cannot connect to Langfuse at {self.config.langfuse.host}: {e}")
+            logger.error("Langfuse initialization failed: %s", e)
+            raise ConnectionError(
+                f"Cannot connect to Langfuse at {self.config.langfuse.host}: {e}"
+            ) from e
 
-    def _get_or_create_trace(self, conversation_id: str, name: str = "agent-zero-conversation") -> Any:
+    def _get_or_create_trace(
+        self, conversation_id: str, name: str = "agent-zero-conversation"
+    ) -> Any:
         """Get existing trace or create new one for conversation.
         
         Args:
@@ -118,7 +123,7 @@ class LangfuseObservability:
 
         try:
             trace = self._get_or_create_trace(conversation_id)
-            
+
             # Create a span for the retrieval operation
             trace.span(
                 name="document_retrieval",
@@ -131,14 +136,16 @@ class LangfuseObservability:
             )
 
             logger.debug(
-                f"Tracked retrieval: conversation_id={conversation_id}, "
-                f"results={results_count}, type={retrieval_type}"
+                "Tracked retrieval: conversation_id=%s, results=%s, type=%s",
+                conversation_id,
+                results_count,
+                retrieval_type,
             )
 
         except Exception as e:
-            logger.error(f"Failed to track retrieval metrics: {e}")
+            logger.error("Failed to track retrieval metrics: %s", e)
 
-    def track_llm_generation(
+    def track_llm_generation(  # pylint: disable=too-many-positional-arguments
         self,
         conversation_id: str,
         model: str,
@@ -162,7 +169,7 @@ class LangfuseObservability:
 
         try:
             trace = self._get_or_create_trace(conversation_id)
-            
+
             generation_metadata = {
                 "duration_ms": duration_ms,
                 "prompt_length": len(prompt),
@@ -183,12 +190,14 @@ class LangfuseObservability:
             )
 
             logger.debug(
-                f"Tracked LLM generation: conversation_id={conversation_id}, "
-                f"model={model}, duration={duration_ms:.2f}ms"
+                "Tracked LLM generation: conversation_id=%s, model=%s, duration=%.2fms",
+                conversation_id,
+                model,
+                duration_ms,
             )
 
         except Exception as e:
-            logger.error(f"Failed to track LLM generation: {e}")
+            logger.error("Failed to track LLM generation: %s", e)
 
     def track_agent_decision(
         self,
@@ -210,7 +219,7 @@ class LangfuseObservability:
 
         try:
             trace = self._get_or_create_trace(conversation_id)
-            
+
             event_metadata = {
                 "decision_type": decision_type,
                 "timestamp": datetime.utcnow().isoformat(),
@@ -230,12 +239,14 @@ class LangfuseObservability:
             )
 
             logger.debug(
-                f"Tracked agent decision: conversation_id={conversation_id}, "
-                f"type={decision_type}, tool={tool_used}"
+                "Tracked agent decision: conversation_id=%s, type=%s, tool=%s",
+                conversation_id,
+                decision_type,
+                tool_used,
             )
 
         except Exception as e:
-            logger.error(f"Failed to track agent decision: {e}")
+            logger.error("Failed to track agent decision: %s", e)
 
     def track_confidence_score(
         self,
@@ -255,7 +266,7 @@ class LangfuseObservability:
 
         try:
             trace = self._get_or_create_trace(conversation_id)
-            
+
             # Use trace.score() for Langfuse v2 API
             trace.score(
                 name="answer_confidence",
@@ -264,12 +275,13 @@ class LangfuseObservability:
             )
 
             logger.debug(
-                f"Tracked confidence score: conversation_id={conversation_id}, "
-                f"confidence={confidence:.2f}"
+                "Tracked confidence score: conversation_id=%s, confidence=%.2f",
+                conversation_id,
+                confidence,
             )
 
         except Exception as e:
-            logger.error(f"Failed to track confidence score: {e}")
+            logger.error("Failed to track confidence score: %s", e)
 
     def end_conversation(self, conversation_id: str) -> None:
         """End tracking for a conversation and flush data.
@@ -279,18 +291,18 @@ class LangfuseObservability:
         """
         if not self.enabled or not self.client:
             return
-            
+
         try:
             # Remove from cache
             if conversation_id in self._traces:
                 del self._traces[conversation_id]
-            
+
             # Flush to ensure data is sent
             self.client.flush()
-            
-            logger.debug(f"Ended conversation tracking: {conversation_id}")
+
+            logger.debug("Ended conversation tracking: %s", conversation_id)
         except Exception as e:
-            logger.error(f"Failed to end conversation tracking: {e}")
+            logger.error("Failed to end conversation tracking: %s", e)
 
     def flush(self) -> None:
         """Flush pending traces to Langfuse.
@@ -304,7 +316,7 @@ class LangfuseObservability:
             self.client.flush()
             logger.debug("Langfuse traces flushed successfully")
         except Exception as e:
-            logger.error(f"Failed to flush Langfuse traces: {e}")
+            logger.error("Failed to flush Langfuse traces: %s", e)
 
     def is_healthy(self) -> bool:
         """Check if Langfuse connection is healthy.
@@ -319,12 +331,12 @@ class LangfuseObservability:
             self.client.auth_check()
             return True
         except Exception as e:
-            logger.warning(f"Langfuse health check failed: {e}")
+            logger.warning("Langfuse health check failed: %s", e)
             return False
 
 
 # Singleton instance
-_observability_instance: Optional[LangfuseObservability] = None
+_OBSERVABILITY_INSTANCE: Optional[LangfuseObservability] = None
 
 
 def get_langfuse_observability() -> LangfuseObservability:
@@ -333,9 +345,9 @@ def get_langfuse_observability() -> LangfuseObservability:
     Returns:
         LangfuseObservability instance
     """
-    global _observability_instance
+    global _OBSERVABILITY_INSTANCE  # pylint: disable=global-statement
 
-    if _observability_instance is None:
-        _observability_instance = LangfuseObservability()
+    if _OBSERVABILITY_INSTANCE is None:
+        _OBSERVABILITY_INSTANCE = LangfuseObservability()
 
-    return _observability_instance
+    return _OBSERVABILITY_INSTANCE

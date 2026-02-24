@@ -310,11 +310,11 @@ class TestApplicationStartupRun:
         startup.config.ollama.model = "mistral"
         startup.config.ollama.embed_model = "nomic-embed-text"
         startup.config.ollama.embedding_dim = 384
-        
+
         startup.config.qdrant = MagicMock()
         startup.config.qdrant.embeddings_collection = "embeddings"
         startup.config.qdrant.collection_name = "embeddings"
-        
+
         startup.config.meilisearch = MagicMock()
         startup.config.meilisearch.documents_index = "documents"
         startup.config.meilisearch.index_name = "documents"
