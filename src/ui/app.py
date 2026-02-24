@@ -22,7 +22,7 @@ import gradio as gr
 from src.logging_config import setup_logging
 from src.startup import ApplicationStartup
 from src.ui.chat import build_chat_ui, initialize_agent
-from src.ui.dashboard import build_admin_ui
+from src.ui.dashboard import build_admin_ui, get_health_report
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -89,17 +89,25 @@ with gr.Blocks(
         "<span style='font-size:0.9rem;color:#888'>Local Agent Builder (L.A.B.)</span>"
     )
     with gr.Tab("💬 Chat"):
-        # build_chat_ui returns (state, status_bar) so we can wire the load event
-        _chat_state, _chat_status = build_chat_ui()
-    with gr.Tab("🛡️ Admin"):
-        build_admin_ui()
+        # build_chat_ui returns (state, status_bar, msg_box, send_btn) for load wiring
+        _chat_state, _chat_status, _msg_box, _send_btn = build_chat_ui()
+    with gr.Tab("🛡️ Admin") as _admin_tab:
+        _health_out = build_admin_ui()
 
     # Wire agent initialization to Blocks.load so the progress bar fires on page load
     gradio_app.load(
         fn=initialize_agent,
         inputs=None,
-        outputs=[_chat_state, _chat_status],
+        outputs=[_chat_state, _chat_status, _msg_box, _send_btn],
     )
+    # Populate health report on initial page load (no user interaction needed)
+    gradio_app.load(
+        fn=get_health_report,
+        inputs=None,
+        outputs=[_health_out],
+    )
+    # Re-run health check whenever the user enters the Admin tab
+    _admin_tab.select(fn=get_health_report, outputs=[_health_out])
 
 # ---------------------------------------------------------------------------
 # Mount Gradio onto FastAPI

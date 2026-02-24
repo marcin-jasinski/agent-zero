@@ -109,6 +109,7 @@ class AgentOrchestrator:
         user_message: str,
         use_retrieval: bool = True,
         stream_callback: Optional[Callable[[str], None]] = None,
+        thinking_callback: Optional[Callable[[str], None]] = None,
     ) -> str:
         """Process a user message and generate agent response.
 
@@ -124,6 +125,8 @@ class AgentOrchestrator:
             user_message: User input text
             use_retrieval: Whether to retrieve documents
             stream_callback: Optional callback for streaming responses
+            thinking_callback: Optional callback called once with the full
+                content of <think>...</think> blocks (chain-of-thought reasoning).
 
         Returns:
             Agent response text with source attribution
@@ -206,7 +209,7 @@ class AgentOrchestrator:
             # Generate response
             llm_start = time.time()
             response_text = self._invoke_llm(
-                context, stream_callback, conversation_id=conversation_id
+                context, stream_callback, thinking_callback=thinking_callback, conversation_id=conversation_id
             )
             logger.info(f"[TIMING] LLM generation completed in {time.time() - llm_start:.2f}s")
 
@@ -423,20 +426,25 @@ class AgentOrchestrator:
         self,
         prompt: str,
         stream_callback: Optional[Callable[[str], None]] = None,
+        thinking_callback: Optional[Callable[[str], None]] = None,
         conversation_id: Optional[str] = None,
     ) -> str:
         """Invoke LLM to generate response.
 
         When *stream_callback* is provided, tokens are forwarded to the callback
         as they arrive from Ollama, enabling real-time streaming in the UI.
+        Thinking content (chain-of-thought inside <think> tags) is filtered
+        from the token stream and optionally forwarded to *thinking_callback*.
 
         Args:
             prompt: Complete prompt for LLM
             stream_callback: Optional callback invoked with each token chunk.
+            thinking_callback: Optional callback invoked once with the full
+                <think> block content after generation completes.
             conversation_id: Optional conversation ID for observability tracking
 
         Returns:
-            Generated response text (full string, regardless of streaming mode)
+            Generated response text (full string, reasoning stripped)
         """
         import time
         start_time = time.time()
@@ -449,6 +457,7 @@ class AgentOrchestrator:
                 temperature=self.config.temperature,
                 max_tokens=self.config.max_tokens,
                 on_token=stream_callback,
+                on_thinking=thinking_callback,
             )
 
             # Track LLM generation in Langfuse

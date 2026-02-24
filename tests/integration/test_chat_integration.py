@@ -33,7 +33,7 @@ def _make_agent(responses: list[str] | None = None) -> MagicMock:
 
     resp_iter = iter(responses or ["Agent answer"])
 
-    def _process(conv_id, msg, stream_callback=None):
+    def _process(conv_id, msg, stream_callback=None, thinking_callback=None):
         token = next(resp_iter, "done")
         if stream_callback:
             stream_callback(token)
@@ -68,7 +68,7 @@ class TestChatSessionWorkflow:
             patch("src.core.retrieval.RetrievalEngine"),
             patch("src.core.agent.AgentOrchestrator", return_value=agent),
         ):
-            state, status = initialize_agent()
+            state, status, *_ = initialize_agent()
 
         assert "agent" in state, "initialize_agent must populate state['agent']"
         assert "✅" in status
@@ -253,7 +253,7 @@ class TestInitializationFailureWorkflow:
         unhealthy.is_healthy.return_value = False
 
         with patch("src.services.ollama_client.OllamaClient", return_value=unhealthy):
-            state, status = initialize_agent()
+            state, status, *_ = initialize_agent()
 
         assert state == {}
         assert "❌" in status

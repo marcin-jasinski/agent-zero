@@ -122,6 +122,7 @@ class OllamaClient:
         top_p: float = 0.9,
         max_tokens: Optional[int] = None,
         on_token: Optional[Callable[[str], None]] = None,
+        on_thinking: Optional[Callable[[str], None]] = None,
     ) -> str:
         """Generate text using Ollama.
 
@@ -161,7 +162,12 @@ class OllamaClient:
             if on_token is None:
                 # Non-streaming path — single JSON response
                 data = self._make_request("post", "/api/generate", json=payload)
-                return self._strip_thinking_tags(data.get("response", ""))
+                raw = data.get("response", "")
+                if on_thinking:
+                    thinking = self._extract_thinking(raw)
+                    if thinking:
+                        on_thinking(thinking)
+                return self._strip_thinking_tags(raw)
 
             # Streaming path — Ollama returns NDJSON, one chunk per line
             url = f"{self.base_url}/api/generate"
@@ -198,9 +204,12 @@ class OllamaClient:
                 if chunk.get("done", False):
                     break
 
-            # Strip any residual <think> blocks from the full accumulated text
-            # (covers the non-streaming path and partial tags).
-            return self._strip_thinking_tags("".join(accumulated))
+            full_text = "".join(accumulated)
+            if on_thinking:
+                thinking = self._extract_thinking(full_text)
+                if thinking:
+                    on_thinking(thinking)
+            return self._strip_thinking_tags(full_text)
 
         except Exception as e:
             logger.error(f"Text generation failed: {e}")
@@ -232,6 +241,24 @@ class OllamaClient:
         # Remove any dangling opening tag (model stopped mid-thinking)
         cleaned = re.sub(r"<think>.*$", "", cleaned, flags=re.DOTALL)
         return cleaned.strip()
+
+    @staticmethod
+    def _extract_thinking(text: str) -> str:
+        """Extract the content of the first <think>...</think> block.
+
+        Used to surface chain-of-thought reasoning to the UI as an optional
+        collapsible section, without including it in the stored response.
+
+        Args:
+            text: Raw model output, possibly containing a <think> block.
+
+        Returns:
+            Stripped content of the think block, or empty string if none found.
+        """
+        if "<think>" not in text:
+            return ""
+        m = re.search(r"<think>(.*?)</think>", text, flags=re.DOTALL)
+        return m.group(1).strip() if m else ""
 
     def embed(self, text: str, model: Optional[str] = None) -> list[float]:
         """Generate embeddings for text.

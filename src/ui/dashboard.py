@@ -373,11 +373,15 @@ def get_logs(lines: int = 50, level: str = "ALL", service: str = "ALL") -> str:
 # ---------------------------------------------------------------------------
 
 
-def build_admin_ui() -> None:
+def build_admin_ui() -> gr.Markdown:
     """Register all Admin tab components inside the active gr.Blocks context.
 
-    Must be called inside an open ``with gr.Blocks() as \u2026`` / ``with gr.Tab():``
-    context.
+    Must be called inside an open ``with gr.Blocks() as \u2026`` / ``with gr.Tab():
+    `` context.
+
+    Returns:
+        The System Health output Markdown component, so the caller can wire
+        the outer Admin tab's ``select`` event to auto-refresh on first visit.
     """
     # ---- System Health --------------------------------------------------
     with gr.Tab("🏥 System Health") as tab_health:
@@ -465,7 +469,15 @@ def build_admin_ui() -> None:
             lines=24,
             label="Log output",
             interactive=False,
+            elem_id="az-log-output",
         )
+
+        _SCROLL_LOG_JS = """
+        () => {
+            const box = document.getElementById('az-log-output');
+            if (box) { const ta = box.querySelector('textarea'); if (ta) ta.scrollTop = ta.scrollHeight; }
+        }
+        """
 
         def _refresh_logs(lines: int, level: str, service: str) -> str:
             return get_logs(lines, level, service)
@@ -474,7 +486,7 @@ def build_admin_ui() -> None:
             fn=_refresh_logs,
             inputs=[log_lines_sl, log_level_dd, log_service_dd],
             outputs=[log_output],
-        )
+        ).then(fn=None, inputs=[], outputs=[], js=_SCROLL_LOG_JS)
 
     # -----------------------------------------------------------------------
     # Auto-load on tab select
@@ -490,4 +502,6 @@ def build_admin_ui() -> None:
         fn=_refresh_logs,
         inputs=[log_lines_sl, log_level_dd, log_service_dd],
         outputs=[log_output],
-    )
+    ).then(fn=None, inputs=[], outputs=[], js=_SCROLL_LOG_JS)
+
+    return health_out

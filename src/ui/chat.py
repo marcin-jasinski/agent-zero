@@ -57,7 +57,12 @@ def initialize_agent(progress: gr.Progress = gr.Progress()) -> tuple[dict, str]:
         progress(0.0, desc="Connecting to Ollama…")
         ollama = OllamaClient()
         if not ollama.is_healthy():
-            return {}, "❌ **Ollama is not reachable.**\n\nCheck that the Ollama container is running."
+            return (
+                {},
+                "❌ **Ollama is not reachable.**\n\nCheck that the Ollama container is running.",
+                gr.update(interactive=False),
+                gr.update(interactive=False),
+            )
 
         # ------------------------------------------------------------------
         # 2. Qdrant
@@ -65,7 +70,12 @@ def initialize_agent(progress: gr.Progress = gr.Progress()) -> tuple[dict, str]:
         progress(0.33, desc="Connecting to Qdrant…")
         qdrant = QdrantVectorClient()
         if not qdrant.is_healthy():
-            return {}, "❌ **Qdrant is not reachable.**\n\nCheck that the Qdrant container is running."
+            return (
+                {},
+                "❌ **Qdrant is not reachable.**\n\nCheck that the Qdrant container is running.",
+                gr.update(interactive=False),
+                gr.update(interactive=False),
+            )
 
         # ------------------------------------------------------------------
         # 3. Meilisearch
@@ -75,8 +85,9 @@ def initialize_agent(progress: gr.Progress = gr.Progress()) -> tuple[dict, str]:
         if not meilisearch.is_healthy():
             return (
                 {},
-                "❌ **Meilisearch is not reachable.**\n\n"
-                "Check that the Meilisearch container is running.",
+                "❌ **Meilisearch is not reachable.**\n\nCheck that the Meilisearch container is running.",
+                gr.update(interactive=False),
+                gr.update(interactive=False),
             )
 
         # ------------------------------------------------------------------
@@ -97,11 +108,21 @@ def initialize_agent(progress: gr.Progress = gr.Progress()) -> tuple[dict, str]:
             "qdrant": qdrant,
             "meilisearch": meilisearch,
         }
-        return state, "✅ **All services connected.**  Agent is ready."
+        return (
+            state,
+            "✅ **All services connected.**  Agent is ready.",
+            gr.update(interactive=True, placeholder="Ask me anything…  (Enter to send)"),
+            gr.update(interactive=True),
+        )
 
     except Exception as exc:
         logger.error(f"Agent initialization failed: {exc}", exc_info=True)
-        return {}, f"❌ **Initialization error:**\n\n```\n{exc}\n```"
+        return (
+            {},
+            f"❌ **Initialization error:**\n\n```\n{exc}\n```",
+            gr.update(interactive=False),
+            gr.update(interactive=False),
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -157,12 +178,23 @@ def respond(
     # Run the blocking LLM call in a thread; collect response via queue
     chunk_queue: queue.Queue[Optional[str]] = queue.Queue()
 
+    # Capture chain-of-thought reasoning for the collapsible thinking section
+    thinking_holder: dict = {"text": ""}
+
     def _stream_cb(chunk: str) -> None:
         chunk_queue.put(chunk)
 
+    def _thinking_cb(thinking_text: str) -> None:
+        thinking_holder["text"] = thinking_text
+
     def _run() -> None:
         try:
-            agent.process_message(conversation_id, message, stream_callback=_stream_cb)
+            agent.process_message(
+                conversation_id,
+                message,
+                stream_callback=_stream_cb,
+                thinking_callback=_thinking_cb,
+            )
         except Exception as exc:
             logger.error(f"Message processing error: {exc}", exc_info=True)
             chunk_queue.put(f"\n\n❌ **Error:** {exc}")
@@ -183,6 +215,16 @@ def respond(
     if not accumulated:
         history[-1]["content"] = "⚠️ No response was generated. Please try again."
         yield "", history
+    else:
+        thinking = thinking_holder.get("text", "").strip()
+        if thinking:
+            # Prepend chain-of-thought as a collapsible HTML block.
+            # Gradio's Chatbot renders HTML inside message bubbles.
+            history[-1]["content"] = (
+                f"<details><summary>💡 View thinking process</summary>\n\n"
+                f"{thinking}\n\n</details>\n\n{accumulated}"
+            )
+            yield "", history
 
 
 # ---------------------------------------------------------------------------
@@ -305,14 +347,14 @@ def build_chat_ui() -> tuple[gr.State, gr.Markdown]:
     # Input row
     with gr.Row():
         msg_box = gr.Textbox(
-            placeholder="Ask me anything…  (Enter to send)",
-            scale=6,
-            show_label=False,
-            container=False,
-            autofocus=True,
-        )
-        send_btn = gr.Button("Send ▶", variant="primary", scale=1, min_width=100)
-
+        placeholder="⏳ Initializing agent…",
+        scale=6,
+        show_label=False,
+        container=False,
+        autofocus=True,
+        interactive=False,
+    )
+    send_btn = gr.Button("▶ Send", variant="primary", scale=1, min_width=100, interactive=False)
     # File upload
     with gr.Accordion("📎 Upload document to Knowledge Base", open=False):
         upload = gr.File(
@@ -342,4 +384,4 @@ def build_chat_ui() -> tuple[gr.State, gr.Markdown]:
     )
 
     # Return components needed by app.py to wire the .load() event
-    return state, status_bar
+    return state, status_bar, msg_box, send_btn

@@ -54,7 +54,7 @@ class TestInitializeAgent:
             patch("src.core.retrieval.RetrievalEngine") as MockEngine,
             patch("src.core.agent.AgentOrchestrator", return_value=agent),
         ):
-            state, status = initialize_agent()
+            state, status, *_ = initialize_agent()
 
         assert "agent" in state
         assert "✅" in status
@@ -63,7 +63,7 @@ class TestInitializeAgent:
         from src.ui.chat import initialize_agent
 
         with patch("src.services.ollama_client.OllamaClient", return_value=_mock_unhealthy_client()):
-            state, status = initialize_agent()
+            state, status, *_ = initialize_agent()
 
         assert state == {}
         assert "❌" in status
@@ -76,7 +76,7 @@ class TestInitializeAgent:
             patch("src.services.ollama_client.OllamaClient", return_value=_mock_healthy_client()),
             patch("src.services.qdrant_client.QdrantVectorClient", return_value=_mock_unhealthy_client()),
         ):
-            state, status = initialize_agent()
+            state, status, *_ = initialize_agent()
 
         assert state == {}
         assert "❌" in status
@@ -90,7 +90,7 @@ class TestInitializeAgent:
             patch("src.services.qdrant_client.QdrantVectorClient", return_value=_mock_healthy_client()),
             patch("src.services.meilisearch_client.MeilisearchClient", return_value=_mock_unhealthy_client()),
         ):
-            state, status = initialize_agent()
+            state, status, *_ = initialize_agent()
 
         assert state == {}
         assert "❌" in status
@@ -103,7 +103,7 @@ class TestInitializeAgent:
             "src.services.ollama_client.OllamaClient",
             side_effect=RuntimeError("container not found"),
         ):
-            state, status = initialize_agent()
+            state, status, *_ = initialize_agent()
 
         assert state == {}
         assert "❌" in status
@@ -161,7 +161,7 @@ class TestRespond:
         from src.ui.chat import respond
 
         agent = MagicMock()
-        agent.process_message.side_effect = lambda conv_id, msg, stream_callback: stream_callback("Answer")
+        agent.process_message.side_effect = lambda conv_id, msg, stream_callback=None, thinking_callback=None: stream_callback("Answer")
 
         results = _collect(respond("Question?", [], _build_state(agent)))
         final_history = results[-1][1]
@@ -173,7 +173,7 @@ class TestRespond:
         from src.ui.chat import respond
 
         agent = MagicMock()
-        agent.process_message.side_effect = lambda conv_id, msg, stream_callback: stream_callback(
+        agent.process_message.side_effect = lambda conv_id, msg, stream_callback=None, thinking_callback=None: stream_callback(
             "42 is the answer"
         )
 
@@ -186,7 +186,7 @@ class TestRespond:
         from src.ui.chat import respond
 
         agent = MagicMock()
-        agent.process_message.side_effect = lambda conv_id, msg, stream_callback: stream_callback("ok")
+        agent.process_message.side_effect = lambda conv_id, msg, stream_callback=None, thinking_callback=None: stream_callback("ok")
 
         results = _collect(respond("hello", [], _build_state(agent)))
         # Every yield must return an empty string as the first element (cleared input)

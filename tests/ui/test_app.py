@@ -49,7 +49,7 @@ def _gradio_disabled():
 
     with (
         patch.dict(sys.modules, {"gradio": mock_gr}),
-        patch("src.ui.chat.build_chat_ui", return_value=(MagicMock(), MagicMock())),
+        patch("src.ui.chat.build_chat_ui", return_value=(MagicMock(), MagicMock(), MagicMock(), MagicMock())),
         patch("src.ui.dashboard.build_admin_ui", return_value=None),
     ):
         # Force fresh import of the app module inside this context
