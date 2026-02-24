@@ -13,7 +13,7 @@ Usage:
 
 import sys
 import pytest
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock, MagicMock
 from datetime import datetime
 
 
@@ -77,7 +77,7 @@ def mock_config():
     # Ollama config
     config.ollama = Mock()
     config.ollama.host = "http://localhost:11434"
-    config.ollama.model = "ministral-3:3b"
+    config.ollama.model = "qwen3:4b"
     config.ollama.embed_model = "nomic-embed-text-v2-moe"
     config.ollama.timeout = 300
     
@@ -137,11 +137,11 @@ def mock_ollama_client():
     """Create a mock Ollama client."""
     client = Mock()
     client.is_healthy.return_value = True
-    client.list_models.return_value = ["ministral-3:3b", "nomic-embed-text-v2-moe"]
+    client.list_models.return_value = ["qwen3:4b", "nomic-embed-text:latest"]
     client.generate_embeddings.return_value = [0.1] * 768  # 768-dim vector
     client.chat.return_value = {
         "message": {"content": "This is a test response."},
-        "model": "ministral-3:3b",
+        "model": "qwen3:4b",
     }
     return client
 
@@ -323,19 +323,6 @@ def sample_embeddings():
         [0.1, 0.2, 0.3] + [0.0] * 765,  # 768-dim vector
         [0.4, 0.5, 0.6] + [0.0] * 765,
     ]
-
-
-# ============================================================================
-# Streamlit Mocking
-# ============================================================================
-
-@pytest.fixture
-def mock_streamlit():
-    """Create a mock Streamlit module."""
-    mock_st = MagicMock()
-    mock_st.session_state = {}
-    mock_st.cache_data = lambda ttl=None: lambda f: f  # Pass-through decorator
-    return mock_st
 
 
 # ============================================================================

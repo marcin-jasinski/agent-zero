@@ -81,7 +81,7 @@ REM ==========================================================================
     if %errorlevel% equ 0 (
         echo.
         echo %GREEN%✅ Started with GPU support%RESET%
-        echo %BOLD%📊 Streamlit UI: http://localhost:8501%RESET%
+        echo %BOLD%📊 Chainlit UI: http://localhost:8501%RESET%
         echo %BOLD%🔌 Ollama API: http://localhost:11434%RESET%
         echo.
     ) else (
@@ -96,7 +96,7 @@ REM ==========================================================================
     if %errorlevel% equ 0 (
         echo.
         echo %GREEN%✅ Started in CPU-only mode%RESET%
-        echo %BOLD%📊 Streamlit UI: http://localhost:8501%RESET%
+        echo %BOLD%📊 Chainlit UI: http://localhost:8501%RESET%
         echo %BOLD%🔌 Ollama API: http://localhost:11434%RESET%
         echo.
     ) else (

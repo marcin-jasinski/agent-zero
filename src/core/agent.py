@@ -4,6 +4,7 @@ This module implements the main agent that orchestrates retrieval,
 tool calling, and LLM invocation for multi-turn conversations.
 """
 
+import asyncio
 import json
 import logging
 from typing import Dict, List, Any, Optional, Callable
@@ -108,6 +109,7 @@ class AgentOrchestrator:
         user_message: str,
         use_retrieval: bool = True,
         stream_callback: Optional[Callable[[str], None]] = None,
+        thinking_callback: Optional[Callable[[str], None]] = None,
     ) -> str:
         """Process a user message and generate agent response.
 
@@ -123,6 +125,8 @@ class AgentOrchestrator:
             user_message: User input text
             use_retrieval: Whether to retrieve documents
             stream_callback: Optional callback for streaming responses
+            thinking_callback: Optional callback called once with the full
+                content of <think>...</think> blocks (chain-of-thought reasoning).
 
         Returns:
             Agent response text with source attribution
@@ -205,11 +209,17 @@ class AgentOrchestrator:
             # Generate response
             llm_start = time.time()
             response_text = self._invoke_llm(
-                context, stream_callback, conversation_id=conversation_id
+                context, stream_callback, thinking_callback=thinking_callback, conversation_id=conversation_id
             )
             logger.info(f"[TIMING] LLM generation completed in {time.time() - llm_start:.2f}s")
 
-            # Scan LLM output for security threats
+            # Scan LLM output for security threats.
+            # Guard against empty responses (e.g. thinking-only output after
+            # <think> stripping) to avoid hard ValueError in scan_llm_output.
+            if not response_text or not response_text.strip():
+                logger.warning("LLM returned empty response after processing; using fallback message")
+                response_text = "I'm sorry, I wasn't able to generate a response. Please try rephrasing your question."
+
             output_scan_result = self.llm_guard.scan_llm_output(
                 response_text, original_prompt=processed_message
             )
@@ -241,6 +251,12 @@ class AgentOrchestrator:
                 },
             )
 
+            # When streaming: push the source-attribution footer to the UI
+            # callback so it appears inline rather than being silently dropped.
+            if stream_callback and sources:
+                footer = "\n\n**Sources:**\n" + "\n".join(f"- {s}" for s in sources)
+                stream_callback(footer)
+
             # Track agent decision in Langfuse
             self.observability.track_agent_decision(
                 conversation_id=conversation_id,
@@ -267,6 +283,29 @@ class AgentOrchestrator:
         except Exception as e:
             logger.error(f"Error processing message: {e}", exc_info=True)
             raise
+
+    async def process_message_async(
+        self,
+        conversation_id: str,
+        message: str,
+        use_retrieval: bool = True,
+    ) -> str:
+        """Asynchronously process a user message via a worker thread.
+
+        Args:
+            conversation_id: ID of the conversation.
+            message: User input text.
+            use_retrieval: Whether retrieval should be used.
+
+        Returns:
+            Agent response text with source attribution.
+        """
+        return await asyncio.to_thread(
+            self.process_message,
+            conversation_id,
+            message,
+            use_retrieval,
+        )
 
     def _retrieve_documents(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
         """Tool: Retrieve documents matching query.
@@ -387,17 +426,25 @@ class AgentOrchestrator:
         self,
         prompt: str,
         stream_callback: Optional[Callable[[str], None]] = None,
+        thinking_callback: Optional[Callable[[str], None]] = None,
         conversation_id: Optional[str] = None,
     ) -> str:
         """Invoke LLM to generate response.
 
+        When *stream_callback* is provided, tokens are forwarded to the callback
+        as they arrive from Ollama, enabling real-time streaming in the UI.
+        Thinking content (chain-of-thought inside <think> tags) is filtered
+        from the token stream and optionally forwarded to *thinking_callback*.
+
         Args:
             prompt: Complete prompt for LLM
-            stream_callback: Optional callback for streaming tokens (not currently used)
+            stream_callback: Optional callback invoked with each token chunk.
+            thinking_callback: Optional callback invoked once with the full
+                <think> block content after generation completes.
             conversation_id: Optional conversation ID for observability tracking
 
         Returns:
-            Generated response text
+            Generated response text (full string, reasoning stripped)
         """
         import time
         start_time = time.time()
@@ -409,6 +456,8 @@ class AgentOrchestrator:
                 system=self.config.system_prompt,
                 temperature=self.config.temperature,
                 max_tokens=self.config.max_tokens,
+                on_token=stream_callback,
+                on_thinking=thinking_callback,
             )
 
             # Track LLM generation in Langfuse
@@ -433,10 +482,6 @@ class AgentOrchestrator:
                 output_tokens=len(response.split()),  # Approximate token count
                 duration_seconds=time.time() - start_time
             )
-
-            if stream_callback and isinstance(response, str):
-                # If streaming is implemented, invoke callback
-                stream_callback(response)
 
             return response
 

@@ -5,7 +5,8 @@ Handles communication with Ollama for LLM inference and embeddings.
 
 import json
 import logging
-from typing import Optional
+import re
+from typing import Callable, Optional
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -120,27 +121,41 @@ class OllamaClient:
         temperature: float = 0.7,
         top_p: float = 0.9,
         max_tokens: Optional[int] = None,
+        on_token: Optional[Callable[[str], None]] = None,
+        on_thinking: Optional[Callable[[str], None]] = None,
     ) -> str:
         """Generate text using Ollama.
 
+        When *on_token* is provided the request is made with ``stream=True``
+        and each token chunk is forwarded to the callback as it arrives,
+        enabling real-time streaming in the UI.  The full response string is
+        still returned for downstream processing.
+
         Args:
-            model: Model name (e.g., 'ministral-3:3b')
+            model: Model name (e.g., 'qwen3:4b')
             prompt: Input prompt
             system: System prompt/instructions
             temperature: Sampling temperature (0-2)
             top_p: Nucleus sampling parameter (0-1)
             max_tokens: Maximum tokens to generate
+            on_token: Optional callback invoked with each streamed token chunk.
+                      When provided, streaming mode is enabled automatically.
 
         Returns:
-            Generated text
+            Generated text (full response, regardless of streaming mode)
         """
+        config = get_config()
         try:
             payload = {
                 "model": model,
                 "prompt": prompt,
-                "stream": False,
+                "stream": on_token is not None,
                 "temperature": temperature,
                 "top_p": top_p,
+                # Enable chain-of-thought for thinking models (qwen3, deepseek-r1).
+                # Non-thinking models silently ignore this flag per Ollama's API contract.
+                # Controlled by OLLAMA_THINKING env var (default: true).
+                "think": config.ollama.thinking,
             }
 
             if system:
@@ -149,11 +164,108 @@ class OllamaClient:
             if max_tokens:
                 payload["options"] = {"num_predict": max_tokens}
 
-            data = self._make_request("post", "/api/generate", json=payload)
-            return data.get("response", "")
+            if on_token is None:
+                # Non-streaming path — single JSON response
+                data = self._make_request("post", "/api/generate", json=payload)
+                raw = data.get("response", "")
+                if on_thinking:
+                    thinking = self._extract_thinking(raw)
+                    if thinking:
+                        on_thinking(thinking)
+                return self._strip_thinking_tags(raw)
+
+            # Streaming path — Ollama returns NDJSON, one chunk per line
+            url = f"{self.base_url}/api/generate"
+            response = self.session.post(
+                url, json=payload, timeout=self.timeout, stream=True
+            )
+            response.raise_for_status()
+
+            accumulated = []
+            in_think_block = False  # Suppress <think>...</think> from UI callback
+            think_buffer = ""      # Buffer partial tag detection
+
+            for line in response.iter_lines():
+                if not line:
+                    continue
+                try:
+                    chunk = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                token = chunk.get("response", "")
+                if token:
+                    accumulated.append(token)
+                    # Track thinking-block boundaries so the UI only receives
+                    # the actual answer, not the internal reasoning.
+                    think_buffer += token
+                    if "<think>" in think_buffer:
+                        in_think_block = True
+                    if "</think>" in think_buffer:
+                        # Closing tag found — leave this token out of the UI
+                        # stream (it may contain </think> partial content).
+                        in_think_block = False
+                        think_buffer = ""
+                    elif not in_think_block:
+                        think_buffer = ""
+                        on_token(token)
+                if chunk.get("done", False):
+                    break
+
+            full_text = "".join(accumulated)
+            if on_thinking:
+                thinking = self._extract_thinking(full_text)
+                if thinking:
+                    on_thinking(thinking)
+            return self._strip_thinking_tags(full_text)
+
         except Exception as e:
             logger.error(f"Text generation failed: {e}")
             raise
+
+    @staticmethod
+    def _strip_thinking_tags(text: str) -> str:
+        """Remove <think>...</think> reasoning blocks from model output.
+
+        Thinking models such as qwen3 wrap internal chain-of-thought reasoning
+        in <think>...</think> tags.  These blocks should not be stored in
+        conversation memory or scanned by LLM Guard — only the final answer
+        matters for downstream use.
+
+        Handles both complete blocks and the edge-case where a partial opening
+        tag appears without a closing tag (model interrupted mid-think).
+
+        Args:
+            text: Raw model output, possibly containing <think> blocks.
+
+        Returns:
+            Output with all <think>...</think> blocks removed and whitespace
+            trimmed.  Returns the original string unchanged if no tags found.
+        """
+        if "<think>" not in text:
+            return text
+        # Remove complete blocks (including nested newlines)
+        cleaned = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+        # Remove any dangling opening tag (model stopped mid-thinking)
+        cleaned = re.sub(r"<think>.*$", "", cleaned, flags=re.DOTALL)
+        return cleaned.strip()
+
+    @staticmethod
+    def _extract_thinking(text: str) -> str:
+        """Extract the content of the first <think>...</think> block.
+
+        Used to surface chain-of-thought reasoning to the UI as an optional
+        collapsible section, without including it in the stored response.
+
+        Args:
+            text: Raw model output, possibly containing a <think> block.
+
+        Returns:
+            Stripped content of the think block, or empty string if none found.
+        """
+        if "<think>" not in text:
+            return ""
+        m = re.search(r"<think>(.*?)</think>", text, flags=re.DOTALL)
+        return m.group(1).strip() if m else ""
 
     def embed(self, text: str, model: Optional[str] = None) -> list[float]:
         """Generate embeddings for text.
@@ -180,27 +292,34 @@ class OllamaClient:
             logger.error(f"Embedding generation failed: {e}")
             raise
 
-    def warm_up(self, model: str) -> bool:
+    def warm_up(self, model: str, timeout: int = 300) -> bool:
         """Warm up/preload a model into memory.
 
         Sends a minimal generation request to load the model weights into memory,
-        reducing latency on the first real user request.
+        reducing latency on the first real user request. Large models (e.g.
+        qwen3:4b) can take 60+ seconds to transfer from disk to GPU VRAM, so
+        a dedicated timeout of 300 s is used instead of the default request
+        timeout.
 
         Args:
             model: Model name to warm up
+            timeout: Request timeout in seconds (default 300 to accommodate
+                     large model load times)
 
         Returns:
             True if successful, False otherwise
         """
         try:
-            logger.info(f"Warming up model '{model}'...")
+            logger.info(f"Warming up model '{model}' (timeout={timeout}s)...")
+            url = f"{self.base_url}/api/generate"
             payload = {
                 "model": model,
                 "prompt": "Hello",
                 "stream": False,
                 "options": {"num_predict": 1},  # Generate minimal output
             }
-            self._make_request("post", "/api/generate", json=payload)
+            response = self.session.post(url, json=payload, timeout=timeout)
+            response.raise_for_status()
             logger.info(f"Model '{model}' warmed up successfully")
             return True
         except Exception as e:

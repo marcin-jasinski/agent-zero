@@ -32,7 +32,7 @@ This audit evaluates Agent Zero's observability implementation across the three 
 
 2. **Service-Level Filtering** ([logs.py](../src/ui/tools/logs.py)):
    - Pattern-based filtering by logger name
-   - Filter by: Ollama, Qdrant, Meilisearch, Langfuse, Agent Core, Streamlit, etc.
+   - Filter by: Ollama, Qdrant, Meilisearch, Langfuse, Agent Core, etc.
    - Real-time log viewing with auto-refresh (1s intervals)
    - Level-based filtering (INFO, WARNING, ERROR)
 
@@ -46,9 +46,9 @@ This audit evaluates Agent Zero's observability implementation across the three 
    ```
 
 4. **UI Access**:
-   - Dedicated "Logs" tab in dashboard
-   - Real-time streaming with statistics (total lines, INFO/WARNING/ERROR counts)
-   - Service dropdown for targeted log viewing
+  - In-chat admin actions and external observability links
+  - Real-time streaming with statistics (total lines, INFO/WARNING/ERROR counts)
+  - Service-targeted filtering in generated reports
 
 #### **Gaps & Recommendations**
 
@@ -451,13 +451,13 @@ This audit evaluates Agent Zero's observability implementation across the three 
 
 | Tool | Access Method | URL | Status |
 |------|--------------|-----|--------|
-| **Logs** | Streamlit "Logs" tab | http://localhost:8501 | ✅ Working |
-| **Langfuse Tracing** | Streamlit "Langfuse" tab + full dashboard | http://localhost:3000 | ✅ Working |
-| **System Health** | Streamlit "System Health" tab | http://localhost:8501 | ⚠️ Feature-flagged (disabled by default) |
+| **Logs** | Container logs + in-chat diagnostics | http://localhost:8501 | ✅ Working |
+| **Langfuse Tracing** | Gradio Admin tab + full dashboard | http://localhost:3000 | ✅ Working |
+| **System Health** | Admin tab → Health panel | http://localhost:8501 | ✅ Working |
 | **Qdrant Metrics** | Qdrant dashboard | http://localhost:6333/dashboard | ✅ Working |
 | **Meilisearch Metrics** | Meilisearch native UI | http://localhost:7700 | ✅ Working |
-| **Prometheus** | (Not implemented) | http://localhost:9090 | ❌ Missing |
-| **Grafana** | (Not implemented) | http://localhost:3001 | ❌ Missing |
+| **Prometheus** | Direct TSDB UI | http://localhost:9090 | ✅ Working |
+| **Grafana** | Agent Zero dashboard | http://localhost:3001 | ✅ Working |
 
 ### Feature Flags
 

@@ -63,7 +63,7 @@ start_gpu() {
     docker-compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
     echo ""
     echo -e "${GREEN}✅ Started with GPU support${RESET}"
-    echo -e "${BOLD}📊 Streamlit UI: http://localhost:8501${RESET}"
+    echo -e "${BOLD}📊 Chainlit UI: http://localhost:8501${RESET}"
     echo -e "${BOLD}🔌 Ollama API: http://localhost:11434${RESET}"
     echo ""
 }
@@ -73,7 +73,7 @@ start_cpu() {
     docker-compose up -d
     echo ""
     echo -e "${GREEN}✅ Started in CPU-only mode${RESET}"
-    echo -e "${BOLD}📊 Streamlit UI: http://localhost:8501${RESET}"
+    echo -e "${BOLD}📊 Chainlit UI: http://localhost:8501${RESET}"
     echo -e "${BOLD}🔌 Ollama API: http://localhost:11434${RESET}"
     echo ""
 }

@@ -1,1 +1,1 @@
-"""UI test package for Agent Zero dashboard components."""
+"""UI test package for Agent Zero Gradio chat and dashboard handlers."""

@@ -264,16 +264,20 @@ class TestHealthCheckerCheckAll:
         with patch.object(health_checker, "check_ollama") as mock_ollama, \
              patch.object(health_checker, "check_qdrant") as mock_qdrant, \
              patch.object(health_checker, "check_meilisearch") as mock_meilisearch, \
-             patch.object(health_checker, "check_langfuse") as mock_langfuse:
+             patch.object(health_checker, "check_langfuse") as mock_langfuse, \
+             patch.object(health_checker, "check_prometheus") as mock_prometheus, \
+             patch.object(health_checker, "check_grafana") as mock_grafana:
 
             mock_ollama.return_value = ServiceStatus("Ollama", is_healthy=True)
             mock_qdrant.return_value = ServiceStatus("Qdrant", is_healthy=True)
             mock_meilisearch.return_value = ServiceStatus("Meilisearch", is_healthy=True)
             mock_langfuse.return_value = ServiceStatus("Langfuse", is_healthy=True)
+            mock_prometheus.return_value = ServiceStatus("Prometheus", is_healthy=True)
+            mock_grafana.return_value = ServiceStatus("Grafana", is_healthy=True)
 
             result = health_checker.check_all()
 
-            assert len(result) == 4
+            assert len(result) == 6
             assert all(status.is_healthy for status in result.values())
 
     def test_check_all_partial_failure(self, health_checker):
@@ -281,36 +285,46 @@ class TestHealthCheckerCheckAll:
         with patch.object(health_checker, "check_ollama") as mock_ollama, \
              patch.object(health_checker, "check_qdrant") as mock_qdrant, \
              patch.object(health_checker, "check_meilisearch") as mock_meilisearch, \
-             patch.object(health_checker, "check_langfuse") as mock_langfuse:
+             patch.object(health_checker, "check_langfuse") as mock_langfuse, \
+             patch.object(health_checker, "check_prometheus") as mock_prometheus, \
+             patch.object(health_checker, "check_grafana") as mock_grafana:
 
             mock_ollama.return_value = ServiceStatus("Ollama", is_healthy=True)
             mock_qdrant.return_value = ServiceStatus("Qdrant", is_healthy=False)
             mock_meilisearch.return_value = ServiceStatus("Meilisearch", is_healthy=True)
             mock_langfuse.return_value = ServiceStatus("Langfuse", is_healthy=True)
+            mock_prometheus.return_value = ServiceStatus("Prometheus", is_healthy=True)
+            mock_grafana.return_value = ServiceStatus("Grafana", is_healthy=False)
 
             result = health_checker.check_all()
 
-            assert len(result) == 4
+            assert len(result) == 6
             assert result["ollama"].is_healthy is True
             assert result["qdrant"].is_healthy is False
             assert result["meilisearch"].is_healthy is True
             assert result["langfuse"].is_healthy is True
+            assert result["prometheus"].is_healthy is True
+            assert result["grafana"].is_healthy is False
 
     def test_check_all_all_failed(self, health_checker):
         """Test check_all when all services fail."""
         with patch.object(health_checker, "check_ollama") as mock_ollama, \
              patch.object(health_checker, "check_qdrant") as mock_qdrant, \
              patch.object(health_checker, "check_meilisearch") as mock_meilisearch, \
-             patch.object(health_checker, "check_langfuse") as mock_langfuse:
+             patch.object(health_checker, "check_langfuse") as mock_langfuse, \
+             patch.object(health_checker, "check_prometheus") as mock_prometheus, \
+             patch.object(health_checker, "check_grafana") as mock_grafana:
 
             mock_ollama.return_value = ServiceStatus("Ollama", is_healthy=False)
             mock_qdrant.return_value = ServiceStatus("Qdrant", is_healthy=False)
             mock_meilisearch.return_value = ServiceStatus("Meilisearch", is_healthy=False)
             mock_langfuse.return_value = ServiceStatus("Langfuse", is_healthy=False)
+            mock_prometheus.return_value = ServiceStatus("Prometheus", is_healthy=False)
+            mock_grafana.return_value = ServiceStatus("Grafana", is_healthy=False)
 
             result = health_checker.check_all()
 
-            assert len(result) == 4
+            assert len(result) == 6
             assert not any(status.is_healthy for status in result.values())
 
     def test_check_all_returns_dict(self, health_checker):
@@ -318,12 +332,16 @@ class TestHealthCheckerCheckAll:
         with patch.object(health_checker, "check_ollama") as mock_ollama, \
              patch.object(health_checker, "check_qdrant") as mock_qdrant, \
              patch.object(health_checker, "check_meilisearch") as mock_meilisearch, \
-             patch.object(health_checker, "check_langfuse") as mock_langfuse:
+             patch.object(health_checker, "check_langfuse") as mock_langfuse, \
+             patch.object(health_checker, "check_prometheus") as mock_prometheus, \
+             patch.object(health_checker, "check_grafana") as mock_grafana:
 
             mock_ollama.return_value = ServiceStatus("Ollama", is_healthy=True)
             mock_qdrant.return_value = ServiceStatus("Qdrant", is_healthy=True)
             mock_meilisearch.return_value = ServiceStatus("Meilisearch", is_healthy=True)
             mock_langfuse.return_value = ServiceStatus("Langfuse", is_healthy=True)
+            mock_prometheus.return_value = ServiceStatus("Prometheus", is_healthy=True)
+            mock_grafana.return_value = ServiceStatus("Grafana", is_healthy=True)
 
             result = health_checker.check_all()
 
@@ -332,6 +350,8 @@ class TestHealthCheckerCheckAll:
             assert "qdrant" in result
             assert "meilisearch" in result
             assert "langfuse" in result
+            assert "prometheus" in result
+            assert "grafana" in result
 
 
 class TestHealthCheckerAllHealthy:
@@ -345,6 +365,8 @@ class TestHealthCheckerAllHealthy:
                 "qdrant": ServiceStatus("Qdrant", is_healthy=True),
                 "meilisearch": ServiceStatus("Meilisearch", is_healthy=True),
                 "langfuse": ServiceStatus("Langfuse", is_healthy=True),
+                "prometheus": ServiceStatus("Prometheus", is_healthy=True),
+                "grafana": ServiceStatus("Grafana", is_healthy=True),
             }
 
             assert health_checker.all_healthy is True
@@ -357,6 +379,8 @@ class TestHealthCheckerAllHealthy:
                 "qdrant": ServiceStatus("Qdrant", is_healthy=False),
                 "meilisearch": ServiceStatus("Meilisearch", is_healthy=True),
                 "langfuse": ServiceStatus("Langfuse", is_healthy=True),
+                "prometheus": ServiceStatus("Prometheus", is_healthy=True),
+                "grafana": ServiceStatus("Grafana", is_healthy=True),
             }
 
             assert health_checker.all_healthy is False

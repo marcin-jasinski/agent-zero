@@ -12,7 +12,7 @@ def ollama_client():
     """Create an OllamaClient instance for testing."""
     with patch("src.services.ollama_client.get_config") as mock_config:
         mock_config.return_value.ollama.base_url = "http://localhost:11434"
-        mock_config.return_value.ollama.embedding_model = "nomic-embed-text-v2-moe"
+        mock_config.return_value.ollama.embedding_model = "nomic-embed-text:latest"
         return OllamaClient(base_url="http://localhost:11434")
 
 
@@ -220,7 +220,7 @@ class TestOllamaClientEmbed:
 
             call_args = mock_request.call_args
             # Should use config default model
-            assert call_args[1]["json"]["model"] == "nomic-embed-text-v2-moe"
+            assert call_args[1]["json"]["model"] == "nomic-embed-text:latest"
 
     def test_embed_custom_model(self, ollama_client):
         """Test embedding with custom model."""

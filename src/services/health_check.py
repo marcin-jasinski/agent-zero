@@ -78,7 +78,7 @@ class HealthChecker:
                     name="Ollama",
                     is_healthy=True,
                     message="LLM inference service is operational",
-                    details={"models_available": len(models), "default_model": "ministral-3:3b"},
+                    details={"models_available": len(models), "default_model": get_config().ollama.model},
                 )
             else:
                 return ServiceStatus(

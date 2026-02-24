@@ -1,0 +1,393 @@
+"""Agent Zero (L.A.B.) — Gradio Chat Tab.
+
+This module builds the "💬 Chat" tab of the unified Gradio UI.
+It is called by src.ui.app and returns nothing — all components are
+registered inside the active gr.Blocks() context.
+
+Key functions exposed for testing (plain Python — no framework mocking needed):
+  - initialize_agent(progress)  → (state_dict, status_md)
+  - respond(message, history, state)  → generator[("", history)]
+  - ingest_document(file, state, progress)  → status_md
+"""
+
+import logging
+import queue
+import threading
+from pathlib import Path
+from typing import Generator, Optional
+
+import gradio as gr
+
+from src.config import get_config
+from src.logging_config import setup_logging
+
+setup_logging()
+logger = logging.getLogger(__name__)
+config = get_config()
+
+
+# ---------------------------------------------------------------------------
+# Initialization
+# ---------------------------------------------------------------------------
+
+
+def initialize_agent(progress: gr.Progress = gr.Progress()) -> tuple[dict, str]:
+    """Connect to all required services and create an AgentOrchestrator.
+
+    Uses gr.Progress() so Gradio renders a real progress bar while the
+    user waits for the container startup sequence to complete.
+
+    Args:
+        progress: Gradio progress tracker injected automatically.
+
+    Returns:
+        Tuple of (session_state dict, status markdown string).
+        On failure the state dict is empty and the status contains the error.
+    """
+    try:
+        from src.core.agent import AgentOrchestrator
+        from src.core.retrieval import RetrievalEngine
+        from src.services.ollama_client import OllamaClient
+        from src.services.qdrant_client import QdrantVectorClient
+        from src.services.meilisearch_client import MeilisearchClient
+
+        # ------------------------------------------------------------------
+        # 1. Ollama
+        # ------------------------------------------------------------------
+        progress(0.0, desc="Connecting to Ollama…")
+        ollama = OllamaClient()
+        if not ollama.is_healthy():
+            return (
+                {},
+                "❌ **Ollama is not reachable.**\n\nCheck that the Ollama container is running.",
+                gr.update(interactive=False),
+                gr.update(interactive=False),
+            )
+
+        # ------------------------------------------------------------------
+        # 2. Qdrant
+        # ------------------------------------------------------------------
+        progress(0.33, desc="Connecting to Qdrant…")
+        qdrant = QdrantVectorClient()
+        if not qdrant.is_healthy():
+            return (
+                {},
+                "❌ **Qdrant is not reachable.**\n\nCheck that the Qdrant container is running.",
+                gr.update(interactive=False),
+                gr.update(interactive=False),
+            )
+
+        # ------------------------------------------------------------------
+        # 3. Meilisearch
+        # ------------------------------------------------------------------
+        progress(0.66, desc="Connecting to Meilisearch…")
+        meilisearch = MeilisearchClient()
+        if not meilisearch.is_healthy():
+            return (
+                {},
+                "❌ **Meilisearch is not reachable.**\n\nCheck that the Meilisearch container is running.",
+                gr.update(interactive=False),
+                gr.update(interactive=False),
+            )
+
+        # ------------------------------------------------------------------
+        # 4. Build agent
+        # ------------------------------------------------------------------
+        progress(0.85, desc="Initializing agent…")
+        retrieval = RetrievalEngine(ollama, qdrant, meilisearch)
+        agent = AgentOrchestrator(ollama, retrieval)
+        conversation_id = agent.start_conversation()
+
+        progress(1.0, desc="Agent ready ✅")
+        logger.info(f"Chat agent initialized — conversation_id={conversation_id}")
+
+        state = {
+            "agent": agent,
+            "conversation_id": conversation_id,
+            "ollama": ollama,
+            "qdrant": qdrant,
+            "meilisearch": meilisearch,
+        }
+        return (
+            state,
+            "✅ **All services connected.**  Agent is ready.",
+            gr.update(interactive=True, placeholder="Ask me anything…  (Enter to send)"),
+            gr.update(interactive=True),
+        )
+
+    except Exception as exc:
+        logger.error(f"Agent initialization failed: {exc}", exc_info=True)
+        return (
+            {},
+            f"❌ **Initialization error:**\n\n```\n{exc}\n```",
+            gr.update(interactive=False),
+            gr.update(interactive=False),
+        )
+
+
+# ---------------------------------------------------------------------------
+# Chat response (streaming via queue)
+# ---------------------------------------------------------------------------
+
+
+def respond(
+    message: str,
+    history: list[dict],
+    state: dict,
+) -> Generator[tuple[str, list[dict]], None, None]:
+    """Handle a user message and stream the agent response.
+
+    The underlying LLM call is made in a background thread so the Gradio
+    UI thread remains free to yield updates. The generator yields a single
+    "Thinking…" placeholder immediately, then replaces it with the full
+    response once the model returns.
+
+    Args:
+        message: User text input.
+        history: Current chat history in OpenAI messages format.
+        state: Per-session state dict produced by initialize_agent().
+
+    Yields:
+        Tuple of (cleared_input_text, updated_history, thinking_accordion_update).
+    """
+    if not message or not message.strip():
+        yield "", history, gr.update(visible=False), gr.update()
+        return
+
+    if not state or "agent" not in state:
+        history = list(history)
+        history.append({"role": "user", "content": message})
+        history.append(
+            {
+                "role": "assistant",
+                "content": "⚠️ Agent is not initialized. Please wait for startup to complete.",
+            }
+        )
+        yield "", history, gr.update(visible=False), gr.update()
+        return
+
+    agent = state["agent"]
+    conversation_id: str = state["conversation_id"]
+
+    # Show thinking placeholder immediately so the user gets instant feedback
+    history = list(history)
+    history.append({"role": "user", "content": message})
+    history.append({"role": "assistant", "content": "⏳ Thinking…"})
+    yield "", history, gr.update(visible=False), gr.update()
+
+    # Run the blocking LLM call in a thread; collect response via queue
+    chunk_queue: queue.Queue[Optional[str]] = queue.Queue()
+
+    # Capture chain-of-thought reasoning for the collapsible thinking section
+    thinking_holder: dict = {"text": ""}
+
+    def _stream_cb(chunk: str) -> None:
+        chunk_queue.put(chunk)
+
+    def _thinking_cb(thinking_text: str) -> None:
+        thinking_holder["text"] = thinking_text
+
+    def _run() -> None:
+        try:
+            agent.process_message(
+                conversation_id,
+                message,
+                stream_callback=_stream_cb,
+                thinking_callback=_thinking_cb,
+            )
+        except Exception as exc:
+            logger.error(f"Message processing error: {exc}", exc_info=True)
+            chunk_queue.put(f"\n\n❌ **Error:** {exc}")
+        finally:
+            chunk_queue.put(None)  # sentinel
+
+    threading.Thread(target=_run, daemon=True).start()
+
+    accumulated = ""
+    while True:
+        chunk = chunk_queue.get()
+        if chunk is None:
+            break
+        accumulated += chunk
+        history[-1]["content"] = accumulated
+        yield "", history, gr.update(visible=False), gr.update()
+
+    if not accumulated:
+        history[-1]["content"] = "⚠️ No response was generated. Please try again."
+        yield "", history, gr.update(visible=False), gr.update(value="")
+    else:
+        thinking = thinking_holder.get("text", "").strip()
+        if thinking:
+            # Surface chain-of-thought in a dedicated Accordion component.
+            # (Gradio sanitises <details>/<summary> HTML inside Chatbot bubbles.)
+            yield "", history, gr.update(visible=True), gr.update(value=thinking)
+        else:
+            yield "", history, gr.update(visible=False), gr.update(value="")
+
+
+# ---------------------------------------------------------------------------
+# Document ingestion
+# ---------------------------------------------------------------------------
+
+
+def ingest_document(
+    file: object,  # gr.File upload object
+    state: dict,
+    progress: gr.Progress = gr.Progress(),
+) -> str:
+    """Ingest an uploaded document into the knowledge base.
+
+    Args:
+        file: Gradio 6 returns a plain ``str`` file path when
+              ``gr.File(type='filepath')`` (the default).  Older Gradio versions
+              returned an object with a ``.name`` attribute — both are handled.
+        state: Per-session state dict containing service clients.
+        progress: Gradio progress tracker injected automatically.
+
+    Returns:
+        Status markdown string describing the result.
+    """
+    if file is None:
+        return "⚠️ No file selected."
+
+    if not state or "ollama" not in state:
+        return "⚠️ Agent not initialized. Please wait for startup to complete."
+
+    try:
+        from src.core.ingest import DocumentIngestor
+
+        # Gradio 6: gr.File returns a str path; older versions returned an object.
+        file_path = Path(file) if isinstance(file, str) else Path(file.name)
+        filename = file_path.name
+        ext = file_path.suffix.lower()
+
+        if ext not in {".pdf", ".txt", ".md"}:
+            return f"❌ Unsupported file type `{ext}`. Supported: `.pdf`, `.txt`, `.md`"
+
+        progress(0.0, desc=f"Reading {filename}…")
+
+        ingestor = DocumentIngestor(
+            ollama_client=state["ollama"],
+            qdrant_client=state["qdrant"],
+            meilisearch_client=state["meilisearch"],
+        )
+
+        if ext == ".pdf":
+            progress(0.2, desc="Parsing PDF…")
+            file_bytes = file_path.read_bytes()
+            progress(0.4, desc="Chunking text…")
+            result = ingestor.ingest_pdf_bytes(file_bytes, filename)
+        else:
+            progress(0.2, desc="Reading text…")
+            text = file_path.read_text(encoding="utf-8", errors="replace")
+            progress(0.4, desc="Chunking text…")
+            result = ingestor.ingest_text(text, source_name=filename)
+
+        progress(0.9, desc="Indexing…")
+        progress(1.0, desc="Done ✅")
+
+        if not result.success:
+            return f"❌ **Ingestion failed:** {result.error}"
+
+        if getattr(result, "skipped_duplicate", False):
+            return (
+                f"ℹ️ **{filename}** was already in the knowledge base "
+                f"({result.chunks_count} chunks, doc_id `{result.document_id[:8]}…`)."
+            )
+
+        return (
+            f"✅ **{filename}** indexed successfully.\n\n"
+            f"- **Chunks**: {result.chunks_count}\n"
+            f"- **Doc ID**: `{result.document_id[:8]}…`\n"
+            f"- **Time**: {result.duration_seconds:.1f}s\n\n"
+            f"You can now ask questions about this document."
+        )
+
+    except UnicodeDecodeError:
+        return f"❌ Could not read `{filename}` as UTF-8 text. Please ensure the file is valid."
+    except Exception as exc:
+        logger.error(f"Document ingestion failed: {exc}", exc_info=True)
+        return f"❌ **Ingestion error:** {exc}"
+
+
+# ---------------------------------------------------------------------------
+# UI builder (called from app.py inside gr.Blocks context)
+# ---------------------------------------------------------------------------
+
+
+def build_chat_ui() -> tuple:
+    """Register all Chat tab components inside the active gr.Blocks context.
+
+    Must be called inside an open ``with gr.Blocks() as \u2026`` / ``with gr.Tab():"""
+    """context.  Returns *(state, status_bar, msg_box, send_btn, thinking_md)* so
+    the caller (app.py) can wire the ``blocks.load()`` event to
+    ``initialize_agent``, and ``respond`` to all five outputs.
+
+    Returns:
+        Tuple of (session state, status bar, msg box, send btn, thinking markdown).
+    """
+    state = gr.State({})
+
+    # Status bar — updated by initialize_agent on page load
+    status_bar = gr.Markdown("⏳ Initializing agent, please wait…")
+
+    # Main chat window
+    # NOTE: Gradio 6 removed the `type` param (messages format is now default).
+    # `show_copy_button` was replaced by `buttons`; `bubble_full_width` was removed.
+    chatbot = gr.Chatbot(
+        value=[],
+        height=520,
+        label="Agent Zero",
+        avatar_images=(None, "https://raw.githubusercontent.com/gradio-app/gradio/main/guides/assets/logo.svg"),
+        buttons=["copy"],
+        layout="bubble",
+    )
+
+    # Chain-of-thought reasoning — populated after each response, hidden by default.
+    # Uses a Gradio Accordion because Chatbot bubbles sanitise <details> HTML.
+    with gr.Accordion("💡 Thinking process", open=True, visible=False) as thinking_accordion:
+        thinking_md = gr.Markdown("")
+
+    # Input row
+    with gr.Row():
+        msg_box = gr.Textbox(
+        placeholder="⏳ Initializing agent…",
+        scale=6,
+        show_label=False,
+        container=False,
+        autofocus=True,
+        interactive=False,
+    )
+    send_btn = gr.Button("▶ Send", variant="primary", scale=1, min_width=100, interactive=False)
+    # File upload
+    with gr.Accordion("📎 Upload document to Knowledge Base", open=False):
+        upload = gr.File(
+            file_types=[".pdf", ".txt", ".md"],
+            label="Drop a PDF, TXT or MD file here",
+        )
+        upload_status = gr.Markdown("")
+
+    # -----------------------------------------------------------------------
+    # Wire up events
+    # -----------------------------------------------------------------------
+
+    # Submit message (Enter key or Send button)
+    submit_args = dict(
+        fn=respond,
+        inputs=[msg_box, chatbot, state],
+        outputs=[msg_box, chatbot, thinking_accordion, thinking_md],
+    )
+    # Also need to show/hide the accordion wrapper when thinking is present.
+    # We wire respond() additionally to the accordion visibility.
+    msg_box.submit(**submit_args)
+    send_btn.click(**submit_args)
+
+    # File upload
+    upload.upload(
+        fn=ingest_document,
+        inputs=[upload, state],
+        outputs=[upload_status],
+    )
+
+    # Return components needed by app.py to wire the .load() event
+    return state, status_bar, msg_box, send_btn, thinking_md, thinking_accordion

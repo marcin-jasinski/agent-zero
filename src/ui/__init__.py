@@ -1,1 +1,1 @@
-"""UI components and Streamlit interface."""
+"""UI package for Chainlit-based Agent Zero interface."""

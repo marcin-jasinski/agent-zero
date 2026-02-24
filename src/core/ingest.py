@@ -4,12 +4,12 @@ This module handles PDF extraction, text chunking, embedding generation,
 and indexing into both Qdrant (vector) and Meilisearch (keyword) databases.
 """
 
+import asyncio
 import hashlib
 import logging
 import os
 import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -75,7 +75,6 @@ class DocumentIngestor:
         self.meilisearch_client = meilisearch_client
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
-        self._executor: Optional[ThreadPoolExecutor] = ThreadPoolExecutor(max_workers=2)
 
     def check_document_exists(self, document_hash: str) -> tuple[bool, Optional[str], int]:
         """Check if a document with this hash already exists.
@@ -440,6 +439,56 @@ class DocumentIngestor:
                 duration_seconds=duration,
             )
 
+    async def ingest_document_async(
+        self,
+        file_path: str,
+        file_name: Optional[str] = None,
+    ) -> IngestionResult:
+        """Asynchronously ingest a document from disk.
+
+        Supported file types:
+        - `.pdf` via `ingest_pdf`
+        - `.txt` and `.md` via `ingest_text`
+
+        Args:
+            file_path: Absolute or relative path to the source file.
+            file_name: Optional display/source name override.
+
+        Returns:
+            IngestionResult describing success or failure.
+        """
+        start_time = time.time()
+        document_id = str(uuid4())
+
+        try:
+            source_path = Path(file_path)
+            if not source_path.exists():
+                raise FileNotFoundError(f"File not found: {file_path}")
+
+            source_name = file_name or source_path.name
+            suffix = source_path.suffix.lower()
+
+            if suffix == ".pdf":
+                return await asyncio.to_thread(self.ingest_pdf, str(source_path), source_name)
+
+            if suffix in {".txt", ".md"}:
+                text_content = await asyncio.to_thread(source_path.read_text, encoding="utf-8")
+                return await asyncio.to_thread(self.ingest_text, text_content, source_name, source_name)
+
+            raise ValueError(
+                f"Unsupported file extension '{suffix}'. Supported: .pdf, .txt, .md"
+            )
+
+        except Exception as e:
+            duration = time.time() - start_time
+            logger.error(f"Failed to ingest file asynchronously {file_path}: {e}", exc_info=True)
+            return IngestionResult(
+                success=False,
+                document_id=document_id,
+                error=str(e),
+                duration_seconds=duration,
+            )
+
     def _extract_text_from_pdf(self, file_path: str) -> str:
         """Extract text content from a PDF file.
 
@@ -702,7 +751,3 @@ class DocumentIngestor:
         )
         return successful_chunks, qdrant_failures, meilisearch_failures
 
-    def __del__(self) -> None:
-        """Cleanup thread pool on deletion."""
-        if hasattr(self, "_executor") and self._executor is not None:
-            self._executor.shutdown(wait=True)

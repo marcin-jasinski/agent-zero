@@ -77,10 +77,10 @@ rate(agent_zero_requests_total[5m])
 # 1. Open Agent Zero UI
 Start-Process "http://localhost:8501"
 
-# 2. Upload a test document (Knowledge Base tab)
+# 2. Upload a test document (Gradio Chat tab → 📎 Upload button)
 # Use: data/samples/rag_introduction.md
 
-# 3. Send test queries (Chat tab)
+# 3. Send test queries in chat
 # Example: "What is RAG?"
 # Example: "Explain vector databases"
 
@@ -151,14 +151,14 @@ curl http://localhost:3001/api/health | ConvertFrom-Json
 **Verify dashboards are visible by default:**
 
 1. Open Agent Zero UI: http://localhost:8501
-2. Check sidebar navigation includes:
-   - ✅ **Chat** (core)
-   - ✅ **Knowledge Base** (core)
-   - ✅ **Langfuse Dashboard** (enabled by default)
-   - ✅ **System Health** (enabled by default, shows Prometheus + Grafana)
-   - ✅ **Promptfoo** (enabled by default)
-   - ✅ **Settings** (core)
-   - ✅ **Logs** (core)
+2. Check admin actions in chat include:
+  - ✅ **System Health**
+  - ✅ **Qdrant Info**
+  - ✅ **Settings**
+3. Check external dashboard links are visible:
+  - ✅ Langfuse
+  - ✅ Prometheus
+  - ✅ Grafana
 
 ### Prometheus Configuration
 
@@ -377,7 +377,7 @@ docker-compose up -d
 Start-Sleep -Seconds 60  # Wait for startup
 
 # 2. Upload document
-# UI: http://localhost:8501 → Knowledge Base → Upload data/samples/rag_introduction.md
+# UI: http://localhost:8501 → attach data/samples/rag_introduction.md in chat
 
 # 3. Verify ingestion metrics
 curl http://localhost:9091/metrics | Select-String "documents_ingested_total"
@@ -395,7 +395,7 @@ curl http://localhost:9091/metrics | Select-String "retrieval_documents_count"
 # 6. Verify LLM metrics
 curl http://localhost:9091/metrics | Select-String "llm_tokens_total"
 
-# Expected: agent_zero_llm_tokens_total{model="ministral-3:3b",token_type="input"} > 0
+# Expected: agent_zero_llm_tokens_total{model="qwen3:4b",token_type="input"} > 0
 
 # 7. Check Grafana dashboard
 # UI: http://localhost:3001 → Agent Zero dashboard
@@ -420,8 +420,8 @@ curl http://localhost:9091/metrics | Select-String "llm_tokens_total"
 - Panels display data after test queries
 
 ✅ **Integration:**
-- Dashboard links visible in UI sidebar (Langfuse, System Health)
-- Service health page shows Prometheus + Grafana status
+- Dashboard links accessible via Gradio Admin tab (Langfuse, Prometheus, Grafana)
+- System health report shows Prometheus + Grafana status
 - Metrics update in real-time during usage
 
 ✅ **Performance:**

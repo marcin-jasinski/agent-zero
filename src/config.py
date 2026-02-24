@@ -35,10 +35,18 @@ class OllamaConfig(BaseSettings):
     """Configuration for Ollama LLM service."""
 
     host: str = Field(default="http://localhost:11434", description="Ollama API host")
-    model: str = Field(default="ministral-3:3b", description="Default LLM model name")
-    embed_model: str = Field(default="nomic-embed-text-v2-moe", description="Embedding model name")
+    model: str = Field(default="qwen3:4b", description="Default LLM model name")
+    embed_model: str = Field(default="nomic-embed-text:latest", description="Embedding model name")
     timeout: int = Field(default=300, description="Request timeout in seconds")
     max_retries: int = Field(default=3, description="Maximum retry attempts")
+    thinking: bool = Field(
+        default=True,
+        description=(
+            "Enable chain-of-thought for thinking models (qwen3, deepseek-r1, etc.). "
+            "Non-thinking models silently ignore this flag. "
+            "Set OLLAMA_THINKING=false to disable."
+        ),
+    )
 
     @property
     def base_url(self) -> str:
@@ -143,27 +151,23 @@ class SecurityConfig(BaseSettings):
         env_prefix = "LLM_GUARD_"
 
 
-class DashboardFeatures(BaseSettings):
-    """Feature flags for dashboard tools (Phase 4b).
-    
-    Controls visibility and availability of management dashboard tools.
-    Allows for incremental rollout and environment-specific feature control.
+class DashboardConfig(BaseSettings):
+    """Dashboard/UI framework configuration.
+
+    Phase 6c migration standardizes the UI framework on FastAPI + Gradio.
     """
-    
-    # Core tools (always available)
-    show_chat: bool = Field(default=True, description="Show Chat interface")
-    show_knowledge_base: bool = Field(default=True, description="Show Knowledge Base interface")
-    show_settings: bool = Field(default=True, description="Show Settings interface")
-    show_logs: bool = Field(default=True, description="Show Logs interface")
-    
-    # Management tools (optional, feature-flagged)
-    show_qdrant_manager: bool = Field(default=False, description="Show Qdrant Manager dashboard")
-    show_langfuse_dashboard: bool = Field(default=True, description="Show Langfuse Observability dashboard")
-    show_promptfoo: bool = Field(default=True, description="Show Promptfoo Testing dashboard")
-    show_system_health: bool = Field(default=True, description="Show System Health dashboard")
-    
+
+    framework: Literal["gradio"] = Field(
+        default="gradio",
+        description="UI framework for the A.P.I. dashboard",
+    )
+
     class Config:
         env_prefix = "APP_DASHBOARD_"
+
+
+# Backward compatibility alias for older references.
+DashboardFeatures = DashboardConfig
 
 
 class AppConfig(BaseSettings):
@@ -176,7 +180,7 @@ class AppConfig(BaseSettings):
     )
     debug: bool = Field(default=False, description="Debug mode")
     host: str = Field(default="0.0.0.0", description="App host")
-    port: int = Field(default=8501, description="Streamlit port")
+    port: int = Field(default=8501, description="App UI port (FastAPI + Gradio)")
 
     # Logging
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
@@ -199,8 +203,8 @@ class AppConfig(BaseSettings):
     security: SecurityConfig = Field(
         default_factory=SecurityConfig, description="Security config"
     )
-    dashboard: DashboardFeatures = Field(
-        default_factory=DashboardFeatures, description="Dashboard feature flags"
+    dashboard: DashboardConfig = Field(
+        default_factory=DashboardConfig, description="Dashboard configuration"
     )
 
     @field_validator("env")

@@ -9,7 +9,7 @@
 
   // Forward ports for services
   "forwardPorts": [
-    8501, // Streamlit UI (A.P.I.)
+    8501, // Chainlit UI (A.P.I.)
     11434, // Ollama
     6333, // Qdrant
     7700, // Meilisearch
@@ -18,7 +18,7 @@
   ],
   "portsAttributes": {
     "8501": {
-      "label": "Streamlit UI (A.P.I.)",
+      "label": "Chainlit UI (A.P.I.)",
       "onAutoForward": "notify",
       "requireLocalPort": false
     },

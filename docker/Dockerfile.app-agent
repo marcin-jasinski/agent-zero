@@ -54,9 +54,9 @@ COPY --chown=agentuser:agentuser pyproject.toml /app/
 # Switch to non-root user
 USER agentuser
 
-# Health check for Streamlit
+# Health check — FastAPI /health endpoint (served by uvicorn)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8501/_stcore/health || exit 1
+    CMD curl -f http://localhost:8501/health || exit 1
 
 # Default environment
 ENV APP_ENV=development \
@@ -64,6 +64,8 @@ ENV APP_ENV=development \
     APP_HOST=0.0.0.0 \
     APP_PORT=8501
 
-# Entry point
+# Single port — Gradio UI + FastAPI REST on 8501
 EXPOSE 8501
-CMD ["streamlit", "run", "src/ui/main.py", "--server.port=8501", "--server.address=0.0.0.0"]
+
+# Entry point: single uvicorn process
+CMD ["uvicorn", "src.ui.app:api", "--host", "0.0.0.0", "--port", "8501"]

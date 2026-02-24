@@ -1,485 +1,224 @@
-"""Integration tests for Agent Zero dashboards.
+"""Integration tests for the Gradio Admin Dashboard workflow (Phase 6c).
 
-This module provides integration tests for the dashboard tools,
-testing navigation, feature flags, data flow, and caching behavior.
-
-These tests are marked as integration tests and may require
-running Docker services.
+Validates the full admin dashboard flow — health check, Qdrant stats, Langfuse
+tracing, Promptfoo report, settings, and logs — using mocked service clients
+so tests run offline without Docker.
 """
 
+from __future__ import annotations
+
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import Mock, patch, MagicMock
-from datetime import datetime
 
-
-# Mark all tests in this module as integration tests
 pytestmark = pytest.mark.integration
 
 
-class TestSidebarNavigation:
-    """Integration tests for sidebar navigation between tools."""
-    
-    @patch('src.config.get_config')
-    def test_navigation_registers_all_core_tools(self, mock_get_config):
-        """Test that all core tools are registered in navigation."""
-        mock_config = Mock()
-        mock_config.dashboard.show_chat = True
-        mock_config.dashboard.show_knowledge_base = True
-        mock_config.dashboard.show_settings = True
-        mock_config.dashboard.show_logs = True
-        mock_config.dashboard.show_qdrant_manager = False
-        mock_config.dashboard.show_langfuse_dashboard = False
-        mock_config.dashboard.show_system_health = False
-        mock_get_config.return_value = mock_config
-        
-        from src.ui.components.navigation import SidebarNavigation, ToolDefinition
-        
-        nav = SidebarNavigation()
-        
-        # Register core tools
-        nav.register_tool(ToolDefinition(
-            key="chat", icon=">", label="Chat",
-            description="Chat", render_func=lambda: None, category="core"
-        ))
-        nav.register_tool(ToolDefinition(
-            key="kb", icon=">", label="Knowledge Base",
-            description="KB", render_func=lambda: None, category="core"
-        ))
-        nav.register_tool(ToolDefinition(
-            key="settings", icon=">", label="Settings",
-            description="Settings", render_func=lambda: None, category="core"
-        ))
-        nav.register_tool(ToolDefinition(
-            key="logs", icon=">", label="Logs",
-            description="Logs", render_func=lambda: None, category="core"
-        ))
-        
-        core_tools = nav.get_enabled_tools(category="core")
-        
-        assert len(core_tools) == 4
-        assert all(t.category == "core" for t in core_tools)
-    
-    @patch('src.config.get_config')
-    def test_navigation_registers_management_tools(self, mock_get_config):
-        """Test that management tools are registered when enabled."""
-        mock_config = Mock()
-        mock_config.dashboard.show_qdrant_manager = True
-        mock_config.dashboard.show_langfuse_dashboard = True
-        mock_config.dashboard.show_system_health = True
-        mock_get_config.return_value = mock_config
-        
-        from src.ui.components.navigation import SidebarNavigation, ToolDefinition
-        
-        nav = SidebarNavigation()
-        
-        # Register management tools
-        nav.register_tool(ToolDefinition(
-            key="qdrant", icon=">", label="Qdrant",
-            description="Qdrant", render_func=lambda: None, category="management"
-        ))
-        nav.register_tool(ToolDefinition(
-            key="langfuse", icon=">", label="Langfuse",
-            description="Langfuse", render_func=lambda: None, category="management"
-        ))
-        nav.register_tool(ToolDefinition(
-            key="health", icon=">", label="Health",
-            description="Health", render_func=lambda: None, category="management"
-        ))
-        
-        mgmt_tools = nav.get_enabled_tools(category="management")
-        
-        assert len(mgmt_tools) == 3
-        assert all(t.category == "management" for t in mgmt_tools)
-    
-    def test_navigation_prevents_duplicate_keys(self):
-        """Test that duplicate tool keys are rejected."""
-        from src.ui.components.navigation import SidebarNavigation, ToolDefinition
-        
-        nav = SidebarNavigation()
-        nav.register_tool(ToolDefinition(
-            key="chat", icon="💬", label="Chat",
-            description="Chat", render_func=lambda: None
-        ))
-        
-        with pytest.raises(ValueError, match="already registered"):
-            nav.register_tool(ToolDefinition(
-                key="chat", icon="💬", label="Chat 2",
-                description="Chat 2", render_func=lambda: None
-            ))
-    
-    def test_navigation_tool_selection_state(self):
-        """Test that tool selection is tracked in session state."""
-        import streamlit as st
-        from src.ui.components.navigation import SidebarNavigation, ToolDefinition
-        
-        # Mock session state
-        if not hasattr(st, 'session_state'):
-            st.session_state = {}
-        
-        nav = SidebarNavigation()
-        nav.register_tool(ToolDefinition(
-            key="chat", icon="💬", label="Chat",
-            description="Chat", render_func=lambda: None
-        ))
-        
-        # Verify session state key is initialized
-        assert "active_tool" in st.session_state or nav._session_key in st.session_state
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 
-class TestFeatureFlagToggling:
-    """Integration tests for feature flag behavior."""
-    
-    @patch('src.config.get_config')
-    def test_feature_flags_control_tool_visibility(self, mock_get_config):
-        """Test that feature flags control which tools are available."""
-        # Create mock config with specific flags
-        mock_config = Mock()
-        mock_config.dashboard.show_chat = True
-        mock_config.dashboard.show_knowledge_base = True
-        mock_config.dashboard.show_settings = False  # Disabled
-        mock_config.dashboard.show_logs = True
-        mock_config.dashboard.show_qdrant_manager = True
-        mock_config.dashboard.show_langfuse_dashboard = False  # Disabled
-        mock_config.dashboard.show_system_health = True
-        mock_get_config.return_value = mock_config
-        
-        from src.ui.components.navigation import SidebarNavigation, ToolDefinition
-        
-        nav = SidebarNavigation()
-        
-        # Register tools based on feature flags
-        if mock_config.dashboard.show_chat:
-            nav.register_tool(ToolDefinition(
-                key="chat", icon=">", label="Chat",
-                description="Chat", render_func=lambda: None, category="core"
-            ))
-        
-        if mock_config.dashboard.show_settings:
-            nav.register_tool(ToolDefinition(
-                key="settings", icon=">", label="Settings",
-                description="Settings", render_func=lambda: None, category="core"
-            ))
-        
-        if mock_config.dashboard.show_langfuse_dashboard:
-            nav.register_tool(ToolDefinition(
-                key="langfuse", icon=">", label="Langfuse",
-                description="Langfuse", render_func=lambda: None, category="management"
-            ))
-        
-        # Verify only enabled tools are registered
-        all_tools = nav.get_enabled_tools()
-        tool_keys = [t.key for t in all_tools]
-        
-        assert "chat" in tool_keys
-        assert "settings" not in tool_keys  # Was disabled
-        assert "langfuse" not in tool_keys  # Was disabled
-    
-    def test_feature_flag_defaults_match_config(self):
-        """Test that feature flag defaults are appropriate."""
-        from src.config import DashboardFeatures
-        
-        features = DashboardFeatures()
-        
-        # Core tools should be enabled by default
-        assert features.show_chat is True
-        assert features.show_knowledge_base is True
-        assert features.show_settings is True
-        assert features.show_logs is True
-        
-        # Management tools should be disabled by default
-        assert features.show_qdrant_manager is False
-        assert features.show_langfuse_dashboard is False
-        assert features.show_system_health is False
+def _make_status(name: str, healthy: bool, msg: str = "OK") -> SimpleNamespace:
+    return SimpleNamespace(name=name, is_healthy=healthy, message=msg, details={})
 
 
-class TestDataFlow:
-    """Integration tests for data flow between components."""
-    
-    @patch('src.services.qdrant_client.QdrantClient')
-    def test_qdrant_dashboard_data_flow(self, mock_qdrant_lib):
-        """Test data flow in Qdrant dashboard."""
-        # Mock the underlying qdrant-client library
-        mock_qdrant_lib.return_value = Mock()
-        
-        from src.services import QdrantVectorClient
-        client = QdrantVectorClient()
-        
-        # Verify the client has required methods
-        assert hasattr(client, 'list_collections')
-        assert hasattr(client, 'is_healthy')
-    
-    @patch('src.services.langfuse_client.LangfuseClient')
-    def test_langfuse_dashboard_data_flow(self, mock_client_class):
-        """Test data flow in Langfuse dashboard."""
-        mock_client = Mock()
-        mock_client.get_trace_summary.return_value = Mock(
-            total_traces=100,
-            traces_24h=50,
-            avg_latency_ms=1500.0,
-            error_rate=2.5
+# ---------------------------------------------------------------------------
+# Workflow: full admin dashboard end-to-end
+# ---------------------------------------------------------------------------
+
+
+class TestFullDashboardWorkflow:
+    """Exercise all admin tab handlers in sequence."""
+
+    def test_health_then_qdrant_then_settings_workflow(self) -> None:
+        """Consecutive admin calls produce non-empty markdown for each section."""
+        from src.ui.dashboard import (
+            get_health_report,
+            get_qdrant_collections,
+            get_settings_report,
         )
-        mock_client_class.return_value = mock_client
-        
-        from src.services import LangfuseClient
-        client = LangfuseClient()
-        
-        # Verify trace summary retrieval flow
-        assert hasattr(client, 'get_trace_summary') or hasattr(mock_client, 'get_trace_summary')
-    
-    @patch('src.services.health_check.HealthChecker')
-    def test_system_health_data_flow(self, mock_checker_class):
-        """Test data flow in System Health dashboard."""
-        mock_checker = Mock()
-        mock_checker.check_all.return_value = {
-            "ollama": Mock(name="Ollama", is_healthy=True, message="OK", details={}),
-            "qdrant": Mock(name="Qdrant", is_healthy=True, message="OK", details={}),
+
+        # --- Health ---
+        checker = MagicMock()
+        checker.check_all.return_value = {
+            "ollama": _make_status("Ollama", True),
+            "qdrant": _make_status("Qdrant", True),
+            "meilisearch": _make_status("Meilisearch", True),
         }
-        mock_checker_class.return_value = mock_checker
-        
-        from src.services import HealthChecker
-        checker = HealthChecker()
-        
-        # Verify health check flow
-        statuses = checker.check_all()
-        assert "ollama" in statuses
-        assert "qdrant" in statuses
+        with patch("src.services.health_check.HealthChecker", return_value=checker):
+            health_md = get_health_report()
+        assert "✅" in health_md
+        assert "Ollama" in health_md
 
-
-class TestCachingBehavior:
-    """Integration tests for Streamlit caching behavior."""
-    
-    def test_langfuse_trace_summary_caching(self):
-        """Test that trace summary is cached."""
-        from src.ui.tools.langfuse_dashboard import _get_trace_summary
-        
-        # Verify the function has cache decorator
-        assert hasattr(_get_trace_summary, 'clear') or hasattr(_get_trace_summary, '__wrapped__')
-    
-    def test_service_statuses_caching(self):
-        """Test that service statuses are cached."""
-        from src.ui.tools.system_health import _get_service_statuses
-        
-        # Verify the function has cache decorator
-        assert hasattr(_get_service_statuses, 'clear') or hasattr(_get_service_statuses, '__wrapped__')
-
-
-class TestErrorHandling:
-    """Integration tests for error handling propagation."""
-    
-    @patch('src.services.langfuse_client.get_config')
-    def test_langfuse_unavailable_handling(self, mock_get_config):
-        """Test graceful handling when Langfuse is unavailable."""
-        mock_config = Mock()
-        mock_config.langfuse.host = "http://nonexistent:3000"
-        mock_config.langfuse.enabled = True
-        mock_config.langfuse.public_key = ""
-        mock_config.langfuse.secret_key = ""
-        mock_config.langfuse.timeout = 5
-        mock_get_config.return_value = mock_config
-        
-        from src.services.langfuse_client import LangfuseClient
-        
-        client = LangfuseClient()
-        
-        # Should not raise an error, should return False
-        # (actual connection test would fail in real scenario)
-        assert client.enabled is True
-    
-    @patch('src.services.health_check.OllamaClient')
-    @patch('src.services.health_check.QdrantVectorClient')
-    @patch('src.services.health_check.MeilisearchClient')
-    @patch('src.services.health_check.get_langfuse_observability')
-    def test_service_unavailable_handling(
-        self, mock_langfuse, mock_meili, mock_qdrant, mock_ollama
-    ):
-        """Test graceful handling when services are unavailable."""
-        # Setup all clients to fail
-        mock_ollama.return_value.is_healthy.side_effect = Exception("Connection refused")
-        mock_qdrant.return_value.is_healthy.side_effect = Exception("Connection refused")
-        mock_meili.return_value.is_healthy.side_effect = Exception("Connection refused")
-        mock_langfuse.return_value.enabled = False
-        
-        from src.services import HealthChecker
-        
-        checker = HealthChecker()
-        statuses = checker.check_all()
-        
-        # All should report unhealthy but not raise
-        assert all(not s.is_healthy for name, s in statuses.items() if name != "langfuse")
-
-
-class TestBackwardCompatibility:
-    """Integration tests for backward compatibility."""
-    
-    def test_existing_tools_still_work(self):
-        """Test that existing 4 core tools still function."""
-        # Verify imports work
-        from src.ui.tools import (
-            render_chat_interface,
-            render_knowledge_base,
-            render_settings,
-            render_logs,
-        )
-        
-        # Verify functions are callable
-        assert callable(render_chat_interface)
-        assert callable(render_knowledge_base)
-        assert callable(render_settings)
-        assert callable(render_logs)
-    
-    def test_session_initialization_functions_exist(self):
-        """Test that session initialization functions still exist."""
-        from src.ui.tools import (
-            initialize_chat_session,
-            initialize_kb_session,
-            initialize_settings_session,
-            initialize_logs_session,
-        )
-        
-        assert callable(initialize_chat_session)
-        assert callable(initialize_kb_session)
-        assert callable(initialize_settings_session)
-        assert callable(initialize_logs_session)
-    
-    def test_health_checker_api_unchanged(self):
-        """Test that HealthChecker API remains compatible."""
-        from src.services import HealthChecker, ServiceStatus
-        
-        # Verify expected methods exist
-        checker = HealthChecker()
-        assert hasattr(checker, 'check_all')
-        assert hasattr(checker, 'check_ollama')
-        assert hasattr(checker, 'check_qdrant')
-        assert hasattr(checker, 'check_meilisearch')
-        assert hasattr(checker, 'check_langfuse')
-        assert hasattr(checker, 'all_healthy')
-
-
-class TestToolDefinitionValidation:
-    """Integration tests for tool definition validation."""
-    
-    def test_tool_definition_requires_key(self):
-        """Test that ToolDefinition requires a non-empty key."""
-        from src.ui.components.navigation import ToolDefinition
-        
-        with pytest.raises(ValueError, match="cannot be empty"):
-            ToolDefinition(
-                key="",
-                icon="💬",
-                label="Test",
-                description="Test",
-                render_func=lambda: None
-            )
-    
-    def test_tool_definition_requires_callable(self):
-        """Test that ToolDefinition requires callable render_func."""
-        from src.ui.components.navigation import ToolDefinition
-        
-        with pytest.raises(ValueError, match="must be callable"):
-            ToolDefinition(
-                key="test",
-                icon="💬",
-                label="Test",
-                description="Test",
-                render_func="not_callable"  # type: ignore
-            )
-    
-    def test_tool_definition_accepts_valid_input(self):
-        """Test that ToolDefinition accepts valid input."""
-        from src.ui.components.navigation import ToolDefinition
-        
-        tool = ToolDefinition(
-            key="test",
-            icon="💬",
-            label="Test Tool",
-            description="A test tool",
-            render_func=lambda: None,
-            enabled=True,
-            category="core"
-        )
-        
-        assert tool.key == "test"
-        assert tool.icon == "💬"
-        assert tool.label == "Test Tool"
-        assert tool.enabled is True
-        assert tool.category == "core"
-
-
-class TestEnvironmentIntegration:
-    """Integration tests for environment-specific behavior."""
-    
-    @patch('src.config.get_config')
-    def test_development_environment_allows_all_features(self, mock_get_config):
-        """Test that development environment allows flexible feature access."""
-        mock_config = Mock()
-        mock_config.env = "development"
-        mock_config.debug = True
-        mock_config.langfuse.enabled = False  # Optional in dev
-        mock_config.security.llm_guard_enabled = False  # Optional in dev
-        mock_get_config.return_value = mock_config
-        
-        config = mock_get_config()
-        
-        # Development should allow debug mode
-        assert config.debug is True
-        
-        # Development should allow optional services
-        assert config.langfuse.enabled is False  # OK in dev
-    
-    def test_config_environment_validation(self):
-        """Test that config validates environment values."""
-        from src.config import AppConfig
-        
-        # Valid environments should work
-        for env in ["development", "staging", "production"]:
-            # This would use environment variables in real scenario
-            pass  # Config validation is tested in config tests
-
-
-class TestDashboardUIConsistency:
-    """Integration tests for UI consistency across dashboards."""
-    
-    def test_all_dashboards_have_render_function(self):
-        """Test that all dashboard tools have render functions."""
-        from src.ui.tools import (
-            render_chat_interface,
-            render_knowledge_base,
-            render_settings,
-            render_logs,
-            render_qdrant_dashboard,
-            render_langfuse_dashboard,
-            render_system_health_dashboard,
-        )
-        
-        render_functions = [
-            render_chat_interface,
-            render_knowledge_base,
-            render_settings,
-            render_logs,
-            render_qdrant_dashboard,
-            render_langfuse_dashboard,
-            render_system_health_dashboard,
+        # --- Collections ---
+        qdrant = MagicMock()
+        qdrant.is_healthy.return_value = True
+        qdrant.list_collections.return_value = [
+            {"name": "documents", "vectors_count": 512, "points_count": 512},
         ]
-        
-        # All should be callable
-        for func in render_functions:
-            assert callable(func), f"{func.__name__} is not callable"
-    
-    def test_all_dashboards_are_importable(self):
-        """Test that all dashboard modules can be imported."""
-        # This tests that there are no import errors
-        from src.ui.tools import chat
-        from src.ui.tools import knowledge_base
-        from src.ui.tools import settings
-        from src.ui.tools import logs
-        from src.ui.tools import qdrant_dashboard
-        from src.ui.tools import langfuse_dashboard
-        from src.ui.tools import system_health
-        
-        modules = [
-            chat, knowledge_base, settings, logs,
-            qdrant_dashboard, langfuse_dashboard, system_health
+        with patch("src.services.qdrant_client.QdrantVectorClient", return_value=qdrant):
+            stats_md, names = get_qdrant_collections()
+        assert "documents" in stats_md
+        assert names == ["documents"]
+
+        # --- Settings (no mocks needed — reads real config) ---
+        settings_md = get_settings_report()
+        assert len(settings_md) > 50
+        assert "Ollama" in settings_md or "LLM" in settings_md
+
+    def test_search_after_collections_workflow(self) -> None:
+        """get_qdrant_collections followed by search_qdrant in the same collection."""
+        from src.ui.dashboard import get_qdrant_collections, search_qdrant
+
+        qdrant = MagicMock()
+        qdrant.is_healthy.return_value = True
+        qdrant.list_collections.return_value = [
+            {"name": "kb", "vectors_count": 10, "points_count": 10}
         ]
-        
-        for module in modules:
-            assert module is not None
+        qdrant.search_by_text.return_value = [
+            {"content": "RAG overview document", "source": "rag.pdf", "score": 0.91}
+        ]
+        ollama = MagicMock()
+
+        with patch("src.services.qdrant_client.QdrantVectorClient", return_value=qdrant):
+            _, names = get_qdrant_collections()
+
+        assert "kb" in names
+
+        with (
+            patch("src.services.qdrant_client.QdrantVectorClient", return_value=qdrant),
+            patch("src.services.ollama_client.OllamaClient", return_value=ollama),
+        ):
+            result = search_qdrant("RAG", names[0])
+
+        assert "0.91" in result
+        assert "rag.pdf" in result
+
+    def test_langfuse_then_promptfoo_workflow(self) -> None:
+        """Langfuse report followed by Promptfoo report — both produce output."""
+        from src.ui.dashboard import get_langfuse_report, get_promptfoo_report
+
+        summary = SimpleNamespace(total_traces=5, traces_24h=3, avg_latency_ms=420.0, error_rate=0.0)
+        trace = SimpleNamespace(name="chat", status="ok", duration_ms=400.0, input_tokens=80, output_tokens=60)
+        lf_client = MagicMock()
+        lf_client.enabled = True
+        lf_client.get_trace_summary.return_value = summary
+        lf_client.get_recent_traces.return_value = [trace]
+
+        with patch("src.services.langfuse_client.LangfuseClient", return_value=lf_client):
+            lf_report = get_langfuse_report("24h")
+
+        assert "5" in lf_report
+        assert "chat" in lf_report
+
+        pf_client = MagicMock()
+        pf_client.get_summary_metrics.return_value = {
+            "total_scenarios": 2, "total_runs": 4, "average_pass_rate": 91.0
+        }
+        pf_client.list_scenarios.return_value = [
+            SimpleNamespace(name="rag-basic", id="sc-001-xxxx"),
+            SimpleNamespace(name="rag-edge", id="sc-002-yyyy"),
+        ]
+        pf_client.list_runs.return_value = [
+            SimpleNamespace(prompt_version="v1", pass_rate=91.0, passed_tests=9, total_tests=10),
+        ]
+
+        with patch("src.services.promptfoo_client.PromptfooClient", return_value=pf_client):
+            pf_report = get_promptfoo_report()
+
+        assert "rag-basic" in pf_report
+        assert "91.0" in pf_report
+
+
+# ---------------------------------------------------------------------------
+# Workflow: degraded services
+# ---------------------------------------------------------------------------
+
+
+class TestDegradedServiceWorkflow:
+    """Verify admin tab handlers degrade gracefully when services fail."""
+
+    def test_qdrant_down_collections_and_search_both_fail_gracefully(self) -> None:
+        """Unhealthy Qdrant returns error in collections; search short-circuits."""
+        from src.ui.dashboard import get_qdrant_collections, search_qdrant
+
+        down_qdrant = MagicMock()
+        down_qdrant.is_healthy.return_value = False
+
+        with patch("src.services.qdrant_client.QdrantVectorClient", return_value=down_qdrant):
+            stats_md, names = get_qdrant_collections()
+
+        assert "❌" in stats_md
+        assert names == []
+
+        # search with empty collection name from step above
+        result = search_qdrant("query", "")
+        assert "⚠️" in result
+
+    def test_langfuse_disabled_returns_warning(self) -> None:
+        """When Langfuse is disabled the report says so clearly."""
+        from src.ui.dashboard import get_langfuse_report
+
+        client = MagicMock()
+        client.enabled = False
+
+        with patch("src.services.langfuse_client.LangfuseClient", return_value=client):
+            result = get_langfuse_report()
+
+        assert "disabled" in result.lower() or "⚠️" in result
+
+    def test_health_exception_does_not_raise(self) -> None:
+        """get_health_report wraps exceptions and returns error markdown."""
+        from src.ui.dashboard import get_health_report
+
+        with patch("src.services.health_check.HealthChecker", side_effect=RuntimeError("chaos")):
+            result = get_health_report()
+
+        assert "❌" in result
+        assert "chaos" in result
+
+    def test_promptfoo_empty_scenarios_returns_info(self) -> None:
+        """No test scenarios returns a string with info (no crash)."""
+        from src.ui.dashboard import get_promptfoo_report
+
+        client = MagicMock()
+        client.get_summary_metrics.return_value = {
+            "total_scenarios": 0, "total_runs": 0, "average_pass_rate": 0.0
+        }
+        client.list_scenarios.return_value = []
+        client.list_runs.return_value = []
+
+        with patch("src.services.promptfoo_client.PromptfooClient", return_value=client):
+            result = get_promptfoo_report()
+
+        assert isinstance(result, str)
+        assert len(result) > 10
+
+
+# ---------------------------------------------------------------------------
+# Workflow: logs tab
+# ---------------------------------------------------------------------------
+
+
+class TestLogsWorkflow:
+    """Verify logs handler works under various filter combinations."""
+
+    def test_all_filter_combination_returns_string(self) -> None:
+        from src.ui.dashboard import get_logs
+
+        result = get_logs(50, "ALL", "ALL")
+        assert isinstance(result, str)
+
+    def test_error_filter_returns_string(self) -> None:
+        from src.ui.dashboard import get_logs
+
+        result = get_logs(100, "ERROR", "ALL")
+        assert isinstance(result, str)
+
+    def test_service_filter_returns_string(self) -> None:
+        from src.ui.dashboard import get_logs
+
+        result = get_logs(25, "INFO", "OLLAMA")
+        assert isinstance(result, str)

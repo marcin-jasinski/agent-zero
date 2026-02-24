@@ -188,6 +188,10 @@ class LangfuseClient:
         if not self.enabled:
             return TraceSummary(time_range=time_range)
         
+        if not self.public_key or not self.secret_key:
+            logger.debug("Langfuse API keys not configured, skipping trace fetch")
+            return TraceSummary(time_range=time_range)
+        
         try:
             # Calculate time range
             now = datetime.utcnow()
@@ -277,6 +281,10 @@ class LangfuseClient:
             List of TraceInfo objects
         """
         if not self.enabled:
+            return []
+        
+        if not self.public_key or not self.secret_key:
+            logger.debug("Langfuse API keys not configured, skipping trace fetch")
             return []
         
         try:

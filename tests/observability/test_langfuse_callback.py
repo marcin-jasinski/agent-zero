@@ -5,7 +5,6 @@ Tests the LangfuseObservability class and its tracking methods.
 
 import pytest
 from unittest.mock import Mock, patch, MagicMock
-from datetime import datetime
 
 from src.observability.langfuse_callback import (
     LangfuseObservability,
@@ -29,7 +28,11 @@ class TestLangfuseObservability:
     @pytest.fixture
     def mock_langfuse_client(self):
         """Mock Langfuse client."""
-        return MagicMock()
+        client = MagicMock()
+        client.auth_check.return_value = True
+        trace = MagicMock()
+        client.trace.return_value = trace
+        return client
 
     @pytest.fixture
     def observability_enabled(self, mock_config, mock_langfuse_client):
@@ -87,14 +90,16 @@ class TestLangfuseObservability:
             retrieval_type="hybrid",
         )
 
-        # Verify score was recorded
-        observability_enabled.client.create_score.assert_called_once_with(
-            name="retrieval_count",
-            value=5,
-            trace_id="conv_123",
-        )
-
-        # Note: Event logging is simplified and logged via logger, not create_event
+        observability_enabled.client.trace.assert_called_once()
+        trace_call = observability_enabled.client.trace.call_args
+        assert trace_call.kwargs["id"] == "conv_123"
+        assert trace_call.kwargs["name"] == "agent-zero-conversation"
+        assert isinstance(trace_call.kwargs["metadata"], dict)
+        trace = observability_enabled.client.trace.return_value
+        trace.span.assert_called_once()
+        call_args = trace.span.call_args
+        assert call_args.kwargs["name"] == "document_retrieval"
+        assert call_args.kwargs["output"]["results_count"] == 5
 
     def test_track_retrieval_when_disabled(self, observability_disabled):
         """Test retrieval tracking is skipped when disabled."""
@@ -107,7 +112,7 @@ class TestLangfuseObservability:
 
     def test_track_retrieval_with_error(self, observability_enabled):
         """Test graceful handling of tracking errors."""
-        observability_enabled.client.create_score.side_effect = Exception("Tracking error")
+        observability_enabled.client.trace.return_value.span.side_effect = Exception("Tracking error")
 
         # Should not raise exception
         observability_enabled.track_retrieval(
@@ -118,9 +123,6 @@ class TestLangfuseObservability:
 
     def test_track_llm_generation_success(self, observability_enabled):
         """Test successful LLM generation tracking."""
-        mock_generation = MagicMock()
-        observability_enabled.client.start_generation.return_value = mock_generation
-
         observability_enabled.track_llm_generation(
             conversation_id="conv_123",
             model="ministral-3:3b",
@@ -130,23 +132,18 @@ class TestLangfuseObservability:
             metadata={"temperature": 0.7, "max_tokens": 512},
         )
 
-        # Verify generation was recorded
-        observability_enabled.client.start_generation.assert_called_once()
-        call_args = observability_enabled.client.start_generation.call_args
-        assert call_args[1]["name"] == "llm_generation"
-        assert call_args[1]["trace_id"] == "conv_123"
-        assert call_args[1]["model"] == "ministral-3:3b"
-        assert "Hello, how are you?" in call_args[1]["input"]
-        assert "I'm doing well" in call_args[1]["output"]
-        mock_generation.end.assert_called_once()
+        trace = observability_enabled.client.trace.return_value
+        trace.generation.assert_called_once()
+        call_args = trace.generation.call_args
+        assert call_args.kwargs["name"] == "llm_generation"
+        assert call_args.kwargs["model"] == "ministral-3:3b"
+        assert "Hello, how are you?" in call_args.kwargs["input"]
+        assert "I'm doing well" in call_args.kwargs["output"]
 
     def test_track_llm_generation_truncates_long_text(self, observability_enabled):
         """Test that long prompts and responses are truncated."""
-        mock_generation = MagicMock()
-        observability_enabled.client.start_generation.return_value = mock_generation
-
-        long_prompt = "A" * 2000
-        long_response = "B" * 2000
+        long_prompt = "A" * 2500
+        long_response = "B" * 2500
 
         observability_enabled.track_llm_generation(
             conversation_id="conv_123",
@@ -156,9 +153,9 @@ class TestLangfuseObservability:
             duration_ms=1500.5,
         )
 
-        call_args = observability_enabled.client.start_generation.call_args
-        assert len(call_args[1]["input"]) == 1000
-        assert len(call_args[1]["output"]) == 1000
+        call_args = observability_enabled.client.trace.return_value.generation.call_args
+        assert len(call_args.kwargs["input"]) == 2000
+        assert len(call_args.kwargs["output"]) == 2000
 
     def test_track_llm_generation_when_disabled(self, observability_disabled):
         """Test LLM generation tracking is skipped when disabled."""
@@ -179,8 +176,10 @@ class TestLangfuseObservability:
             tool_used="retrieve_documents",
             metadata={"confidence": 0.95},
         )
-
-        # Note: Event logging is simplified and logged via logger, not create_event
+        trace = observability_enabled.client.trace.return_value
+        trace.span.assert_called_once()
+        call_args = trace.span.call_args
+        assert call_args.kwargs["name"] == "agent_decision_tool_selection"
 
     def test_track_agent_decision_without_tool(self, observability_enabled):
         """Test agent decision tracking without tool usage."""
@@ -188,8 +187,8 @@ class TestLangfuseObservability:
             conversation_id="conv_123",
             decision_type="rag_response",
         )
-
-        # Note: Event logging is simplified and logged via logger, not create_event
+        call_args = observability_enabled.client.trace.return_value.span.call_args
+        assert call_args.kwargs["input"]["tool"] is None
 
     def test_track_agent_decision_when_disabled(self, observability_disabled):
         """Test agent decision tracking is skipped when disabled."""
@@ -207,11 +206,9 @@ class TestLangfuseObservability:
             reasoning="High similarity with retrieved documents",
         )
 
-        # Verify score was recorded
-        observability_enabled.client.create_score.assert_called_once_with(
+        observability_enabled.client.trace.return_value.score.assert_called_once_with(
             name="answer_confidence",
             value=0.85,
-            trace_id="conv_123",
             comment="High similarity with retrieved documents",
         )
 
@@ -222,8 +219,16 @@ class TestLangfuseObservability:
             confidence=0.75,
         )
 
-        call_args = observability_enabled.client.create_score.call_args
-        assert call_args[1]["comment"] is None
+        call_args = observability_enabled.client.trace.return_value.score.call_args
+        assert call_args.kwargs["comment"] is None
+
+    def test_reuses_trace_for_same_conversation(self, observability_enabled):
+        """Test trace object is cached per conversation id."""
+        observability_enabled.track_retrieval("conv_123", "q1", 1)
+        observability_enabled.track_confidence_score("conv_123", 0.5)
+
+        # Same conversation should create trace once and reuse it
+        observability_enabled.client.trace.assert_called_once()
 
     def test_track_confidence_score_when_disabled(self, observability_disabled):
         """Test confidence score tracking is skipped when disabled."""

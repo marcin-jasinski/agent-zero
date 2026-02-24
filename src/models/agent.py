@@ -9,6 +9,8 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 from enum import Enum
 
+from src.config import get_config
+
 
 class MessageRole(str, Enum):
     """Role of a message in a conversation."""
@@ -79,7 +81,7 @@ class AgentConfig:
         memory_window: Number of previous messages to include in context
     """
 
-    model_name: str = "ministral-3:3b"
+    model_name: str = field(default_factory=lambda: get_config().ollama.model)
     temperature: float = 0.7
     max_tokens: int = 2048
     top_p: float = 0.95

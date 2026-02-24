@@ -49,6 +49,27 @@ class QdrantVectorClient:
             logger.warning(f"Qdrant health check failed: {e}")
             return False
 
+    def has_documents(self, collection_name: str) -> bool:
+        """Return True if the collection exists and contains at least one vector.
+
+        This is a cheap O(1) metadata call — no embedding generation is needed.
+        Use this as a guard before running any retrieval to avoid wasting GPU
+        time generating embeddings against an empty knowledge base.
+
+        Args:
+            collection_name: Name of the collection to check.
+
+        Returns:
+            True if the collection has ≥1 points, False otherwise.
+        """
+        try:
+            info = self.client.get_collection(collection_name)
+            count = info.points_count or 0
+            return count > 0
+        except Exception:
+            # Collection does not exist or Qdrant is unreachable — treat as empty.
+            return False
+
     def create_collection(
         self,
         collection_name: str,

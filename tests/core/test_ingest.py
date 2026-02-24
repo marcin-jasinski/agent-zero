@@ -7,6 +7,7 @@ embedding generation, and indexing operations.
 import pytest
 from unittest.mock import Mock, MagicMock, patch, call
 from pathlib import Path
+import uuid
 
 from src.core.ingest import DocumentIngestor
 from src.models.document import DocumentChunk, IngestionResult
@@ -124,8 +125,10 @@ class TestDocumentIngestor:
     def test_generate_chunk_id(self, ingestor) -> None:
         """Test chunk ID generation."""
         chunk_id = ingestor._generate_chunk_id("document.pdf", 5)
-        assert chunk_id.startswith("document_5_")
-        assert len(chunk_id) > len("document_5_")
+        parsed = uuid.UUID(chunk_id)
+        assert str(parsed) == chunk_id
+        assert ingestor._generate_chunk_id("document.pdf", 5) == chunk_id
+        assert ingestor._generate_chunk_id("document.pdf", 6) != chunk_id
 
     def test_estimate_page(self, ingestor) -> None:
         """Test page number estimation."""
@@ -217,3 +220,31 @@ class TestDocumentIngestor:
         )
         assert not result.success
         assert result.error == "Processing failed"
+
+    @pytest.mark.asyncio
+    async def test_ingest_document_async_pdf_path(self, ingestor, tmp_path) -> None:
+        """Test async ingestion wrapper dispatches PDF files to ingest_pdf."""
+        pdf_path = tmp_path / "sample.pdf"
+        pdf_path.write_bytes(b"%PDF-1.4")
+
+        expected = IngestionResult(success=True, document_id="doc_1", chunks_count=1)
+        ingestor.ingest_pdf = Mock(return_value=expected)
+
+        result = await ingestor.ingest_document_async(str(pdf_path), "sample.pdf")
+
+        assert result.success is True
+        ingestor.ingest_pdf.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_ingest_document_async_text_path(self, ingestor, tmp_path) -> None:
+        """Test async ingestion wrapper dispatches text files to ingest_text."""
+        text_path = tmp_path / "sample.md"
+        text_path.write_text("# Title\n\nBody", encoding="utf-8")
+
+        expected = IngestionResult(success=True, document_id="doc_2", chunks_count=2)
+        ingestor.ingest_text = Mock(return_value=expected)
+
+        result = await ingestor.ingest_document_async(str(text_path), "sample.md")
+
+        assert result.success is True
+        ingestor.ingest_text.assert_called_once()

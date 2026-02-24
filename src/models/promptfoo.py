@@ -19,6 +19,8 @@ class TestStatus(str, Enum):
     FAILED = "failed"
     ERROR = "error"
 
+    __test__ = False
+
 
 class PromptVersion(str, Enum):
     """Prompt version tracking."""
@@ -54,6 +56,7 @@ class TestScenario:
     tags: List[str] = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
+    __test__ = False
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -93,6 +96,7 @@ class TestResult:
     assertion_results: Dict[str, bool] = field(default_factory=dict)
     error_message: Optional[str] = None
     executed_at: datetime = field(default_factory=datetime.now)
+    __test__ = False
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -137,6 +141,7 @@ class TestRun:
     error_tests: int = 0
     average_latency_ms: float = 0.0
     total_tokens: int = 0
+    __test__ = False
     
     def calculate_metrics(self) -> None:
         """Calculate summary metrics from results."""

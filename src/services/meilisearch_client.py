@@ -96,6 +96,10 @@ class MeilisearchClient:
             logger.info(f"Index '{index_uid}' created")
             return True
         except Exception as e:
+            error_msg = str(e).lower()
+            if "already exists" in error_msg or "index_already_exists" in error_msg:
+                logger.info(f"Index '{index_uid}' already exists, skipping creation")
+                return True
             logger.error(f"Failed to create index: {e}")
             return False
 
@@ -177,9 +181,16 @@ class MeilisearchClient:
         try:
             index = self.client.index(index_uid)
             stats = index.get_stats()
+            if isinstance(stats, dict):
+                documents_count = stats.get("numberOfDocuments", stats.get("number_of_documents", 0))
+                is_indexing = stats.get("isIndexing", stats.get("is_indexing", False))
+            else:
+                documents_count = getattr(stats, "number_of_documents", 0)
+                is_indexing = getattr(stats, "is_indexing", False)
+
             return {
-                "documents_count": getattr(stats, "number_of_documents", 0),
-                "is_indexing": getattr(stats, "is_indexing", False),
+                "documents_count": documents_count,
+                "is_indexing": is_indexing,
             }
         except Exception as e:
             logger.error(f"Failed to get index stats: {e}")
@@ -193,7 +204,23 @@ class MeilisearchClient:
         """
         try:
             indexes = self.client.get_indexes()
-            return [idx.uid for idx in indexes.get("results", [])]
+            if isinstance(indexes, dict):
+                results = indexes.get("results", [])
+            elif isinstance(indexes, list):
+                results = indexes
+            else:
+                results = getattr(indexes, "results", [])
+
+            parsed_indexes = []
+            for idx in results:
+                if isinstance(idx, dict):
+                    uid = idx.get("uid")
+                else:
+                    uid = getattr(idx, "uid", None)
+                if uid:
+                    parsed_indexes.append(uid)
+
+            return parsed_indexes
         except Exception as e:
             logger.error(f"Failed to list indexes: {e}")
             return []

@@ -83,20 +83,20 @@ start: _check-docker
 		docker-compose up -d; \
 	fi
 	@echo "🎉 Agent Zero is running!"
-	@echo "📊 Streamlit UI: http://localhost:8501"
+	@echo "📊 Chainlit UI: http://localhost:8501"
 	@echo "🔌 Ollama API: http://localhost:11434"
 
 start-gpu: _check-docker
 	@echo "🚀 Starting Agent Zero with NVIDIA GPU acceleration..."
 	docker-compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 	@echo "✅ Started with GPU support"
-	@echo "📊 Streamlit UI: http://localhost:8501"
+	@echo "📊 Chainlit UI: http://localhost:8501"
 
 start-cpu: _check-docker
 	@echo "🚀 Starting Agent Zero in CPU-only mode..."
 	docker-compose up -d
 	@echo "✅ Started in CPU-only mode"
-	@echo "📊 Streamlit UI: http://localhost:8501"
+	@echo "📊 Chainlit UI: http://localhost:8501"
 
 down:
 	@echo "Stopping Agent Zero..."
